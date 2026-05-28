@@ -36,6 +36,16 @@ def health():
     return {"status": "ok", "environment": settings.environment}
 
 
+@app.get("/")
+def root():
+    return {
+        "service": settings.app_name,
+        "status": "ok",
+        "health": "/health",
+        "docs": "/docs",
+    }
+
+
 app.include_router(pedidos.router, prefix="/api")
 app.include_router(cargas.router, prefix="/api")
 app.include_router(clientes.router, prefix="/api")
