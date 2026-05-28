@@ -59,6 +59,10 @@ def pedido_bate_busca(pedido: Pedido, busca: str) -> bool:
             pedido.detalheFOB,
             pedido.faturamento,
             pedido.tipoEntrega,
+            pedido.pcpPrevisaoProducao,
+            pedido.pcpPrevisaoPronto,
+            pedido.pcpQuantidadeProduzida,
+            pedido.pcpObservacoes,
         ]
     ).lower()
     return termo in texto

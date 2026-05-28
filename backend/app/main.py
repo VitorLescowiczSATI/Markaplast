@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import cargas, clientes, dashboard, fiscal, historico, integracoes, pedidos, produtos
 from app.core.config import get_settings
+from app.db.migrations import ensure_runtime_migrations
 from app.db.session import Base, SessionLocal, engine
 from app import models  # noqa: F401
 from app.services.seed import seed_produtos
@@ -24,6 +25,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
+    ensure_runtime_migrations(engine)
     db = SessionLocal()
     try:
         seed_produtos(db)

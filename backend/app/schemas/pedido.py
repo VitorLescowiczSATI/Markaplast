@@ -21,6 +21,10 @@ class PedidoBase(BaseModel):
     faturamento: str = ""
     tipoEntrega: str = ""
     observacoes: str = ""
+    pcpPrevisaoProducao: str = ""
+    pcpPrevisaoPronto: str = ""
+    pcpQuantidadeProduzida: int = Field(0, ge=0)
+    pcpObservacoes: str = ""
 
 
 class PedidoCreate(PedidoBase):
@@ -45,6 +49,10 @@ class PedidoUpdate(BaseModel):
     faturamento: str | None = None
     tipoEntrega: str | None = None
     observacoes: str | None = None
+    pcpPrevisaoProducao: str | None = None
+    pcpPrevisaoPronto: str | None = None
+    pcpQuantidadeProduzida: int | None = Field(default=None, ge=0)
+    pcpObservacoes: str | None = None
     status: str | None = None
     statusFinanceiro: str | None = None
 

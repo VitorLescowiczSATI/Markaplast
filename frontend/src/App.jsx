@@ -74,6 +74,8 @@ function ResumoCards({ pedidos }) {
 
 function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido }) {
   const total = valorTotalPedido(pedido);
+  const temDetalhePcp =
+    pedido.pcpPrevisaoProducao || pedido.pcpPrevisaoPronto || Number(pedido.pcpQuantidadeProduzida || 0) > 0 || pedido.pcpObservacoes;
 
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -123,6 +125,23 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
             </p>
           )}
           {pedido.observacoes && <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{pedido.observacoes}</p>}
+          {temDetalhePcp && (
+            <div className="rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm text-slate-700">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-sky-800">Detalhes PCP</p>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <p>
+                  Vai produzir: <strong>{pedido.pcpPrevisaoProducao || "-"}</strong>
+                </p>
+                <p>
+                  Pronto: <strong>{pedido.pcpPrevisaoPronto || "-"}</strong>
+                </p>
+                <p>
+                  Produzido: <strong>{Number(pedido.pcpQuantidadeProduzida || 0)} un</strong>
+                </p>
+              </div>
+              {pedido.pcpObservacoes && <p className="mt-2">{pedido.pcpObservacoes}</p>}
+            </div>
+          )}
         </div>
 
         <div className="space-y-3 lg:min-w-64">
@@ -368,7 +387,7 @@ function ComercialLayout({ pedidos, criarPedido, atualizarStatus, excluirPedido,
   );
 }
 
-function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluirPedido, salvando }) {
+function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido, criarCarga, excluirPedido, salvando }) {
   const [busca, setBusca] = useState("");
   const [regiaoCarga, setRegiaoCarga] = useState("");
   const [motoristaCarga, setMotoristaCarga] = useState("");
@@ -379,7 +398,8 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excl
   const statusKanban = ["Novo pedido", "Vai produzir", "Em produção"];
   const termo = busca.toLowerCase();
   const pedidosVisiveis = pedidos.filter((pedido) => {
-    const texto = `${pedido.id} ${pedido.cliente} ${pedido.cidade} ${pedido.produto} ${pedido.cor} ${pedido.tampa} ${pedido.transporte}`.toLowerCase();
+    const texto =
+      `${pedido.id} ${pedido.cliente} ${pedido.cidade} ${pedido.produto} ${pedido.cor} ${pedido.tampa} ${pedido.transporte} ${pedido.pcpPrevisaoProducao} ${pedido.pcpPrevisaoPronto} ${pedido.pcpQuantidadeProduzida} ${pedido.pcpObservacoes}`.toLowerCase();
     return statusKanban.includes(pedido.status) && texto.includes(termo);
   });
   const pedidosDisponiveisParaCarga = pedidos.filter((pedido) => statusKanban.includes(pedido.status));
@@ -414,10 +434,34 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excl
   }
 
   function PedidoCompacto({ pedido }) {
+    const [aberto, setAberto] = useState(false);
+    const [detalhes, setDetalhes] = useState(() => ({
+      pcpPrevisaoProducao: pedido.pcpPrevisaoProducao || "",
+      pcpPrevisaoPronto: pedido.pcpPrevisaoPronto || "",
+      pcpQuantidadeProduzida: String(pedido.pcpQuantidadeProduzida || ""),
+      pcpObservacoes: pedido.pcpObservacoes || "",
+    }));
     const selecionado = pedidosCarga.includes(pedido.id);
+    const quantidadeProduzida = Number(pedido.pcpQuantidadeProduzida || 0);
+    const percentualProduzido = Math.min(100, Math.round((quantidadeProduzida / Number(pedido.quantidade || 1)) * 100));
+    const temDetalhePcp =
+      pedido.pcpPrevisaoProducao || pedido.pcpPrevisaoPronto || quantidadeProduzida > 0 || pedido.pcpObservacoes;
+
+    function atualizarDetalhe(campo, valor) {
+      setDetalhes((prev) => ({ ...prev, [campo]: valor }));
+    }
+
+    async function salvarDetalhesPcp() {
+      const salvo = await atualizarPedido(pedido.id, {
+        ...detalhes,
+        pcpQuantidadeProduzida: Number(detalhes.pcpQuantidadeProduzida || 0),
+      });
+      if (salvo) setAberto(false);
+    }
+
     return (
       <article
-        draggable
+        draggable={!aberto}
         onDragStart={() => setDraggingId(pedido.id)}
         onDragEnd={() => setDraggingId(null)}
         className={`cursor-grab rounded-lg border bg-white p-3 shadow-sm transition active:cursor-grabbing ${
@@ -445,6 +489,71 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excl
             <span className="font-bold text-slate-700">{currency(valorTotalPedido(pedido))}</span>
           </div>
         </div>
+
+        {temDetalhePcp && (
+          <div className="mt-3 space-y-2 rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs text-slate-700">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-bold text-sky-800">PCP</span>
+              <span className="font-semibold">{percentualProduzido}% produzido</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-white">
+              <div className="h-full rounded-full bg-sky-500" style={{ width: `${percentualProduzido}%` }} />
+            </div>
+            {pedido.pcpPrevisaoProducao && (
+              <p>
+                Vai produzir: <strong>{pedido.pcpPrevisaoProducao}</strong>
+              </p>
+            )}
+            {pedido.pcpPrevisaoPronto && (
+              <p>
+                Pronto: <strong>{pedido.pcpPrevisaoPronto}</strong>
+              </p>
+            )}
+            {pedido.pcpObservacoes && <p className="line-clamp-2">{pedido.pcpObservacoes}</p>}
+          </div>
+        )}
+
+        <Button onClick={() => setAberto((valor) => !valor)} className="mt-3 w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+          {aberto ? "Fechar detalhes PCP" : temDetalhePcp ? "Editar detalhes PCP" : "Adicionar detalhes PCP"}
+        </Button>
+
+        {aberto && (
+          <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+            <Field label="Quando vai produzir">
+              <Input
+                value={detalhes.pcpPrevisaoProducao}
+                onChange={(event) => atualizarDetalhe("pcpPrevisaoProducao", event.target.value)}
+                placeholder="Ex: 29/05 pela manha"
+              />
+            </Field>
+            <Field label="Previsao de ficar pronto">
+              <Input
+                value={detalhes.pcpPrevisaoPronto}
+                onChange={(event) => atualizarDetalhe("pcpPrevisaoPronto", event.target.value)}
+                placeholder="Ex: 30/05 ate 16h"
+              />
+            </Field>
+            <Field label="Quantidade produzida">
+              <Input
+                type="number"
+                min="0"
+                value={detalhes.pcpQuantidadeProduzida}
+                onChange={(event) => atualizarDetalhe("pcpQuantidadeProduzida", event.target.value)}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="Observacao PCP">
+              <TextArea
+                value={detalhes.pcpObservacoes}
+                onChange={(event) => atualizarDetalhe("pcpObservacoes", event.target.value)}
+                placeholder="Detalhes de producao, atraso, materia-prima, setup..."
+              />
+            </Field>
+            <Button onClick={salvarDetalhesPcp} disabled={salvando} className="w-full bg-sky-700 text-white hover:bg-sky-800">
+              Salvar detalhes PCP
+            </Button>
+          </div>
+        )}
       </article>
     );
   }
@@ -1103,6 +1212,13 @@ export default function App() {
     });
   }
 
+  async function atualizarPedido(id, payload) {
+    return runAction(async () => {
+      await api.updatePedido(id, payload);
+      await loadData(false);
+    });
+  }
+
   async function atualizarFinanceiro(id, statusFinanceiro) {
     await runAction(async () => {
       await api.updateFinanceiro(id, statusFinanceiro);
@@ -1214,6 +1330,7 @@ export default function App() {
             pedidos={pedidos}
             cargas={cargas}
             atualizarStatus={atualizarStatus}
+            atualizarPedido={atualizarPedido}
             criarCarga={criarCarga}
             excluirPedido={excluirPedido}
             salvando={salvando}
