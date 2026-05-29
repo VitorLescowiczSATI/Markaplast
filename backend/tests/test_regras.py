@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from app.services.regras import calcular_resumo, pode_ver_pedido_por_perfil, valor_total_pedido
+from app.services.regras import calcular_resumo, pode_transicionar_status, pode_ver_pedido_por_perfil, valor_total_pedido
 
 
 def pedido(**kwargs):
@@ -29,6 +29,7 @@ def test_calcular_resumo():
     resumo = calcular_resumo(
         [
             pedido(status="Novo pedido"),
+            pedido(status="Cancelado"),
             pedido(status="Nota emitida", statusFinanceiro="Pago"),
             pedido(status="Nota emitida", statusFinanceiro="Aguardando pagamento"),
         ]
@@ -38,4 +39,12 @@ def test_calcular_resumo():
     assert resumo["notasEmitidas"] == 2
     assert resumo["financeiroPago"] == 1
     assert resumo["financeiroPendente"] == 1
+    assert resumo["cancelados"] == 1
     assert resumo["total"] == 90
+
+
+def test_transicoes_de_status_basicas():
+    assert pode_transicionar_status("Novo pedido", "Pronto para faturar") is True
+    assert pode_transicionar_status("Pronto para faturar", "Nota emitida") is True
+    assert pode_transicionar_status("Nota emitida", "Finalizado") is False
+    assert pode_transicionar_status("Cancelado", "Novo pedido") is False

@@ -26,7 +26,8 @@ def montar_alertas(pedidos: list[Pedido], produtos: list[Produto], cargas: list[
     alertas: list[AlertaRead] = []
     for produto in produtos:
         disponivel = produto.disponivel
-        if disponivel <= int(produto.estoqueMinimo or 0):
+        estoque_minimo = int(produto.estoqueMinimo or 0)
+        if estoque_minimo > 0 and disponivel <= estoque_minimo:
             alertas.append(
                 AlertaRead(
                     tipo="estoque",
@@ -128,7 +129,7 @@ def dashboard(db: Session = Depends(get_db)):
             "estoqueMinimo": produto.estoqueMinimo,
         }
         for produto in produtos
-        if produto.disponivel <= int(produto.estoqueMinimo or 0)
+        if int(produto.estoqueMinimo or 0) > 0 and produto.disponivel <= int(produto.estoqueMinimo or 0)
     ]
 
     return DashboardRead(

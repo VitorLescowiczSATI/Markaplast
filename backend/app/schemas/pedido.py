@@ -96,4 +96,5 @@ class ResumoRead(BaseModel):
     notasEmitidas: int
     financeiroPago: int
     financeiroPendente: int
+    cancelados: int = 0
     total: float

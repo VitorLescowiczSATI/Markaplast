@@ -10,6 +10,9 @@ export function currency(value) {
 }
 
 export function statusColor(status) {
+  if (status === "Cancelado") {
+    return "bg-red-50 text-red-800 border-red-200";
+  }
   if (["Finalizado", "Enviado", "Nota emitida"].includes(status)) {
     return "bg-green-50 text-green-800 border-green-200";
   }
@@ -41,16 +44,18 @@ export function podeVerPedidoPorPerfil(perfil, status) {
 }
 
 export function calcularResumo(pedidos) {
+  const pedidosAtivos = pedidos.filter((p) => p.status !== "Cancelado");
   return {
-    novos: pedidos.filter((p) => p.status === "Novo pedido").length,
-    aguardando: pedidos.filter((p) => p.status === "Aguardando pagamento").length,
-    vaiProduzir: pedidos.filter((p) => p.status === "Vai produzir").length,
-    producao: pedidos.filter((p) => p.status === "Em produção").length,
-    faturar: pedidos.filter((p) => p.status === "Pronto para faturar").length,
-    notasEmitidas: pedidos.filter((p) => p.status === "Nota emitida").length,
-    financeiroPago: pedidos.filter((p) => p.status === "Nota emitida" && p.statusFinanceiro === "Pago").length,
-    financeiroPendente: pedidos.filter((p) => p.status === "Nota emitida" && p.statusFinanceiro !== "Pago").length,
-    total: pedidos.reduce((acc, p) => acc + valorTotalPedido(p), 0),
+    novos: pedidosAtivos.filter((p) => p.status === "Novo pedido").length,
+    aguardando: pedidosAtivos.filter((p) => p.status === "Aguardando pagamento").length,
+    vaiProduzir: pedidosAtivos.filter((p) => p.status === "Vai produzir").length,
+    producao: pedidosAtivos.filter((p) => p.status === "Em produção").length,
+    faturar: pedidosAtivos.filter((p) => p.status === "Pronto para faturar").length,
+    notasEmitidas: pedidosAtivos.filter((p) => p.status === "Nota emitida").length,
+    financeiroPago: pedidosAtivos.filter((p) => p.status === "Nota emitida" && p.statusFinanceiro === "Pago").length,
+    financeiroPendente: pedidosAtivos.filter((p) => p.status === "Nota emitida" && p.statusFinanceiro !== "Pago").length,
+    cancelados: pedidos.filter((p) => p.status === "Cancelado").length,
+    total: pedidosAtivos.reduce((acc, p) => acc + valorTotalPedido(p), 0),
   };
 }
 

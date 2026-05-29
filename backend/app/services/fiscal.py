@@ -49,5 +49,5 @@ async def enviar_focus_nfe(base_url: str, token: str, referencia: str, payload: 
             headers={"accept": "application/json", "content-type": "application/json"},
         )
     if response.status_code not in {200, 201, 202}:
-        raise RuntimeError(response.text)
+        raise RuntimeError(f"Provedor fiscal retornou HTTP {response.status_code}")
     return response.json()

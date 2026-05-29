@@ -37,11 +37,13 @@ describe("regras de pedidos", () => {
     const resumo = calcularResumo([
       { status: "Novo pedido", valor: 1, valorTampa: 1, quantidade: 1 },
       { status: "Nota emitida", statusFinanceiro: "Pago", valor: 10, valorTampa: 0, quantidade: 2 },
+      { status: "Cancelado", valor: 100, valorTampa: 0, quantidade: 1 },
     ]);
 
     expect(resumo.novos).toBe(1);
     expect(resumo.notasEmitidas).toBe(1);
     expect(resumo.financeiroPago).toBe(1);
+    expect(resumo.cancelados).toBe(1);
     expect(resumo.total).toBe(22);
   });
 });

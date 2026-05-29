@@ -290,7 +290,12 @@ export function ClientesLayout({ clientes = [], onRefresh, salvando }) {
               <Field label="CEP">
                 <Input value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} placeholder="00000-000" />
               </Field>
-              <Button onClick={buscarCep} disabled={cepLoading} className="mt-5 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+              <Button
+                onClick={buscarCep}
+                disabled={cepLoading}
+                aria-label="Buscar CEP"
+                className="mt-5 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              >
                 <Search size={16} />
               </Button>
             </div>
@@ -382,7 +387,7 @@ export function EstoqueLayout({ produtos = [], onRefresh }) {
   const [produtoForm, setProdutoForm] = useState(emptyProduto);
   const [produtoId, setProdutoId] = useState("");
   const [movimento, setMovimento] = useState({ tipo: "Entrada", quantidade: "", observacao: "" });
-  const criticos = produtos.filter((produto) => Number(produto.disponivel || 0) <= Number(produto.estoqueMinimo || 0));
+  const criticos = produtos.filter((produto) => Number(produto.estoqueMinimo || 0) > 0 && Number(produto.disponivel || 0) <= Number(produto.estoqueMinimo || 0));
 
   async function criarProduto(event) {
     event.preventDefault();

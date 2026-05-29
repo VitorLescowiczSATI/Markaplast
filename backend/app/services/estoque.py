@@ -19,20 +19,21 @@ def registrar_movimento(
     observacao: str = "",
 ) -> MovimentoEstoque:
     saldo_anterior = int(produto.estoqueAtual or 0)
+    reserva_anterior = int(produto.estoqueReservado or 0)
 
     if tipo == "Entrada":
         produto.estoqueAtual = saldo_anterior + quantidade
     elif tipo == "Saida":
-        produto.estoqueAtual = max(0, saldo_anterior - quantidade)
+        produto.estoqueAtual = saldo_anterior - quantidade
     elif tipo == "Ajuste":
         produto.estoqueAtual = quantidade
     elif tipo == "Reserva":
-        produto.estoqueReservado = int(produto.estoqueReservado or 0) + quantidade
+        produto.estoqueReservado = reserva_anterior + quantidade
     elif tipo == "Liberacao":
-        produto.estoqueReservado = max(0, int(produto.estoqueReservado or 0) - quantidade)
+        produto.estoqueReservado = max(0, reserva_anterior - quantidade)
     elif tipo == "Baixa reserva":
-        produto.estoqueReservado = max(0, int(produto.estoqueReservado or 0) - quantidade)
-        produto.estoqueAtual = max(0, saldo_anterior - quantidade)
+        produto.estoqueReservado = max(0, reserva_anterior - quantidade)
+        produto.estoqueAtual = saldo_anterior - quantidade
 
     movimento = MovimentoEstoque(
         produtoId=produto.id,
@@ -87,3 +88,51 @@ def baixar_reserva_do_pedido(db: Session, pedido) -> None:
         pedido_id=pedido.id,
         observacao=f"Baixa de estoque ao finalizar pedido #{pedido.id}",
     )
+
+
+def recalcular_reserva_do_pedido(
+    db: Session,
+    pedido,
+    produto_anterior: str,
+    quantidade_anterior: int,
+) -> None:
+    produto_novo = pedido.produto
+    quantidade_nova = int(pedido.quantidade or 0)
+
+    if produto_anterior == produto_novo:
+        delta = quantidade_nova - int(quantidade_anterior or 0)
+        produto = get_produto_por_nome(db, produto_novo)
+        if not produto or delta == 0:
+            return
+        if delta > 0:
+            registrar_movimento(
+                db,
+                produto,
+                "Reserva",
+                delta,
+                pedido_id=pedido.id,
+                observacao=f"Ajuste de reserva do pedido #{pedido.id}",
+            )
+        else:
+            registrar_movimento(
+                db,
+                produto,
+                "Liberacao",
+                abs(delta),
+                pedido_id=pedido.id,
+                observacao=f"Reducao de reserva do pedido #{pedido.id}",
+            )
+        return
+
+    produto_antigo = get_produto_por_nome(db, produto_anterior)
+    if produto_antigo:
+        registrar_movimento(
+            db,
+            produto_antigo,
+            "Liberacao",
+            int(quantidade_anterior or 0),
+            pedido_id=pedido.id,
+            observacao=f"Liberacao por troca de produto no pedido #{pedido.id}",
+        )
+
+    reservar_estoque_para_pedido(db, pedido)

@@ -59,6 +59,23 @@ function pedidoFieldsFromCliente(cliente, form) {
   };
 }
 
+function statusOptionsForPedido(statusAtual) {
+  const transicoes = {
+    "Novo pedido": ["Aguardando pagamento", "Pago", "Vai produzir", "Em produção", "Pronto para faturar", "Cancelado"],
+    "Aguardando pagamento": ["Pago", "Vai produzir", "Cancelado"],
+    Pago: ["Vai produzir", "Cancelado"],
+    "Vai produzir": ["Novo pedido", "Em produção", "Pronto para faturar", "Cancelado"],
+    "Em produção": ["Novo pedido", "Vai produzir", "Pronto para faturar", "Cancelado"],
+    "Pronto para faturar": ["Em produção", "Nota emitida", "Cancelado"],
+    "Nota emitida": ["Separado para entrega"],
+    "Separado para entrega": ["Nota emitida", "Enviado"],
+    Enviado: ["Separado para entrega", "Finalizado"],
+    Finalizado: [],
+    Cancelado: [],
+  };
+  return [statusAtual, ...(transicoes[statusAtual] || [])].filter((status, index, lista) => status && lista.indexOf(status) === index);
+}
+
 function perfilIcon(perfil) {
   const props = { size: 18 };
   if (perfil === "Inteligência") return <BarChart3 {...props} />;
@@ -98,7 +115,7 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold">Pedido #{pedido.id}</h3>
-            <IconButton label="Excluir pedido" onClick={() => excluirPedido(pedido.id)}>
+            <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
               <Trash2 size={16} />
             </IconButton>
             <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
@@ -193,25 +210,31 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
               </Button>
             </>
           ) : layout === "faturamento" ? (
-            <Button onClick={() => atualizarStatus(pedido.id, "Nota emitida")} className="w-full bg-green-600 text-white hover:bg-green-700">
+            <Button
+              onClick={() => atualizarStatus(pedido.id, "Nota emitida")}
+              disabled={pedido.status === "Nota emitida"}
+              className="w-full bg-green-600 text-white hover:bg-green-700"
+            >
               <FileText size={16} />
-              Nota fiscal emitida
+              {pedido.status === "Nota emitida" ? "NF já emitida" : "Nota fiscal emitida"}
             </Button>
           ) : layout === "logistica" ? (
             <div className="grid grid-cols-1 gap-2">
-              {["Separado para entrega", "Enviado", "Finalizado"].map((status) => (
-                <Button
-                  key={status}
-                  onClick={() => atualizarStatus(pedido.id, status)}
-                  className={status === "Finalizado" ? "bg-green-600 text-white hover:bg-green-700" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}
-                >
-                  {status}
-                </Button>
-              ))}
+              {statusOptionsForPedido(pedido.status)
+                .filter((status) => ["Separado para entrega", "Enviado", "Finalizado"].includes(status))
+                .map((status) => (
+                  <Button
+                    key={status}
+                    onClick={() => atualizarStatus(pedido.id, status)}
+                    className={status === "Finalizado" ? "bg-green-600 text-white hover:bg-green-700" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}
+                  >
+                    {status}
+                  </Button>
+                ))}
             </div>
           ) : (
             <SelectBox value={pedido.status} onChange={(status) => atualizarStatus(pedido.id, status)}>
-              {statusList.map((status) => (
+              {statusOptionsForPedido(pedido.status).map((status) => (
                 <option key={status} value={status}>
                   {status}
                 </option>
@@ -541,7 +564,7 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
             aria-label="Selecionar para carga"
           />
           <p className="flex-1 text-sm font-bold">#{pedido.id}</p>
-          <IconButton label="Excluir pedido" onClick={() => excluirPedido(pedido.id)}>
+          <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
             <Trash2 size={15} />
           </IconButton>
         </div>
@@ -830,7 +853,7 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
               </div>
               <div className="space-y-2">
                 {items.length === 0 && <EmptyState>Nenhum pedido aqui.</EmptyState>}
-                {items.slice(0, 5).map((pedido) => (
+                {items.map((pedido) => (
                   <div key={pedido.id} className="rounded-lg border border-slate-200 p-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <strong>#{pedido.id}</strong>
@@ -1292,7 +1315,7 @@ export default function App() {
   }
 
   async function excluirPedido(id) {
-    if (!window.confirm("Deseja realmente excluir este pedido?")) return;
+    if (!window.confirm("Deseja cancelar este pedido? O histórico será mantido e a reserva de estoque será liberada.")) return;
     await runAction(async () => {
       await api.deletePedido(id);
       await loadData(false);

@@ -9,6 +9,7 @@ from app.models.pedido import Pedido
 from app.schemas.fiscal import NotaFiscalRead, NotaFiscalUpdate
 from app.services.fiscal import enviar_focus_nfe, montar_payload_nfe
 from app.services.historico import registrar_historico
+from app.services.regras import pode_transicionar_status
 
 router = APIRouter(prefix="/fiscal", tags=["fiscal"])
 
@@ -66,6 +67,8 @@ def marcar_emitida(nota_id: int, db: Session = Depends(get_db)):
     pedido = db.get(Pedido, nota.pedidoId)
     nota.status = "Emitida manualmente"
     if pedido and pedido.status != "Nota emitida":
+        if not pode_transicionar_status(pedido.status, "Nota emitida"):
+            raise HTTPException(status_code=400, detail=f"Pedido em etapa invalida para emissao: {pedido.status}")
         anterior = pedido.status
         pedido.status = "Nota emitida"
         registrar_historico(db, pedido.id, "Status", anterior, pedido.status, observacao="Nota marcada como emitida no modulo fiscal.")

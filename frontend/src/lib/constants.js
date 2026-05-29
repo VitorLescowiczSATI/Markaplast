@@ -11,6 +11,7 @@ export const statusList = [
   "Separado para entrega",
   "Enviado",
   "Finalizado",
+  "Cancelado",
 ];
 
 export const financeiroStatusList = ["Aguardando pagamento", "Pago"];

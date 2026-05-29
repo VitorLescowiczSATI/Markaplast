@@ -6,6 +6,8 @@ from app.db.session import get_db
 from app.models.carga import Carga
 from app.models.pedido import Pedido
 from app.schemas.carga import CargaCreate, CargaRead
+from app.services.historico import registrar_historico
+from app.services.regras import pode_transicionar_status
 
 router = APIRouter(prefix="/cargas", tags=["cargas"])
 
@@ -24,6 +26,12 @@ def criar_carga(payload: CargaCreate, db: Session = Depends(get_db)):
     if faltantes:
         raise HTTPException(status_code=404, detail=f"Pedidos não encontrados: {faltantes}")
 
+    if payload.statusDestino not in {"Pronto para faturar", "Separado para entrega"}:
+        raise HTTPException(status_code=400, detail="Destino de carga invalido")
+    invalidos = [pedido.id for pedido in pedidos if not pode_transicionar_status(pedido.status, payload.statusDestino)]
+    if invalidos:
+        raise HTTPException(status_code=400, detail=f"Pedidos com etapa invalida para esta carga: {invalidos}")
+
     carga = Carga(
         regiao=payload.regiao,
         motorista=payload.motorista,
@@ -32,7 +40,10 @@ def criar_carga(payload: CargaCreate, db: Session = Depends(get_db)):
         pedidos=list(pedidos),
     )
     for pedido in pedidos:
+        status_anterior = pedido.status
         pedido.status = payload.statusDestino
+        if status_anterior != pedido.status:
+            registrar_historico(db, pedido.id, "Status", status_anterior, pedido.status, observacao=f"Pedido vinculado a carga {payload.regiao}.")
 
     db.add(carga)
     db.commit()

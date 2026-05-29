@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.api import cargas, clientes, dashboard, fiscal, historico, integracoes, pedidos, produtos
 from app.core.config import get_settings
@@ -35,7 +36,12 @@ def startup():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "environment": settings.environment}
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="database_unavailable") from exc
+    return {"status": "ok", "environment": settings.environment, "database": "ok"}
 
 
 @app.get("/")
