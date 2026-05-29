@@ -32,6 +32,7 @@ export const api = {
   listClientes: () => request("/api/clientes"),
   createCliente: (payload) => request("/api/clientes", { method: "POST", body: JSON.stringify(payload) }),
   updateCliente: (id, payload) => request(`/api/clientes/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteCliente: (id) => request(`/api/clientes/${id}`, { method: "DELETE" }),
   lookupCep: (cep) => request(`/api/integracoes/cep/${encodeURIComponent(cep)}`),
   listProdutos: () => request("/api/produtos"),
   createProduto: (payload) => request("/api/produtos", { method: "POST", body: JSON.stringify(payload) }),

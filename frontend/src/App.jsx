@@ -44,6 +44,21 @@ function payloadFromForm(form) {
   };
 }
 
+function pedidoFieldsFromCliente(cliente, form) {
+  return {
+    ...form,
+    cliente: cliente.nome || "",
+    cnpj: cliente.cnpj || "",
+    cep: cliente.cep || "",
+    logradouro: cliente.logradouro || "",
+    numero: cliente.numero || "",
+    bairro: cliente.bairro || "",
+    cidade: cliente.cidade || "",
+    uf: cliente.uf || "",
+    pagamento: cliente.condicaoPagamento || form.pagamento,
+  };
+}
+
 function perfilIcon(perfil) {
   const props = { size: 18 };
   if (perfil === "Inteligência") return <BarChart3 {...props} />;
@@ -95,6 +110,17 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
           <p className="text-sm text-slate-700">
             <strong>{pedido.cliente}</strong> - {pedido.cidade || "cidade não informada"}
           </p>
+          {(pedido.logradouro || pedido.cep || pedido.uf || pedido.cnpj) && (
+            <p className="text-sm text-slate-600">
+              {pedido.cnpj && (
+                <span>
+                  CNPJ: <strong>{pedido.cnpj}</strong> -{" "}
+                </span>
+              )}
+              {pedido.logradouro || "Endereco nao informado"} {pedido.numero} {pedido.bairro ? `- ${pedido.bairro}` : ""}
+              {pedido.cep ? ` - CEP ${pedido.cep}` : ""} {pedido.uf ? `- ${pedido.uf}` : ""}
+            </p>
+          )}
           <p className="text-sm text-slate-600">
             {pedido.produto} - {pedido.cor || "cor não informada"} - <strong>{pedido.quantidade} un</strong>
           </p>
@@ -198,15 +224,24 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
   );
 }
 
-function ComercialLayout({ pedidos, criarPedido, atualizarStatus, excluirPedido, salvando }) {
+function ComercialLayout({ pedidos, clientes = [], criarPedido, atualizarStatus, excluirPedido, salvando }) {
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
   const [vendedorFiltro, setVendedorFiltro] = useState("Todos");
+  const [clienteSelecionadoId, setClienteSelecionadoId] = useState("");
   const [form, setForm] = useState(emptyForm);
+  const clientesOrdenados = useMemo(() => [...clientes].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""))), [clientes]);
   const pedidosFiltrados = useMemo(
     () => filtrarPedidos(pedidos, busca, statusFiltro, vendedorFiltro, "Comercial"),
     [pedidos, busca, statusFiltro, vendedorFiltro]
   );
+
+  function selecionarCliente(clienteId) {
+    setClienteSelecionadoId(clienteId);
+    if (!clienteId) return;
+    const cliente = clientes.find((item) => String(item.id) === String(clienteId));
+    if (cliente) setForm((atual) => pedidoFieldsFromCliente(cliente, atual));
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -215,7 +250,10 @@ function ComercialLayout({ pedidos, criarPedido, atualizarStatus, excluirPedido,
       return;
     }
     const salvo = await criarPedido(payloadFromForm(form));
-    if (salvo) setForm(emptyForm);
+    if (salvo) {
+      setForm(emptyForm);
+      setClienteSelecionadoId("");
+    }
   }
 
   return (
@@ -230,6 +268,16 @@ function ComercialLayout({ pedidos, criarPedido, atualizarStatus, excluirPedido,
           </div>
 
           <form onSubmit={submit} className="space-y-3">
+            <Field label="Cliente cadastrado">
+              <SelectBox value={clienteSelecionadoId} onChange={selecionarCliente}>
+                <option value="">Preencher manualmente</option>
+                {clientesOrdenados.map((cliente) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nome} {cliente.cnpj ? `- ${cliente.cnpj}` : ""}
+                  </option>
+                ))}
+              </SelectBox>
+            </Field>
             <Field label="Cliente">
               <Input value={form.cliente} onChange={(e) => setForm({ ...form, cliente: e.target.value })} placeholder="Nome da empresa" />
             </Field>
@@ -237,10 +285,27 @@ function ComercialLayout({ pedidos, criarPedido, atualizarStatus, excluirPedido,
               <Field label="CNPJ">
                 <Input value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0001-00" />
               </Field>
-              <Field label="Cidade/Estado">
-                <Input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} placeholder="Curitiba/PR" />
+              <Field label="CEP">
+                <Input value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} placeholder="00000-000" />
               </Field>
             </div>
+            <Field label="Endereco">
+              <Input value={form.logradouro} onChange={(e) => setForm({ ...form, logradouro: e.target.value })} placeholder="Rua / avenida" />
+            </Field>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <Field label="Numero">
+                <Input value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} />
+              </Field>
+              <Field label="Bairro">
+                <Input value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} />
+              </Field>
+              <Field label="UF">
+                <Input value={form.uf} onChange={(e) => setForm({ ...form, uf: e.target.value.toUpperCase() })} maxLength={2} />
+              </Field>
+            </div>
+            <Field label="Cidade">
+              <Input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} placeholder="Curitiba" />
+            </Field>
             <Field label="Produto">
               <SelectBox value={form.produto} onChange={(produto) => setForm({ ...form, produto })}>
                 <option value="">Selecione</option>
@@ -395,7 +460,7 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
   const [pedidosCarga, setPedidosCarga] = useState([]);
   const [draggingId, setDraggingId] = useState(null);
   const resumo = useMemo(() => calcularResumo(pedidos), [pedidos]);
-  const statusKanban = ["Novo pedido", "Vai produzir", "Em produção"];
+  const statusKanban = ["Novo pedido", "Vai produzir", "Em produção", "Pronto para faturar"];
   const termo = busca.toLowerCase();
   const pedidosVisiveis = pedidos.filter((pedido) => {
     const texto =
@@ -1361,6 +1426,7 @@ export default function App() {
         ) : (
           <ComercialLayout
             pedidos={pedidos}
+            clientes={clientes}
             criarPedido={criarPedido}
             atualizarStatus={atualizarStatus}
             excluirPedido={excluirPedido}

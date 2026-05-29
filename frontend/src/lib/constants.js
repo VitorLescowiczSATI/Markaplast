@@ -45,7 +45,12 @@ export const tiposFrete = ["CIF", "FOB"];
 export const emptyForm = {
   cliente: "",
   cnpj: "",
+  cep: "",
+  logradouro: "",
+  numero: "",
+  bairro: "",
   cidade: "",
+  uf: "",
   produto: "",
   tampa: "",
   cor: "",

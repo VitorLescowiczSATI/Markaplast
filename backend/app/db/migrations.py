@@ -3,6 +3,11 @@ from sqlalchemy.engine import Engine
 
 
 PEDIDOS_COLUMNS = {
+    "cep": "VARCHAR(16) NOT NULL DEFAULT ''",
+    "logradouro": "VARCHAR(180) NOT NULL DEFAULT ''",
+    "numero": "VARCHAR(32) NOT NULL DEFAULT ''",
+    "bairro": "VARCHAR(120) NOT NULL DEFAULT ''",
+    "uf": "VARCHAR(2) NOT NULL DEFAULT ''",
     "pcp_previsao_producao": "VARCHAR(120) NOT NULL DEFAULT ''",
     "pcp_previsao_pronto": "VARCHAR(120) NOT NULL DEFAULT ''",
     "pcp_quantidade_produzida": "INTEGER NOT NULL DEFAULT 0",

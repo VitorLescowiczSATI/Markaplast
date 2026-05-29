@@ -28,7 +28,12 @@ def upsert_cliente_do_pedido(db: Session, payload) -> Cliente | None:
 
     cliente.nome = nome
     cliente.cnpj = cnpj or cliente.cnpj
+    cliente.cep = getattr(payload, "cep", "") or cliente.cep
+    cliente.logradouro = getattr(payload, "logradouro", "") or cliente.logradouro
+    cliente.numero = getattr(payload, "numero", "") or cliente.numero
+    cliente.bairro = getattr(payload, "bairro", "") or cliente.bairro
     cliente.cidade = getattr(payload, "cidade", "") or cliente.cidade
+    cliente.uf = getattr(payload, "uf", "") or cliente.uf
     cliente.condicaoPagamento = getattr(payload, "pagamento", "") or cliente.condicaoPagamento
     return cliente
 

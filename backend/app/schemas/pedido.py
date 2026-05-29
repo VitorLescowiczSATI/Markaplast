@@ -6,7 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 class PedidoBase(BaseModel):
     cliente: str = Field(..., min_length=1, max_length=180)
     cnpj: str = ""
+    cep: str = ""
+    logradouro: str = ""
+    numero: str = ""
+    bairro: str = ""
     cidade: str = ""
+    uf: str = ""
     produto: str = Field(..., min_length=1, max_length=120)
     tampa: str = ""
     cor: str = ""
@@ -34,7 +39,12 @@ class PedidoCreate(PedidoBase):
 class PedidoUpdate(BaseModel):
     cliente: str | None = None
     cnpj: str | None = None
+    cep: str | None = None
+    logradouro: str | None = None
+    numero: str | None = None
+    bairro: str | None = None
     cidade: str | None = None
+    uf: str | None = None
     produto: str | None = None
     tampa: str | None = None
     cor: str | None = None

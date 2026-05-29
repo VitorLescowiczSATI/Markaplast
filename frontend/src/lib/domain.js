@@ -56,7 +56,7 @@ export function calcularResumo(pedidos) {
 
 export function filtrarPedidos(pedidos, busca, statusFiltro, vendedorFiltro, perfil, financeiroFiltro = "Todos") {
   return pedidos.filter((p) => {
-    const textoBusca = `${p.id} ${p.cliente} ${p.cnpj} ${p.cidade} ${p.produto} ${p.tampa} ${p.cor} ${p.status} ${p.pagamento} ${p.statusFinanceiro} ${p.transporte} ${p.tipoFrete} ${p.detalheFOB} ${p.faturamento} ${p.tipoEntrega} ${p.pcpPrevisaoProducao} ${p.pcpPrevisaoPronto} ${p.pcpQuantidadeProduzida} ${p.pcpObservacoes}`.toLowerCase();
+    const textoBusca = `${p.id} ${p.cliente} ${p.cnpj} ${p.cep} ${p.logradouro} ${p.numero} ${p.bairro} ${p.cidade} ${p.uf} ${p.produto} ${p.tampa} ${p.cor} ${p.status} ${p.pagamento} ${p.statusFinanceiro} ${p.transporte} ${p.tipoFrete} ${p.detalheFOB} ${p.faturamento} ${p.tipoEntrega} ${p.pcpPrevisaoProducao} ${p.pcpPrevisaoPronto} ${p.pcpQuantidadeProduzida} ${p.pcpObservacoes}`.toLowerCase();
     const matchBusca = textoBusca.includes(String(busca || "").toLowerCase());
     const matchStatus = statusFiltro === "Todos" || p.status === statusFiltro;
     const matchVendedor = vendedorFiltro === "Todos" || p.vendedor === vendedorFiltro;

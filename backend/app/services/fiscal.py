@@ -12,7 +12,12 @@ def montar_payload_nfe(pedido: Pedido) -> dict:
         "cliente": {
             "nome": pedido.cliente,
             "cnpj": pedido.cnpj,
+            "cep": pedido.cep,
+            "logradouro": pedido.logradouro,
+            "numero": pedido.numero,
+            "bairro": pedido.bairro,
             "cidade": pedido.cidade,
+            "uf": pedido.uf,
         },
         "itens": [
             {

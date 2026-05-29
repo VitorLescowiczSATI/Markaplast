@@ -22,12 +22,14 @@ describe("regras de pedidos", () => {
         transporte: "CIF",
         faturamento: "NF Markaplast",
         vendedor: "Arthur",
+        logradouro: "Rua Industrial",
         pcpObservacoes: "setup da injetora confirmado",
       },
     ];
 
     expect(filtrarPedidos(pedidos, "dosadora", "Todos", "Todos", "Gestor")).toHaveLength(1);
     expect(filtrarPedidos(pedidos, "", "Todos", "Arthur", "Gestor")).toHaveLength(1);
+    expect(filtrarPedidos(pedidos, "Industrial", "Todos", "Todos", "Gestor")).toHaveLength(1);
     expect(filtrarPedidos(pedidos, "injetora", "Todos", "Todos", "Gestor")).toHaveLength(1);
   });
 

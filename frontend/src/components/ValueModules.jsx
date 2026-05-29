@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, FileText, PackagePlus, Search, Users, Warehouse } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, FileText, PackagePlus, Pencil, Search, Trash2, Users, Warehouse, X } from "lucide-react";
 
 import { Badge, Button, Card, EmptyState, Field, Input, SelectBox, StatCard, TextArea } from "./ui.jsx";
 import { api } from "../lib/api.js";
@@ -179,6 +179,7 @@ export function InteligenciaLayout({ dashboard, historico = [], produtos = [] })
 
 export function ClientesLayout({ clientes = [], onRefresh, salvando }) {
   const [form, setForm] = useState(emptyCliente);
+  const [editandoId, setEditandoId] = useState(null);
   const [busca, setBusca] = useState("");
   const [cepLoading, setCepLoading] = useState(false);
   const filtrados = clientes.filter((cliente) => `${cliente.nome} ${cliente.cnpj} ${cliente.cidade}`.toLowerCase().includes(busca.toLowerCase()));
@@ -207,8 +208,44 @@ export function ClientesLayout({ clientes = [], onRefresh, salvando }) {
       window.alert("Informe o nome do cliente.");
       return;
     }
-    await api.createCliente(form);
+    if (editandoId) {
+      await api.updateCliente(editandoId, form);
+    } else {
+      await api.createCliente(form);
+    }
     setForm(emptyCliente);
+    setEditandoId(null);
+    await onRefresh();
+  }
+
+  function editarCliente(cliente) {
+    setEditandoId(cliente.id);
+    setForm({
+      nome: cliente.nome || "",
+      cnpj: cliente.cnpj || "",
+      contato: cliente.contato || "",
+      telefone: cliente.telefone || "",
+      email: cliente.email || "",
+      cep: cliente.cep || "",
+      logradouro: cliente.logradouro || "",
+      numero: cliente.numero || "",
+      bairro: cliente.bairro || "",
+      cidade: cliente.cidade || "",
+      uf: cliente.uf || "",
+      condicaoPagamento: cliente.condicaoPagamento || "",
+      observacoes: cliente.observacoes || "",
+    });
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setForm(emptyCliente);
+  }
+
+  async function excluirCliente(cliente) {
+    if (!window.confirm(`Deseja excluir o cliente ${cliente.nome}?`)) return;
+    await api.deleteCliente(cliente.id);
+    if (editandoId === cliente.id) cancelarEdicao();
     await onRefresh();
   }
 
@@ -224,7 +261,7 @@ export function ClientesLayout({ clientes = [], onRefresh, salvando }) {
         <Card className="p-5">
           <div className="mb-5 flex items-center gap-2">
             <Users size={20} className="text-teal-700" />
-            <h2 className="text-xl font-bold">Cadastro de cliente</h2>
+            <h2 className="text-xl font-bold">{editandoId ? "Editar cliente" : "Cadastro de cliente"}</h2>
           </div>
           <form onSubmit={submit} className="space-y-3">
             <Field label="Nome / razão social">
@@ -278,8 +315,14 @@ export function ClientesLayout({ clientes = [], onRefresh, salvando }) {
               <TextArea value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
             </Field>
             <Button type="submit" disabled={salvando} className="w-full bg-teal-700 text-white hover:bg-teal-800">
-              Salvar cliente
+              {editandoId ? "Atualizar cliente" : "Salvar cliente"}
             </Button>
+            {editandoId && (
+              <Button onClick={cancelarEdicao} className="w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+                <X size={16} />
+                Cancelar edicao
+              </Button>
+            )}
           </form>
         </Card>
 
@@ -297,7 +340,27 @@ export function ClientesLayout({ clientes = [], onRefresh, salvando }) {
                     <h3 className="truncate font-bold">{cliente.nome}</h3>
                     <p className="text-sm text-slate-500">{cliente.cnpj || "CNPJ não informado"}</p>
                   </div>
-                  <Badge className="border-teal-200 bg-teal-50 text-teal-800">{cliente.uf || "--"}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className="border-teal-200 bg-teal-50 text-teal-800">{cliente.uf || "--"}</Badge>
+                    <button
+                      type="button"
+                      onClick={() => editarCliente(cliente)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700"
+                      title="Editar cliente"
+                      aria-label="Editar cliente"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => excluirCliente(cliente)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                      title="Excluir cliente"
+                      aria-label="Excluir cliente"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-3 text-sm text-slate-700">
                   {cliente.logradouro || "Endereço não informado"} {cliente.numero} - {cliente.bairro}
