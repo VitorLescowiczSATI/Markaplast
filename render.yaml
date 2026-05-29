@@ -23,7 +23,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: CORS_ORIGINS
-        value: https://giras-web.onrender.com
+        value: https://giras-web.onrender.com,https://sistemainterno.markaplast.com.br
       - key: FISCAL_EMIT_ENABLED
         value: false
       - key: FOCUS_NFE_BASE_URL

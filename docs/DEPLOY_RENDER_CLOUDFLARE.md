@@ -61,7 +61,7 @@ VITE_API_URL=https://api.seudominio.com.br
 No `giras-api`:
 
 ```env
-CORS_ORIGINS=https://app.seudominio.com.br
+CORS_ORIGINS=https://app.seudominio.com.br,https://sistemainterno.markaplast.com.br
 DATABASE_URL=<preenchido automaticamente pelo Render>
 ENVIRONMENT=production
 FISCAL_EMIT_ENABLED=false
