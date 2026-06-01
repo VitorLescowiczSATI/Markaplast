@@ -487,7 +487,7 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
   const termo = busca.toLowerCase();
   const pedidosVisiveis = pedidos.filter((pedido) => {
     const texto =
-      `${pedido.id} ${pedido.cliente} ${pedido.cidade} ${pedido.produto} ${pedido.cor} ${pedido.tampa} ${pedido.transporte} ${pedido.pcpPrevisaoProducao} ${pedido.pcpPrevisaoPronto} ${pedido.pcpQuantidadeProduzida} ${pedido.pcpObservacoes}`.toLowerCase();
+      `${pedido.id} ${pedido.cliente} ${pedido.cnpj} ${pedido.cep} ${pedido.logradouro} ${pedido.numero} ${pedido.bairro} ${pedido.cidade} ${pedido.uf} ${pedido.produto} ${pedido.cor} ${pedido.tampa} ${pedido.transporte} ${pedido.tipoFrete} ${pedido.detalheFOB} ${pedido.faturamento} ${pedido.tipoEntrega} ${pedido.vendedor} ${pedido.pagamento} ${pedido.pcpPrevisaoProducao} ${pedido.pcpPrevisaoPronto} ${pedido.pcpQuantidadeProduzida} ${pedido.pcpObservacoes}`.toLowerCase();
     return statusKanban.includes(pedido.status) && texto.includes(termo);
   });
   const pedidosDisponiveisParaCarga = pedidos.filter((pedido) => statusKanban.includes(pedido.status));
@@ -521,7 +521,7 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
     setPlacaCarga("");
   }
 
-  function PedidoCompacto({ pedido }) {
+  function PedidoPcpCard({ pedido }) {
     const [aberto, setAberto] = useState(false);
     const [detalhes, setDetalhes] = useState(() => ({
       pcpPrevisaoProducao: pedido.pcpPrevisaoProducao || "",
@@ -530,6 +530,7 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
       pcpObservacoes: pedido.pcpObservacoes || "",
     }));
     const selecionado = pedidosCarga.includes(pedido.id);
+    const total = valorTotalPedido(pedido);
     const quantidadeProduzida = Number(pedido.pcpQuantidadeProduzida || 0);
     const percentualProduzido = Math.min(100, Math.round((quantidadeProduzida / Number(pedido.quantidade || 1)) * 100));
     const temDetalhePcp =
@@ -568,15 +569,85 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
             <Trash2 size={15} />
           </IconButton>
         </div>
-        <p className="truncate text-sm font-semibold text-slate-800">{pedido.cliente || "Cliente não informado"}</p>
-        <p className="truncate text-xs text-slate-500">{pedido.cidade || "Cidade não informada"}</p>
-        <div className="mt-2 rounded-lg bg-slate-50 px-2 py-2">
-          <p className="truncate text-xs font-medium text-slate-700">{pedido.produto}</p>
-          <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
-            <span>{pedido.quantidade || 0} un</span>
-            <span className="font-bold text-slate-700">{currency(valorTotalPedido(pedido))}</span>
+
+        <div className="space-y-1">
+          <p className="break-words text-sm font-bold text-slate-900">{pedido.cliente || "Cliente não informado"}</p>
+          <p className="break-words text-xs font-medium text-slate-600">
+            {pedido.cidade || "Cidade não informada"} {pedido.uf ? `- ${pedido.uf}` : ""}
+          </p>
+          {pedido.cnpj && (
+            <p className="break-words text-xs text-slate-500">
+              CNPJ: <strong>{pedido.cnpj}</strong>
+            </p>
+          )}
+          {(pedido.logradouro || pedido.cep || pedido.bairro) && (
+            <p className="break-words text-xs text-slate-500">
+              {pedido.logradouro || "Endereço não informado"} {pedido.numero}
+              {pedido.bairro ? ` - ${pedido.bairro}` : ""}
+              {pedido.cep ? ` - CEP ${pedido.cep}` : ""}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-3 rounded-lg bg-slate-50 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="break-words text-sm font-bold text-slate-800">{pedido.produto || "Produto não informado"}</p>
+              <p className="break-words text-xs text-slate-500">
+                Cor: <strong>{pedido.cor || "não informada"}</strong> - Quantidade: <strong>{pedido.quantidade || 0} un</strong>
+              </p>
+              {pedido.tampa && (
+                <p className="break-words text-xs text-slate-500">
+                  Tampa: <strong>{pedido.tampa}</strong>
+                </p>
+              )}
+            </div>
+            <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
           </div>
         </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-2">
+          <div className="rounded-lg border border-slate-100 bg-white p-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Frete</p>
+            <p className="break-words font-semibold text-slate-800">{pedido.tipoFrete || "Não informado"}</p>
+          </div>
+          <div className="rounded-lg border border-slate-100 bg-white p-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Transporte</p>
+            <p className="break-words font-semibold text-slate-800">{pedido.transporte || "Não informado"}</p>
+          </div>
+          <div className="rounded-lg border border-slate-100 bg-white p-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Faturamento</p>
+            <p className="break-words font-semibold text-slate-800">{pedido.faturamento || "Não informado"}</p>
+          </div>
+          <div className="rounded-lg border border-slate-100 bg-white p-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Entrega</p>
+            <p className="break-words font-semibold text-slate-800">{pedido.tipoEntrega || "Não definido"}</p>
+          </div>
+          <div className="rounded-lg border border-slate-100 bg-white p-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Vendedor</p>
+            <p className="break-words font-semibold text-slate-800">{pedido.vendedor || "Não informado"}</p>
+          </div>
+          <div className="rounded-lg border border-slate-100 bg-white p-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pagamento</p>
+            <p className="break-words font-semibold text-slate-800">{pedido.pagamento || "Não informado"}</p>
+          </div>
+        </div>
+
+        {pedido.tipoFrete === "FOB" && pedido.detalheFOB && (
+          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
+            FOB: <strong>{pedido.detalheFOB}</strong>
+          </p>
+        )}
+
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Valor do pedido</p>
+          <p className="text-lg font-bold text-slate-900">{currency(total)}</p>
+          <p className="text-xs text-slate-500">
+            Embalagem {currency(pedido.valor)} + tampa {currency(pedido.valorTampa)}
+          </p>
+        </div>
+
+        {pedido.observacoes && <p className="mt-3 break-words rounded-lg bg-slate-50 p-3 text-xs text-slate-700">{pedido.observacoes}</p>}
 
         {temDetalhePcp && (
           <div className="mt-3 space-y-2 rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs text-slate-700">
@@ -597,7 +668,7 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
                 Pronto: <strong>{pedido.pcpPrevisaoPronto}</strong>
               </p>
             )}
-            {pedido.pcpObservacoes && <p className="line-clamp-2">{pedido.pcpObservacoes}</p>}
+            {pedido.pcpObservacoes && <p className="break-words">{pedido.pcpObservacoes}</p>}
           </div>
         )}
 
@@ -671,7 +742,7 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
           return (
             <Card
               key={status}
-              className="min-h-[520px] min-w-[320px] max-w-[320px] flex-shrink-0 p-4"
+              className="min-h-[620px] min-w-[420px] max-w-[420px] flex-shrink-0 p-4"
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => handleDrop(status)}
             >
@@ -679,10 +750,10 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
                 <h3 className="text-lg font-bold">{status === "Novo pedido" ? "Novos pedidos" : status}</h3>
                 <Badge className={statusColor(status)}>{pedidosColuna.length}</Badge>
               </div>
-              <div className="max-h-[430px] space-y-2 overflow-y-auto pr-1">
+              <div className="max-h-[540px] space-y-3 overflow-y-auto pr-1">
                 {pedidosColuna.length === 0 && <EmptyState>Solte pedidos aqui.</EmptyState>}
                 {pedidosColuna.map((pedido) => (
-                  <PedidoCompacto key={pedido.id} pedido={pedido} />
+                  <PedidoPcpCard key={pedido.id} pedido={pedido} />
                 ))}
               </div>
             </Card>
