@@ -33,6 +33,7 @@ class ProdutoUpdate(BaseModel):
 
 class ProdutoRead(ProdutoBase):
     id: int
+    estoqueAtual: int
     disponivel: int
     createdAt: datetime
     updatedAt: datetime
