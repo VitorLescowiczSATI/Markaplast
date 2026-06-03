@@ -67,7 +67,7 @@ function statusOptionsForPedido(statusAtual) {
     "Vai produzir": ["Novo pedido", "Em produção", "Pronto para faturar", "Cancelado"],
     "Em produção": ["Novo pedido", "Vai produzir", "Pronto para faturar", "Cancelado"],
     "Pronto para faturar": ["Em produção", "Nota emitida", "Cancelado"],
-    "Nota emitida": ["Separado para entrega"],
+    "Nota emitida": ["Pronto para faturar", "Separado para entrega"],
     "Separado para entrega": ["Nota emitida", "Enviado"],
     Enviado: ["Separado para entrega", "Finalizado"],
     Finalizado: [],

@@ -46,5 +46,6 @@ def test_calcular_resumo():
 def test_transicoes_de_status_basicas():
     assert pode_transicionar_status("Novo pedido", "Pronto para faturar") is True
     assert pode_transicionar_status("Pronto para faturar", "Nota emitida") is True
+    assert pode_transicionar_status("Nota emitida", "Pronto para faturar") is True
     assert pode_transicionar_status("Nota emitida", "Finalizado") is False
     assert pode_transicionar_status("Cancelado", "Novo pedido") is False

@@ -33,7 +33,7 @@ STATUS_TRANSICOES = {
     "Vai produzir": {"Novo pedido", "Em produção", "Pronto para faturar", STATUS_CANCELADO},
     "Em produção": {"Novo pedido", "Vai produzir", "Pronto para faturar", STATUS_CANCELADO},
     "Pronto para faturar": {"Em produção", "Nota emitida", STATUS_CANCELADO},
-    "Nota emitida": {"Separado para entrega"},
+    "Nota emitida": {"Pronto para faturar", "Separado para entrega"},
     "Separado para entrega": {"Nota emitida", "Enviado"},
     "Enviado": {"Separado para entrega", "Finalizado"},
     "Finalizado": set(),
