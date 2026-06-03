@@ -15,8 +15,39 @@ PEDIDOS_COLUMNS = {
 }
 
 
+TIMESTAMP_TABLES = {
+    "produtos": ("created_at", "updated_at"),
+}
+
+
+def _repair_timestamp_columns(engine: Engine, inspector) -> None:
+    for table_name, column_names in TIMESTAMP_TABLES.items():
+        if not inspector.has_table(table_name):
+            continue
+
+        existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+        with engine.begin() as connection:
+            for column_name in column_names:
+                if column_name not in existing_columns:
+                    continue
+
+                connection.execute(
+                    text(
+                        f"UPDATE {table_name} "
+                        f"SET {column_name} = CURRENT_TIMESTAMP "
+                        f"WHERE {column_name} IS NULL"
+                    )
+                )
+
+                if engine.dialect.name == "postgresql":
+                    connection.execute(text(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET DEFAULT now()"))
+                    connection.execute(text(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET NOT NULL"))
+
+
 def ensure_runtime_migrations(engine: Engine) -> None:
     inspector = inspect(engine)
+    _repair_timestamp_columns(engine, inspector)
+
     if not inspector.has_table("pedidos"):
         return
 
