@@ -106,12 +106,13 @@ function ResumoCards({ pedidos }) {
 
 function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido }) {
   const total = valorTotalPedido(pedido);
+  const isLogistica = layout === "logistica";
   const temDetalhePcp =
     pedido.pcpPrevisaoProducao || pedido.pcpPrevisaoPronto || Number(pedido.pcpQuantidadeProduzida || 0) > 0 || pedido.pcpObservacoes;
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <article className={`rounded-lg border border-slate-200 bg-white shadow-sm ${isLogistica ? "p-3" : "p-4"}`}>
+      <div className={`flex flex-col gap-4 ${isLogistica ? "" : "lg:flex-row lg:items-start lg:justify-between"}`}>
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold">Pedido #{pedido.id}</h3>
@@ -124,11 +125,11 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
             )}
           </div>
 
-          <p className="text-sm text-slate-700">
+          <p className={`${isLogistica ? "text-xs" : "text-sm"} break-words text-slate-700`}>
             <strong>{pedido.cliente}</strong> - {pedido.cidade || "cidade não informada"}
           </p>
           {(pedido.logradouro || pedido.cep || pedido.uf || pedido.cnpj) && (
-            <p className="text-sm text-slate-600">
+            <p className={`${isLogistica ? "text-xs" : "text-sm"} break-words text-slate-600`}>
               {pedido.cnpj && (
                 <span>
                   CNPJ: <strong>{pedido.cnpj}</strong> -{" "}
@@ -138,15 +139,15 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
               {pedido.cep ? ` - CEP ${pedido.cep}` : ""} {pedido.uf ? `- ${pedido.uf}` : ""}
             </p>
           )}
-          <p className="text-sm text-slate-600">
+          <p className={`${isLogistica ? "text-xs" : "text-sm"} break-words text-slate-600`}>
             {pedido.produto} - {pedido.cor || "cor não informada"} - <strong>{pedido.quantidade} un</strong>
           </p>
           {pedido.tampa && (
-            <p className="text-sm text-slate-600">
+            <p className={`${isLogistica ? "text-xs" : "text-sm"} break-words text-slate-600`}>
               Tampa: <strong>{pedido.tampa}</strong>
             </p>
           )}
-          <div className="grid grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-2">
+          <div className={`grid grid-cols-1 gap-2 text-slate-600 ${isLogistica ? "text-xs" : "text-sm md:grid-cols-2"}`}>
             <p>
               Frete: <strong>{pedido.tipoFrete || "Não informado"}</strong>
             </p>
@@ -187,10 +188,10 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
           )}
         </div>
 
-        <div className="space-y-3 lg:min-w-64">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div className={`space-y-3 ${isLogistica ? "w-full" : "lg:min-w-64"}`}>
+          <div className={`rounded-lg border border-slate-200 bg-slate-50 ${isLogistica ? "p-3" : "p-4"}`}>
             <p className="text-xs uppercase tracking-wide text-slate-500">Valor do pedido</p>
-            <p className="text-2xl font-bold">{currency(total)}</p>
+            <p className={`${isLogistica ? "text-xl" : "text-2xl"} font-bold`}>{currency(total)}</p>
             <p className="mt-1 text-xs text-slate-500">
               Embalagem {currency(pedido.valor)} + tampa {currency(pedido.valorTampa)}
             </p>
@@ -221,7 +222,7 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
           ) : layout === "logistica" ? (
             <div className="grid grid-cols-1 gap-2">
               {statusOptionsForPedido(pedido.status)
-                .filter((status) => ["Separado para entrega", "Enviado", "Finalizado"].includes(status))
+                .filter((status) => status !== pedido.status && ["Separado para entrega", "Enviado", "Finalizado"].includes(status))
                 .map((status) => (
                   <Button
                     key={status}
