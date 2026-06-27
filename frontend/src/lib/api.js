@@ -38,6 +38,11 @@ export const api = {
   createProduto: (payload) => request("/api/produtos", { method: "POST", body: JSON.stringify(payload) }),
   updateProduto: (id, payload) => request(`/api/produtos/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   createMovimentoEstoque: (id, payload) => request(`/api/produtos/${id}/movimentos`, { method: "POST", body: JSON.stringify(payload) }),
+  listPrecos: (clienteId) => request(`/api/precos?clienteId=${encodeURIComponent(clienteId)}`),
+  lookupPreco: (clienteId, produtoId) =>
+    request(`/api/precos/lookup?clienteId=${encodeURIComponent(clienteId)}&produtoId=${encodeURIComponent(produtoId)}`),
+  upsertPreco: (payload) => request("/api/precos", { method: "POST", body: JSON.stringify(payload) }),
+  deletePreco: (id) => request(`/api/precos/${id}`, { method: "DELETE" }),
   getDashboard: () => request("/api/dashboard"),
   listNotas: () => request("/api/fiscal/notas"),
   prepararNfe: (pedidoId) => request(`/api/fiscal/pedidos/${pedidoId}/preparar-nfe`, { method: "POST" }),

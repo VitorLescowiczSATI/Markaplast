@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, FileText, PackagePlus, Pencil, Search, Trash2, Users, Warehouse, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, BarChart3, CheckCircle2, FileText, PackagePlus, Pencil, Search, Tags, Trash2, Users, Warehouse, X } from "lucide-react";
 
 import { Badge, Button, Card, EmptyState, Field, Input, SelectBox, StatCard, TextArea } from "./ui.jsx";
 import { api } from "../lib/api.js";
@@ -177,9 +177,114 @@ export function InteligenciaLayout({ dashboard, historico = [], produtos = [] })
   );
 }
 
-export function ClientesLayout({ clientes = [], onRefresh, salvando }) {
+function PrecosClienteEditor({ cliente, produtos = [] }) {
+  const [precos, setPrecos] = useState({});
+  const [carregando, setCarregando] = useState(true);
+  const [salvandoId, setSalvandoId] = useState(null);
+  const [busca, setBusca] = useState("");
+
+  useEffect(() => {
+    let ativo = true;
+    setCarregando(true);
+    api
+      .listPrecos(cliente.id)
+      .then((lista) => {
+        if (!ativo) return;
+        const mapa = {};
+        (lista || []).forEach((item) => {
+          mapa[item.produtoId] = { valor: String(item.valor ?? ""), valorTampa: String(item.valorTampa ?? "") };
+        });
+        setPrecos(mapa);
+      })
+      .catch(() => ativo && setPrecos({}))
+      .finally(() => ativo && setCarregando(false));
+    return () => {
+      ativo = false;
+    };
+  }, [cliente.id]);
+
+  function setCampo(produtoId, campo, valor) {
+    setPrecos((prev) => ({ ...prev, [produtoId]: { valor: "", valorTampa: "", ...prev[produtoId], [campo]: valor } }));
+  }
+
+  async function salvar(produto) {
+    const atual = precos[produto.id] || { valor: "", valorTampa: "" };
+    setSalvandoId(produto.id);
+    try {
+      await api.upsertPreco({
+        clienteId: cliente.id,
+        produtoId: produto.id,
+        valor: Number(atual.valor || 0),
+        valorTampa: Number(atual.valorTampa || 0),
+      });
+    } finally {
+      setSalvandoId(null);
+    }
+  }
+
+  const lista = produtos
+    .filter((produto) => String(produto.nome || "").toLowerCase().includes(busca.toLowerCase()))
+    .sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || "")));
+
+  return (
+    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-sm font-bold text-slate-700">Tabela de preços por produto</p>
+        <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto" className="h-8 w-40 text-sm" />
+      </div>
+      {carregando ? (
+        <p className="text-xs text-slate-500">Carregando preços...</p>
+      ) : produtos.length === 0 ? (
+        <EmptyState>Cadastre produtos no Estoque primeiro.</EmptyState>
+      ) : (
+        <div className="max-h-72 space-y-1 overflow-auto pr-1">
+          {lista.map((produto) => {
+            const atual = precos[produto.id] || { valor: "", valorTampa: "" };
+            const definido = atual.valor !== "" || atual.valorTampa !== "";
+            return (
+              <div
+                key={produto.id}
+                className={`grid grid-cols-[1fr_84px_84px_auto] items-center gap-2 rounded-lg border bg-white p-2 ${definido ? "border-teal-200" : "border-slate-100"}`}
+              >
+                <span className="truncate text-sm text-slate-700">{produto.nome}</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={atual.valor}
+                  onChange={(e) => setCampo(produto.id, "valor", e.target.value)}
+                  placeholder="Embal."
+                  className="h-8 text-sm"
+                  aria-label={`Valor embalagem ${produto.nome}`}
+                />
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={atual.valorTampa}
+                  onChange={(e) => setCampo(produto.id, "valorTampa", e.target.value)}
+                  placeholder="Tampa"
+                  className="h-8 text-sm"
+                  aria-label={`Valor tampa ${produto.nome}`}
+                />
+                <Button
+                  onClick={() => salvar(produto)}
+                  disabled={salvandoId === produto.id}
+                  className="h-8 bg-teal-700 px-3 text-xs text-white hover:bg-teal-800"
+                >
+                  {salvandoId === produto.id ? "..." : "Salvar"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvando }) {
   const [form, setForm] = useState(emptyCliente);
   const [editandoId, setEditandoId] = useState(null);
+  const [precosAbertoId, setPrecosAbertoId] = useState(null);
   const [busca, setBusca] = useState("");
   const [cepLoading, setCepLoading] = useState(false);
   const filtrados = clientes.filter((cliente) => `${cliente.nome} ${cliente.cnpj} ${cliente.cidade}`.toLowerCase().includes(busca.toLowerCase()));
@@ -349,6 +454,19 @@ export function ClientesLayout({ clientes = [], onRefresh, salvando }) {
                     <Badge className="border-teal-200 bg-teal-50 text-teal-800">{cliente.uf || "--"}</Badge>
                     <button
                       type="button"
+                      onClick={() => setPrecosAbertoId((id) => (id === cliente.id ? null : cliente.id))}
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                        precosAbertoId === cliente.id
+                          ? "border-teal-300 bg-teal-50 text-teal-700"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700"
+                      }`}
+                      title="Preços do cliente"
+                      aria-label="Preços do cliente"
+                    >
+                      <Tags size={15} />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => editarCliente(cliente)}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700"
                       title="Editar cliente"
@@ -374,6 +492,7 @@ export function ClientesLayout({ clientes = [], onRefresh, salvando }) {
                   {cliente.cidade || "Cidade não informada"} {cliente.cep ? `- ${cliente.cep}` : ""}
                 </p>
                 <p className="mt-2 text-sm text-slate-600">{cliente.condicaoPagamento || "Condição de pagamento não informada"}</p>
+                {precosAbertoId === cliente.id && <PrecosClienteEditor cliente={cliente} produtos={produtos} />}
               </article>
             ))}
           </div>

@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   Factory,
   FileText,
-  LayoutDashboard,
   Loader2,
   PackageCheck,
   Plus,
@@ -34,6 +34,9 @@ import {
   vendedores,
 } from "./lib/constants.js";
 import { calcularResumo, currency, filtrarPedidos, financeiroColor, statusColor, valorTotalPedido } from "./lib/domain.js";
+
+// Status que não aparecem na aba Comercial por padrão (cancelado + já faturado/concluído).
+const STATUS_OCULTOS_COMERCIAL = ["Cancelado", "Nota emitida", "Separado para entrega", "Enviado", "Finalizado"];
 
 function payloadFromForm(form) {
   return {
@@ -86,7 +89,6 @@ function perfilIcon(perfil) {
   if (perfil === "Financeiro") return <WalletCards {...props} />;
   if (perfil === "Fiscal") return <FileText {...props} />;
   if (perfil === "Logística") return <Truck {...props} />;
-  if (perfil === "Gestor") return <LayoutDashboard {...props} />;
   return <ClipboardList {...props} />;
 }
 
@@ -104,14 +106,14 @@ function ResumoCards({ pedidos }) {
   );
 }
 
-function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido }) {
+function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido, bare = false }) {
   const total = valorTotalPedido(pedido);
   const isLogistica = layout === "logistica";
   const temDetalhePcp =
     pedido.pcpPrevisaoProducao || pedido.pcpPrevisaoPronto || Number(pedido.pcpQuantidadeProduzida || 0) > 0 || pedido.pcpObservacoes;
 
   return (
-    <article className={`rounded-lg border border-slate-200 bg-white shadow-sm ${isLogistica ? "p-3" : "p-4"}`}>
+    <article className={bare ? "" : `rounded-lg border border-slate-200 bg-white shadow-sm ${isLogistica ? "p-3" : "p-4"}`}>
       <div className={`flex flex-col gap-4 ${isLogistica ? "" : "lg:flex-row lg:items-start lg:justify-between"}`}>
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -120,7 +122,7 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
               <Trash2 size={16} />
             </IconButton>
             <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
-            {(layout === "financeiro" || layout === "gestor") && (
+            {layout === "financeiro" && (
               <Badge className={financeiroColor(pedido.statusFinanceiro)}>{pedido.statusFinanceiro}</Badge>
             )}
           </div>
@@ -248,23 +250,90 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
   );
 }
 
-function ComercialLayout({ pedidos, clientes = [], criarPedido, atualizarStatus, excluirPedido, salvando }) {
+function PedidoCompactCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido }) {
+  const [aberto, setAberto] = useState(false);
+  const total = valorTotalPedido(pedido);
+
+  return (
+    <article className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setAberto((valor) => !valor)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+        aria-expanded={aberto}
+      >
+        <span className="font-bold text-slate-800">#{pedido.id}</span>
+        <span className="min-w-0 flex-1 truncate">
+          <strong className="text-slate-900">{pedido.cliente || "Cliente não informado"}</strong>
+          <span className="text-slate-500"> - {pedido.cidade || "cidade não informada"}</span>
+        </span>
+        <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
+        <span className="hidden whitespace-nowrap font-semibold text-slate-700 sm:inline">{currency(total)}</span>
+        <ChevronDown size={18} className={`flex-shrink-0 text-slate-400 transition ${aberto ? "rotate-180" : ""}`} />
+      </button>
+      {aberto && (
+        <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+          <PedidoCard
+            pedido={pedido}
+            layout={layout}
+            atualizarStatus={atualizarStatus}
+            atualizarFinanceiro={atualizarFinanceiro}
+            excluirPedido={excluirPedido}
+            bare
+          />
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarPedido, atualizarStatus, excluirPedido, salvando }) {
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
   const [vendedorFiltro, setVendedorFiltro] = useState("Todos");
+  const [dataInicial, setDataInicial] = useState("");
+  const [dataFinal, setDataFinal] = useState("");
   const [clienteSelecionadoId, setClienteSelecionadoId] = useState("");
   const [form, setForm] = useState(emptyForm);
   const clientesOrdenados = useMemo(() => [...clientes].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""))), [clientes]);
-  const pedidosFiltrados = useMemo(
-    () => filtrarPedidos(pedidos, busca, statusFiltro, vendedorFiltro, "Comercial"),
-    [pedidos, busca, statusFiltro, vendedorFiltro]
+  const produtosOrdenados = useMemo(
+    () => [...produtosCatalogo].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""))),
+    [produtosCatalogo]
   );
+  const nomesProdutos = produtosOrdenados.length ? produtosOrdenados.map((produto) => produto.nome) : produtos;
+  const pedidosFiltrados = useMemo(() => {
+    let lista = filtrarPedidos(pedidos, busca, statusFiltro, vendedorFiltro, "Comercial");
+    // Pedidos cancelados/faturados somem da aba principal; só aparecem ao filtrar por aquele status.
+    if (statusFiltro === "Todos") {
+      lista = lista.filter((pedido) => !STATUS_OCULTOS_COMERCIAL.includes(pedido.status));
+    }
+    if (dataInicial) lista = lista.filter((pedido) => String(pedido.data || "") >= dataInicial);
+    if (dataFinal) lista = lista.filter((pedido) => String(pedido.data || "") <= dataFinal);
+    return lista;
+  }, [pedidos, busca, statusFiltro, vendedorFiltro, dataInicial, dataFinal]);
+
+  async function aplicarPrecoCliente(clienteId, produtoNome) {
+    if (!clienteId || !produtoNome) return;
+    const produto = produtosCatalogo.find((item) => item.nome === produtoNome);
+    if (!produto) return;
+    try {
+      const preco = await api.lookupPreco(clienteId, produto.id);
+      if (preco) {
+        setForm((atual) => ({ ...atual, valor: String(preco.valor ?? ""), valorTampa: String(preco.valorTampa ?? "") }));
+      }
+    } catch {
+      // Sem preço cadastrado para este cliente/produto: mantém o que estiver no formulário.
+    }
+  }
 
   function selecionarCliente(clienteId) {
     setClienteSelecionadoId(clienteId);
     if (!clienteId) return;
     const cliente = clientes.find((item) => String(item.id) === String(clienteId));
-    if (cliente) setForm((atual) => pedidoFieldsFromCliente(cliente, atual));
+    if (cliente) {
+      setForm((atual) => pedidoFieldsFromCliente(cliente, atual));
+      aplicarPrecoCliente(clienteId, form.produto);
+    }
   }
 
   async function submit(event) {
@@ -331,9 +400,15 @@ function ComercialLayout({ pedidos, clientes = [], criarPedido, atualizarStatus,
               <Input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} placeholder="Curitiba" />
             </Field>
             <Field label="Produto">
-              <SelectBox value={form.produto} onChange={(produto) => setForm({ ...form, produto })}>
+              <SelectBox
+                value={form.produto}
+                onChange={(produto) => {
+                  setForm({ ...form, produto });
+                  aplicarPrecoCliente(clienteSelecionadoId, produto);
+                }}
+              >
                 <option value="">Selecione</option>
-                {produtos.map((produto) => (
+                {nomesProdutos.map((produto) => (
                   <option key={produto} value={produto}>
                     {produto}
                   </option>
@@ -440,12 +515,12 @@ function ComercialLayout({ pedidos, clientes = [], criarPedido, atualizarStatus,
               <h2 className="text-lg font-bold">Pedidos comerciais</h2>
               <p className="text-sm text-slate-500">{pedidosFiltrados.length} pedidos no filtro atual</p>
             </div>
-            <div className="grid grid-cols-1 gap-2 lg:grid-cols-[220px_220px_220px]">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="relative">
                 <Search size={16} className="pointer-events-none absolute left-3 top-2.5 text-slate-400" />
-                <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar" className="pl-9" />
+                <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar" className="w-full pl-9 sm:w-52" />
               </div>
-              <SelectBox value={statusFiltro} onChange={setStatusFiltro}>
+              <SelectBox value={statusFiltro} onChange={setStatusFiltro} className="w-full sm:w-44">
                 <option value="Todos">Todos status</option>
                 {statusList.map((status) => (
                   <option key={status} value={status}>
@@ -453,7 +528,7 @@ function ComercialLayout({ pedidos, clientes = [], criarPedido, atualizarStatus,
                   </option>
                 ))}
               </SelectBox>
-              <SelectBox value={vendedorFiltro} onChange={setVendedorFiltro}>
+              <SelectBox value={vendedorFiltro} onChange={setVendedorFiltro} className="w-full sm:w-40">
                 <option value="Todos">Todos vendedores</option>
                 {vendedores.map((vendedor) => (
                   <option key={vendedor} value={vendedor}>
@@ -461,13 +536,18 @@ function ComercialLayout({ pedidos, clientes = [], criarPedido, atualizarStatus,
                   </option>
                 ))}
               </SelectBox>
+              <div className="flex items-center gap-1">
+                <Input type="date" value={dataInicial} onChange={(e) => setDataInicial(e.target.value)} aria-label="Data inicial" className="w-36" />
+                <span className="text-slate-400">-</span>
+                <Input type="date" value={dataFinal} onChange={(e) => setDataFinal(e.target.value)} aria-label="Data final" className="w-36" />
+              </div>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {pedidosFiltrados.length === 0 && <EmptyState>Nenhum pedido encontrado.</EmptyState>}
             {pedidosFiltrados.map((pedido) => (
-              <PedidoCard key={pedido.id} pedido={pedido} atualizarStatus={atualizarStatus} excluirPedido={excluirPedido} />
+              <PedidoCompactCard key={pedido.id} pedido={pedido} atualizarStatus={atualizarStatus} excluirPedido={excluirPedido} />
             ))}
           </div>
         </Card>
@@ -524,6 +604,7 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
 
   function PedidoPcpCard({ pedido }) {
     const [aberto, setAberto] = useState(false);
+    const [expandido, setExpandido] = useState(false);
     const [detalhes, setDetalhes] = useState(() => ({
       pcpPrevisaoProducao: pedido.pcpPrevisaoProducao || "",
       pcpPrevisaoPronto: pedido.pcpPrevisaoPronto || "",
@@ -558,128 +639,140 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
           selecionado ? "border-teal-500 ring-2 ring-teal-100" : "border-slate-200 hover:border-teal-300"
         }`}
       >
-        <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => togglePedidoCarga(pedido.id)}
-            className={`h-5 w-5 rounded border ${selecionado ? "border-teal-700 bg-teal-700" : "border-slate-300 bg-white"}`}
+            className={`h-5 w-5 flex-shrink-0 rounded border ${selecionado ? "border-teal-700 bg-teal-700" : "border-slate-300 bg-white"}`}
             aria-label="Selecionar para carga"
           />
-          <p className="flex-1 text-sm font-bold">#{pedido.id}</p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold">#{pedido.id}</span>
+              <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
+            </div>
+            <p className="truncate text-sm font-bold text-slate-900">{pedido.cliente || "Cliente não informado"}</p>
+            <p className="truncate text-xs text-slate-500">
+              {pedido.produto || "Produto não informado"} - {pedido.cor || "cor não informada"} - <strong>{pedido.quantidade || 0} un</strong>
+            </p>
+          </div>
           <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
             <Trash2 size={15} />
           </IconButton>
+          <button
+            type="button"
+            onClick={() => setExpandido((valor) => !valor)}
+            className="flex-shrink-0 text-slate-400 transition hover:text-slate-600"
+            aria-label={expandido ? "Ocultar detalhes" : "Ver detalhes"}
+            aria-expanded={expandido}
+          >
+            <ChevronDown size={18} className={expandido ? "rotate-180" : ""} />
+          </button>
         </div>
 
-        <div className="space-y-1">
-          <p className="break-words text-sm font-bold text-slate-900">{pedido.cliente || "Cliente não informado"}</p>
-          <p className="break-words text-xs font-medium text-slate-600">
-            {pedido.cidade || "Cidade não informada"} {pedido.uf ? `- ${pedido.uf}` : ""}
-          </p>
-          {pedido.cnpj && (
-            <p className="break-words text-xs text-slate-500">
-              CNPJ: <strong>{pedido.cnpj}</strong>
-            </p>
-          )}
-          {(pedido.logradouro || pedido.cep || pedido.bairro) && (
-            <p className="break-words text-xs text-slate-500">
-              {pedido.logradouro || "Endereço não informado"} {pedido.numero}
-              {pedido.bairro ? ` - ${pedido.bairro}` : ""}
-              {pedido.cep ? ` - CEP ${pedido.cep}` : ""}
-            </p>
-          )}
-        </div>
+        {temDetalhePcp && (
+          <div className="mt-2">
+            <div className="mb-1 flex items-center justify-between text-xs">
+              <span className="font-bold text-sky-800">PCP</span>
+              <span className="font-semibold text-slate-600">{percentualProduzido}% produzido</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-sky-500" style={{ width: `${percentualProduzido}%` }} />
+            </div>
+          </div>
+        )}
 
-        <div className="mt-3 rounded-lg bg-slate-50 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="break-words text-sm font-bold text-slate-800">{pedido.produto || "Produto não informado"}</p>
-              <p className="break-words text-xs text-slate-500">
-                Cor: <strong>{pedido.cor || "não informada"}</strong> - Quantidade: <strong>{pedido.quantidade || 0} un</strong>
+        {expandido && (
+          <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+            <div className="space-y-1">
+              <p className="break-words text-xs font-medium text-slate-600">
+                {pedido.cidade || "Cidade não informada"} {pedido.uf ? `- ${pedido.uf}` : ""}
               </p>
+              {pedido.cnpj && (
+                <p className="break-words text-xs text-slate-500">
+                  CNPJ: <strong>{pedido.cnpj}</strong>
+                </p>
+              )}
+              {(pedido.logradouro || pedido.cep || pedido.bairro) && (
+                <p className="break-words text-xs text-slate-500">
+                  {pedido.logradouro || "Endereço não informado"} {pedido.numero}
+                  {pedido.bairro ? ` - ${pedido.bairro}` : ""}
+                  {pedido.cep ? ` - CEP ${pedido.cep}` : ""}
+                </p>
+              )}
               {pedido.tampa && (
                 <p className="break-words text-xs text-slate-500">
                   Tampa: <strong>{pedido.tampa}</strong>
                 </p>
               )}
             </div>
-            <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
-          </div>
-        </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-2">
-          <div className="rounded-lg border border-slate-100 bg-white p-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Frete</p>
-            <p className="break-words font-semibold text-slate-800">{pedido.tipoFrete || "Não informado"}</p>
-          </div>
-          <div className="rounded-lg border border-slate-100 bg-white p-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Transporte</p>
-            <p className="break-words font-semibold text-slate-800">{pedido.transporte || "Não informado"}</p>
-          </div>
-          <div className="rounded-lg border border-slate-100 bg-white p-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Faturamento</p>
-            <p className="break-words font-semibold text-slate-800">{pedido.faturamento || "Não informado"}</p>
-          </div>
-          <div className="rounded-lg border border-slate-100 bg-white p-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Entrega</p>
-            <p className="break-words font-semibold text-slate-800">{pedido.tipoEntrega || "Não definido"}</p>
-          </div>
-          <div className="rounded-lg border border-slate-100 bg-white p-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Vendedor</p>
-            <p className="break-words font-semibold text-slate-800">{pedido.vendedor || "Não informado"}</p>
-          </div>
-          <div className="rounded-lg border border-slate-100 bg-white p-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pagamento</p>
-            <p className="break-words font-semibold text-slate-800">{pedido.pagamento || "Não informado"}</p>
-          </div>
-        </div>
-
-        {pedido.tipoFrete === "FOB" && pedido.detalheFOB && (
-          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
-            FOB: <strong>{pedido.detalheFOB}</strong>
-          </p>
-        )}
-
-        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Valor do pedido</p>
-          <p className="text-lg font-bold text-slate-900">{currency(total)}</p>
-          <p className="text-xs text-slate-500">
-            Embalagem {currency(pedido.valor)} + tampa {currency(pedido.valorTampa)}
-          </p>
-        </div>
-
-        {pedido.observacoes && <p className="mt-3 break-words rounded-lg bg-slate-50 p-3 text-xs text-slate-700">{pedido.observacoes}</p>}
-
-        {temDetalhePcp && (
-          <div className="mt-3 space-y-2 rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs text-slate-700">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-bold text-sky-800">PCP</span>
-              <span className="font-semibold">{percentualProduzido}% produzido</span>
+            <div className="grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-100 bg-white p-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Frete</p>
+                <p className="break-words font-semibold text-slate-800">{pedido.tipoFrete || "Não informado"}</p>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-white p-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Transporte</p>
+                <p className="break-words font-semibold text-slate-800">{pedido.transporte || "Não informado"}</p>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-white p-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Faturamento</p>
+                <p className="break-words font-semibold text-slate-800">{pedido.faturamento || "Não informado"}</p>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-white p-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Entrega</p>
+                <p className="break-words font-semibold text-slate-800">{pedido.tipoEntrega || "Não definido"}</p>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-white p-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Vendedor</p>
+                <p className="break-words font-semibold text-slate-800">{pedido.vendedor || "Não informado"}</p>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-white p-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pagamento</p>
+                <p className="break-words font-semibold text-slate-800">{pedido.pagamento || "Não informado"}</p>
+              </div>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-white">
-              <div className="h-full rounded-full bg-sky-500" style={{ width: `${percentualProduzido}%` }} />
-            </div>
-            {pedido.pcpPrevisaoProducao && (
-              <p>
-                Vai produzir: <strong>{pedido.pcpPrevisaoProducao}</strong>
+
+            {pedido.tipoFrete === "FOB" && pedido.detalheFOB && (
+              <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
+                FOB: <strong>{pedido.detalheFOB}</strong>
               </p>
             )}
-            {pedido.pcpPrevisaoPronto && (
-              <p>
-                Pronto: <strong>{pedido.pcpPrevisaoPronto}</strong>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Valor do pedido</p>
+              <p className="text-lg font-bold text-slate-900">{currency(total)}</p>
+              <p className="text-xs text-slate-500">
+                Embalagem {currency(pedido.valor)} + tampa {currency(pedido.valorTampa)}
               </p>
+            </div>
+
+            {pedido.observacoes && <p className="break-words rounded-lg bg-slate-50 p-3 text-xs text-slate-700">{pedido.observacoes}</p>}
+
+            {temDetalhePcp && (pedido.pcpPrevisaoProducao || pedido.pcpPrevisaoPronto || pedido.pcpObservacoes) && (
+              <div className="space-y-1 rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs text-slate-700">
+                {pedido.pcpPrevisaoProducao && (
+                  <p>
+                    Vai produzir: <strong>{pedido.pcpPrevisaoProducao}</strong>
+                  </p>
+                )}
+                {pedido.pcpPrevisaoPronto && (
+                  <p>
+                    Pronto: <strong>{pedido.pcpPrevisaoPronto}</strong>
+                  </p>
+                )}
+                {pedido.pcpObservacoes && <p className="break-words">{pedido.pcpObservacoes}</p>}
+              </div>
             )}
-            {pedido.pcpObservacoes && <p className="break-words">{pedido.pcpObservacoes}</p>}
-          </div>
-        )}
 
-        <Button onClick={() => setAberto((valor) => !valor)} className="mt-3 w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
-          {aberto ? "Fechar detalhes PCP" : temDetalhePcp ? "Editar detalhes PCP" : "Adicionar detalhes PCP"}
-        </Button>
+            <Button onClick={() => setAberto((valor) => !valor)} className="w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+              {aberto ? "Fechar detalhes PCP" : temDetalhePcp ? "Editar detalhes PCP" : "Adicionar detalhes PCP"}
+            </Button>
 
-        {aberto && (
-          <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
-            <Field label="Quando vai produzir">
+            {aberto && (
+              <div className="space-y-3 border-t border-slate-200 pt-3">
+                <Field label="Quando vai produzir">
               <Input
                 value={detalhes.pcpPrevisaoProducao}
                 onChange={(event) => atualizarDetalhe("pcpPrevisaoProducao", event.target.value)}
@@ -712,6 +805,8 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
             <Button onClick={salvarDetalhesPcp} disabled={salvando} className="w-full bg-sky-700 text-white hover:bg-sky-800">
               Salvar detalhes PCP
             </Button>
+              </div>
+            )}
           </div>
         )}
       </article>
@@ -1254,44 +1349,6 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
   );
 }
 
-function GestorLayout({ pedidos, cargas, atualizarStatus, excluirPedido }) {
-  const [busca, setBusca] = useState("");
-  const pedidosFiltrados = useMemo(() => filtrarPedidos(pedidos, busca, "Todos", "Todos", "Gestor"), [pedidos, busca]);
-  const resumo = useMemo(() => calcularResumo(pedidos), [pedidos]);
-
-  return (
-    <div className="space-y-6">
-      <ResumoCards pedidos={pedidos} />
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatCard label="Prontos para faturar" value={resumo.faturar} tone="green" />
-        <StatCard label="Financeiro pendente" value={resumo.financeiroPendente} tone="amber" />
-        <StatCard label="Cargas" value={cargas.length} tone="teal" />
-      </section>
-      <Card className="p-5">
-        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-xl font-bold">Visão geral</h2>
-            <p className="text-sm text-slate-500">Todos os pedidos cadastrados no sistema.</p>
-          </div>
-          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pedido, cliente, produto ou status" className="md:w-96" />
-        </div>
-        <div className="space-y-3">
-          {pedidosFiltrados.length === 0 && <EmptyState>Nenhum pedido encontrado.</EmptyState>}
-          {pedidosFiltrados.map((pedido) => (
-            <PedidoCard
-              key={pedido.id}
-              pedido={pedido}
-              layout="gestor"
-              atualizarStatus={atualizarStatus}
-              excluirPedido={excluirPedido}
-            />
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
 export default function App() {
   const [perfil, setPerfil] = useState("Inteligência");
   const [pedidos, setPedidos] = useState([]);
@@ -1482,7 +1539,7 @@ export default function App() {
         ) : perfil === "Inteligência" ? (
           <InteligenciaLayout dashboard={dashboard} historico={historico} produtos={produtosCatalogo} />
         ) : perfil === "Clientes" ? (
-          <ClientesLayout clientes={clientes} onRefresh={() => loadData(false)} salvando={salvando} />
+          <ClientesLayout clientes={clientes} produtos={produtosCatalogo} onRefresh={() => loadData(false)} salvando={salvando} />
         ) : perfil === "Estoque" ? (
           <EstoqueLayout produtos={produtosCatalogo} onRefresh={() => loadData(false)} />
         ) : perfil === "PCP/Logística" ? (
@@ -1516,12 +1573,11 @@ export default function App() {
             excluirPedido={excluirPedido}
             salvando={salvando}
           />
-        ) : perfil === "Gestor" ? (
-          <GestorLayout pedidos={pedidos} cargas={cargas} atualizarStatus={atualizarStatus} excluirPedido={excluirPedido} />
         ) : (
           <ComercialLayout
             pedidos={pedidos}
             clientes={clientes}
+            produtosCatalogo={produtosCatalogo}
             criarPedido={criarPedido}
             atualizarStatus={atualizarStatus}
             excluirPedido={excluirPedido}

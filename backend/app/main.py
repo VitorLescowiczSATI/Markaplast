@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api import cargas, clientes, dashboard, fiscal, historico, integracoes, pedidos, produtos
+from app.api import cargas, clientes, dashboard, fiscal, historico, integracoes, pedidos, precos, produtos
 from app.core.config import get_settings
 from app.db.migrations import ensure_runtime_migrations
 from app.db.session import Base, SessionLocal, engine
@@ -58,6 +58,7 @@ app.include_router(pedidos.router, prefix="/api")
 app.include_router(cargas.router, prefix="/api")
 app.include_router(clientes.router, prefix="/api")
 app.include_router(produtos.router, prefix="/api")
+app.include_router(precos.router, prefix="/api")
 app.include_router(integracoes.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(fiscal.router, prefix="/api")

@@ -1,4 +1,4 @@
-export const setores = ["Inteligência", "Comercial", "Clientes", "Estoque", "PCP/Logística", "Faturamento", "Financeiro", "Fiscal", "Logística", "Gestor"];
+export const setores = ["Inteligência", "Comercial", "Clientes", "Estoque", "PCP/Logística", "Faturamento", "Financeiro", "Fiscal", "Logística"];
 
 export const statusList = [
   "Novo pedido",

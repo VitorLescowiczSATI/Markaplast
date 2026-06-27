@@ -35,7 +35,7 @@ export function financeiroColor(statusFinanceiro) {
 }
 
 export function podeVerPedidoPorPerfil(perfil, status) {
-  if (perfil === "Gestor" || perfil === "Comercial") return true;
+  if (perfil === "Comercial") return true;
   if (perfil === "Financeiro") return status === "Nota emitida";
   if (perfil === "PCP/Logística") return ["Novo pedido", "Pago", "Vai produzir", "Em produção", "Pronto para faturar"].includes(status);
   if (perfil === "Faturamento") return ["Pronto para faturar", "Nota emitida"].includes(status);

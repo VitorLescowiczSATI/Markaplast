@@ -27,10 +27,10 @@ describe("regras de pedidos", () => {
       },
     ];
 
-    expect(filtrarPedidos(pedidos, "dosadora", "Todos", "Todos", "Gestor")).toHaveLength(1);
-    expect(filtrarPedidos(pedidos, "", "Todos", "Arthur", "Gestor")).toHaveLength(1);
-    expect(filtrarPedidos(pedidos, "Industrial", "Todos", "Todos", "Gestor")).toHaveLength(1);
-    expect(filtrarPedidos(pedidos, "injetora", "Todos", "Todos", "Gestor")).toHaveLength(1);
+    expect(filtrarPedidos(pedidos, "dosadora", "Todos", "Todos", "Comercial")).toHaveLength(1);
+    expect(filtrarPedidos(pedidos, "", "Todos", "Arthur", "Comercial")).toHaveLength(1);
+    expect(filtrarPedidos(pedidos, "Industrial", "Todos", "Todos", "Comercial")).toHaveLength(1);
+    expect(filtrarPedidos(pedidos, "injetora", "Todos", "Todos", "Comercial")).toHaveLength(1);
   });
 
   it("gera resumo financeiro", () => {
