@@ -50,7 +50,7 @@ def montar_alertas(pedidos: list[Pedido], produtos: list[Produto], cargas: list[
                     entidadeId=pedido.id,
                 )
             )
-        if pedido.status == "Pronto para faturar" and dias >= 1:
+        if pedido.status in {"Pronto para retirada", "Pronto para o envio"} and dias >= 1:
             alertas.append(
                 AlertaRead(
                     tipo="faturamento",
@@ -60,7 +60,7 @@ def montar_alertas(pedidos: list[Pedido], produtos: list[Produto], cargas: list[
                     entidadeId=pedido.id,
                 )
             )
-        if pedido.status in {"Novo pedido", "Vai produzir", "Em produção"} and dias >= 3:
+        if pedido.status in {"Novo pedido", "A produzir", "Em produção"} and dias >= 3:
             alertas.append(
                 AlertaRead(
                     tipo="pcp",

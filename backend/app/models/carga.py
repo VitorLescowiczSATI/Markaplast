@@ -21,7 +21,7 @@ class Carga(Base):
     regiao: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     motorista: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     placa: Mapped[str] = mapped_column(String(32), default="", nullable=False)
-    statusDestino: Mapped[str] = mapped_column("status_destino", String(80), default="Pronto para faturar", nullable=False)
+    statusDestino: Mapped[str] = mapped_column("status_destino", String(80), default="Pronto para o envio", nullable=False)
     data: Mapped[date] = mapped_column(Date, default=date.today, nullable=False)
     createdAt: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), server_default=func.now(), nullable=False)
 

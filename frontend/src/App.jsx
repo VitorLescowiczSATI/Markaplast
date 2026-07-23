@@ -10,7 +10,6 @@ import {
   Loader2,
   PackageCheck,
   Plus,
-  Printer,
   RefreshCw,
   Search,
   Trash2,
@@ -67,17 +66,22 @@ function pedidoFieldsFromCliente(cliente, form) {
 
 function statusOptionsForPedido(statusAtual) {
   const transicoes = {
-    "Novo pedido": ["Aguardando pagamento", "Pago", "Vai produzir", "Em produção", "Pronto para faturar", "Cancelado"],
-    "Aguardando pagamento": ["Pago", "Vai produzir", "Cancelado"],
-    Pago: ["Vai produzir", "Cancelado"],
-    "Vai produzir": ["Novo pedido", "Em produção", "Pronto para faturar", "Cancelado"],
-    "Em produção": ["Novo pedido", "Vai produzir", "Pronto para faturar", "Cancelado"],
-    "Pronto para faturar": ["Em produção", "Nota emitida", "Cancelado"],
-    "Nota emitida": ["Pronto para faturar", "Separado para entrega"],
-    "Separado para entrega": ["Nota emitida", "Enviado"],
-    Enviado: ["Separado para entrega", "Finalizado"],
-    Finalizado: [],
+    "Novo pedido": ["Aguardando pagamento", "Pago", "A produzir", "Em produção", "Prontos", "Cancelado"],
+    "Aguardando pagamento": ["Pago", "A produzir", "Cancelado"],
+    Pago: ["A produzir", "Cancelado"],
+    "A produzir": ["Novo pedido", "Em produção", "Prontos", "Cancelado"],
+    "Em produção": ["Novo pedido", "A produzir", "Prontos", "Cancelado"],
+    Prontos: ["Em produção", "Pronto para retirada", "Pronto para o envio", "Cancelado"],
+    "Pronto para retirada": ["Prontos", "Nota emitida", "Cancelado"],
+    "Pronto para o envio": ["Prontos", "Nota emitida", "Cancelado"],
+    "Nota emitida": ["Prontos"],
     Cancelado: [],
+    // aliases legados aceitos por 1 release
+    "Vai produzir": ["Novo pedido", "A produzir", "Em produção", "Prontos", "Cancelado"],
+    "Pronto para faturar": ["Em produção", "Prontos", "Pronto para retirada", "Pronto para o envio", "Nota emitida", "Cancelado"],
+    "Separado para entrega": ["Nota emitida"],
+    Enviado: ["Nota emitida"],
+    Finalizado: [],
   };
   return [statusAtual, ...(transicoes[statusAtual] || [])].filter((status, index, lista) => status && lista.indexOf(status) === index);
 }
@@ -87,7 +91,7 @@ function perfilIcon(perfil) {
   if (perfil === "Inteligência") return <BarChart3 {...props} />;
   if (perfil === "Clientes") return <Users {...props} />;
   if (perfil === "Estoque") return <Warehouse {...props} />;
-  if (perfil === "PCP/Logística") return <Factory {...props} />;
+  if (perfil === "PCP") return <Factory {...props} />;
   if (perfil === "Faturamento") return <FileText {...props} />;
   if (perfil === "Financeiro") return <WalletCards {...props} />;
   if (perfil === "Fiscal") return <FileText {...props} />;
@@ -101,7 +105,7 @@ function ResumoCards({ pedidos }) {
   return (
     <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
       <StatCard label="Novos" value={resumo.novos} tone="amber" />
-      <StatCard label="Vai produzir" value={resumo.vaiProduzir} tone="sky" />
+      <StatCard label="A produzir" value={resumo.vaiProduzir} tone="sky" />
       <StatCard label="Em produção" value={resumo.producao} tone="sky" />
       <StatCard label="Notas emitidas" value={resumo.notasEmitidas} tone="green" />
       <StatCard label="Valor em carteira" value={currency(resumo.total)} tone="teal" />
@@ -620,50 +624,29 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
   );
 }
 
-function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido, criarCarga, excluirPedido, salvando }) {
+function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, salvando }) {
   const [busca, setBusca] = useState("");
-  const [regiaoCarga, setRegiaoCarga] = useState("");
-  const [motoristaCarga, setMotoristaCarga] = useState("");
-  const [placaCarga, setPlacaCarga] = useState("");
-  const [pedidosCarga, setPedidosCarga] = useState([]);
   const [draggingId, setDraggingId] = useState(null);
   const resumo = useMemo(() => calcularResumo(pedidos), [pedidos]);
-  const statusKanban = ["Novo pedido", "Vai produzir", "Em produção", "Pronto para faturar"];
+  // Primeira coluna agrega a entrada (novos/pagos) com "A produzir"; soltar um card ali já marca "A produzir".
+  const colunasPcp = [
+    { titulo: "A produzir", statuses: ["Novo pedido", "Pago", "A produzir"], destino: "A produzir" },
+    { titulo: "Em produção", statuses: ["Em produção"], destino: "Em produção" },
+    { titulo: "Prontos", statuses: ["Prontos"], destino: "Prontos" },
+  ];
+  const statusPcp = colunasPcp.flatMap((coluna) => coluna.statuses);
+  const prontosCount = pedidos.filter((pedido) => pedido.status === "Prontos").length;
   const termo = busca.toLowerCase();
   const pedidosVisiveis = pedidos.filter((pedido) => {
     const texto =
       `${pedido.id} ${pedido.cliente} ${pedido.cnpj} ${pedido.cep} ${pedido.logradouro} ${pedido.numero} ${pedido.bairro} ${pedido.cidade} ${pedido.uf} ${pedido.produto} ${pedido.cor} ${pedido.tampa} ${pedido.transporte} ${pedido.tipoFrete} ${pedido.detalheFOB} ${pedido.faturamento} ${pedido.tipoEntrega} ${pedido.vendedor} ${pedido.pagamento} ${pedido.pcpPrevisaoProducao} ${pedido.pcpPrevisaoPronto} ${pedido.pcpQuantidadeProduzida} ${pedido.pcpObservacoes}`.toLowerCase();
-    return statusKanban.includes(pedido.status) && texto.includes(termo);
+    return statusPcp.includes(pedido.status) && texto.includes(termo);
   });
-  const pedidosDisponiveisParaCarga = pedidos.filter((pedido) => statusKanban.includes(pedido.status));
-
-  function togglePedidoCarga(id) {
-    setPedidosCarga((prev) => (prev.includes(id) ? prev.filter((pedidoId) => pedidoId !== id) : [...prev, id]));
-  }
 
   function handleDrop(statusDestino) {
     if (!draggingId) return;
     atualizarStatus(draggingId, statusDestino);
     setDraggingId(null);
-  }
-
-  async function submitCarga() {
-    if (!regiaoCarga || pedidosCarga.length === 0) {
-      window.alert("Preencha a região e selecione ao menos um pedido.");
-      return;
-    }
-
-    await criarCarga({
-      regiao: regiaoCarga,
-      motorista: motoristaCarga,
-      placa: placaCarga,
-      pedidoIds: pedidosCarga,
-      statusDestino: "Pronto para faturar",
-    });
-    setPedidosCarga([]);
-    setRegiaoCarga("");
-    setMotoristaCarga("");
-    setPlacaCarga("");
   }
 
   function PedidoPcpCard({ pedido }) {
@@ -675,7 +658,6 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
       pcpQuantidadeProduzida: String(pedido.pcpQuantidadeProduzida || ""),
       pcpObservacoes: pedido.pcpObservacoes || "",
     }));
-    const selecionado = pedidosCarga.includes(pedido.id);
     const total = valorTotalPedido(pedido);
     const quantidadeProduzida = Number(pedido.pcpQuantidadeProduzida || 0);
     const percentualProduzido = Math.min(100, Math.round((quantidadeProduzida / Number(pedido.quantidade || 1)) * 100));
@@ -699,17 +681,9 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
         draggable={!aberto}
         onDragStart={() => setDraggingId(pedido.id)}
         onDragEnd={() => setDraggingId(null)}
-        className={`cursor-grab rounded-lg border bg-white p-3 shadow-sm transition active:cursor-grabbing ${
-          selecionado ? "border-teal-500 ring-2 ring-teal-100" : "border-slate-200 hover:border-teal-300"
-        }`}
+        className="cursor-grab rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:border-teal-300 active:cursor-grabbing"
       >
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => togglePedidoCarga(pedido.id)}
-            className={`h-5 w-5 flex-shrink-0 rounded border ${selecionado ? "border-teal-700 bg-teal-700" : "border-slate-300 bg-white"}`}
-            aria-label="Selecionar para carga"
-          />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold">#{pedido.id}</span>
@@ -881,34 +855,34 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
     <div className="space-y-6">
       <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <StatCard label="Novos pedidos" value={resumo.novos} tone="amber" />
-        <StatCard label="Vai produzir" value={resumo.vaiProduzir} tone="sky" />
+        <StatCard label="A produzir" value={resumo.vaiProduzir} tone="sky" />
         <StatCard label="Em produção" value={resumo.producao} tone="sky" />
-        <StatCard label="Cargas montadas" value={cargas.length} tone="teal" />
+        <StatCard label="Prontos" value={prontosCount} tone="teal" />
       </section>
 
       <Card className="p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-xl font-bold">Painel PCP / Logística</h2>
-            <p className="text-sm text-slate-500">Arraste pedidos entre etapas e monte cargas para liberar o faturamento.</p>
+            <h2 className="text-xl font-bold">PCP - Produção</h2>
+            <p className="text-sm text-slate-500">Arraste os pedidos entre as etapas. Ao ficarem prontos, seguem para a Logística.</p>
           </div>
-          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, pedido, produto ou rota" className="md:w-80" />
+          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, pedido ou produto" className="md:w-80" />
         </div>
       </Card>
 
       <section className="flex gap-4 overflow-x-auto pb-2">
-        {statusKanban.map((status) => {
-          const pedidosColuna = pedidosVisiveis.filter((pedido) => pedido.status === status);
+        {colunasPcp.map((coluna) => {
+          const pedidosColuna = pedidosVisiveis.filter((pedido) => coluna.statuses.includes(pedido.status));
           return (
             <Card
-              key={status}
+              key={coluna.titulo}
               className="min-h-[620px] min-w-[420px] max-w-[420px] flex-shrink-0 p-4"
               onDragOver={(event) => event.preventDefault()}
-              onDrop={() => handleDrop(status)}
+              onDrop={() => handleDrop(coluna.destino)}
             >
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-lg font-bold">{status === "Novo pedido" ? "Novos pedidos" : status}</h3>
-                <Badge className={statusColor(status)}>{pedidosColuna.length}</Badge>
+                <h3 className="text-lg font-bold">{coluna.titulo}</h3>
+                <Badge className={statusColor(coluna.destino)}>{pedidosColuna.length}</Badge>
               </div>
               <div className="max-h-[540px] space-y-3 overflow-y-auto pr-1">
                 {pedidosColuna.length === 0 && <EmptyState>Solte pedidos aqui.</EmptyState>}
@@ -919,58 +893,6 @@ function PCPLogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido,
             </Card>
           );
         })}
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_1fr]">
-        <Card className="p-5">
-          <h3 className="text-xl font-bold">Montagem de carga</h3>
-          <p className="mb-4 text-sm text-slate-500">Pedidos selecionados mudam para Pronto para faturar.</p>
-          <div className="space-y-3">
-            <Field label="Região / rota">
-              <Input value={regiaoCarga} onChange={(e) => setRegiaoCarga(e.target.value)} placeholder="Norte PR, SC, SP" />
-            </Field>
-            <Field label="Motorista">
-              <Input value={motoristaCarga} onChange={(e) => setMotoristaCarga(e.target.value)} placeholder="Nome do motorista" />
-            </Field>
-            <Field label="Placa">
-              <Input value={placaCarga} onChange={(e) => setPlacaCarga(e.target.value)} placeholder="ABC-1234" />
-            </Field>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <h4 className="font-bold">Selecionados</h4>
-                <Badge className="border-teal-200 bg-teal-50 text-teal-800">{pedidosCarga.length}</Badge>
-              </div>
-              <div className="max-h-56 space-y-2 overflow-auto pr-1">
-                {pedidosCarga.length === 0 && <EmptyState>Nenhum pedido selecionado.</EmptyState>}
-                {pedidosDisponiveisParaCarga
-                  .filter((pedido) => pedidosCarga.includes(pedido.id))
-                  .map((pedido) => (
-                    <button
-                      key={pedido.id}
-                      type="button"
-                      onClick={() => togglePedidoCarga(pedido.id)}
-                      className="w-full rounded-lg border border-teal-200 bg-white p-3 text-left transition hover:bg-teal-50"
-                    >
-                      <div className="flex items-center justify-between">
-                        <strong>#{pedido.id}</strong>
-                        <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
-                      </div>
-                      <p className="text-sm text-slate-700">{pedido.cliente}</p>
-                      <p className="text-xs text-slate-500">
-                        {pedido.cidade} - {pedido.quantidade} un
-                      </p>
-                    </button>
-                  ))}
-              </div>
-            </div>
-            <Button onClick={submitCarga} disabled={salvando} className="w-full bg-teal-700 text-white hover:bg-teal-800">
-              <Printer size={16} />
-              Imprimir etiqueta da carga
-            </Button>
-          </div>
-        </Card>
-
-        <CargasMontadas cargas={cargas} statusLabel="Pronto para faturar" />
       </section>
     </div>
   );
@@ -1039,9 +961,9 @@ function CargasMontadas({ cargas, statusLabel }) {
 
 function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
   const [busca, setBusca] = useState("");
-  const [statusFiltro, setStatusFiltro] = useState("Pronto para faturar");
+  const [statusFiltro, setStatusFiltro] = useState("Todos");
   const pedidosFaturamento = useMemo(() => filtrarPedidos(pedidos, busca, statusFiltro, "Todos", "Faturamento"), [pedidos, busca, statusFiltro]);
-  const pedidosProntos = pedidos.filter((pedido) => pedido.status === "Pronto para faturar");
+  const pedidosProntos = pedidos.filter((pedido) => ["Pronto para retirada", "Pronto para o envio"].includes(pedido.status));
   const notasEmitidas = pedidos.filter((pedido) => pedido.status === "Nota emitida");
   const valorParaFaturar = pedidosProntos.reduce((acc, pedido) => acc + valorTotalPedido(pedido), 0);
 
@@ -1057,14 +979,15 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-xl font-bold">Faturamento</h2>
-            <p className="text-sm text-slate-500">Pedidos liberados pelo PCP e notas emitidas.</p>
+            <p className="text-sm text-slate-500">Pedidos liberados pela logística (retirada e envio) e notas emitidas.</p>
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-[260px_220px]">
             <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pedido, cliente ou produto" />
             <SelectBox value={statusFiltro} onChange={setStatusFiltro}>
-              <option value="Pronto para faturar">Pronto para faturar</option>
-              <option value="Nota emitida">Nota emitida</option>
               <option value="Todos">Todos</option>
+              <option value="Pronto para retirada">Pronto para retirada</option>
+              <option value="Pronto para o envio">Pronto para o envio</option>
+              <option value="Nota emitida">Nota emitida</option>
             </SelectBox>
           </div>
         </div>
@@ -1262,22 +1185,23 @@ function FinanceiroLayout({ pedidos, atualizarFinanceiro, excluirPedido }) {
 
 function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluirPedido, salvando }) {
   const [busca, setBusca] = useState("");
-  const [statusFiltro, setStatusFiltro] = useState("Todos");
   const [regiaoCarga, setRegiaoCarga] = useState("");
   const [motoristaCarga, setMotoristaCarga] = useState("");
   const [placaCarga, setPlacaCarga] = useState("");
   const [pedidosCarga, setPedidosCarga] = useState([]);
-  const statusLogistica = ["Todos", "Nota emitida", "Separado para entrega", "Enviado", "Finalizado"];
-  const pedidosLogistica = useMemo(() => filtrarPedidos(pedidos, busca, statusFiltro, "Todos", "Logística"), [pedidos, busca, statusFiltro]);
-  const aguardandoSeparacao = pedidos.filter((pedido) => pedido.status === "Nota emitida");
-  const separados = pedidos.filter((pedido) => pedido.status === "Separado para entrega");
-  const enviados = pedidos.filter((pedido) => pedido.status === "Enviado");
-  const finalizados = pedidos.filter((pedido) => pedido.status === "Finalizado");
+  const termo = busca.toLowerCase();
+  const visiveis = pedidos.filter(
+    (pedido) =>
+      ["Prontos", "Pronto para retirada", "Pronto para o envio"].includes(pedido.status) &&
+      `${pedido.id} ${pedido.cliente} ${pedido.cidade} ${pedido.produto} ${pedido.tipoFrete} ${pedido.tipoEntrega}`.toLowerCase().includes(termo)
+  );
+  const prontos = pedidos.filter((pedido) => pedido.status === "Prontos");
+  const paraRetirada = pedidos.filter((pedido) => pedido.status === "Pronto para retirada");
+  const paraEnvio = pedidos.filter((pedido) => pedido.status === "Pronto para o envio");
   const colunas = [
-    { titulo: "Aguardando separação", status: "Nota emitida" },
-    { titulo: "Separado para entrega", status: "Separado para entrega" },
-    { titulo: "Enviado", status: "Enviado" },
-    { titulo: "Finalizado", status: "Finalizado" },
+    { titulo: "Prontos", status: "Prontos" },
+    { titulo: "Pronto para retirada", status: "Pronto para retirada" },
+    { titulo: "Pronto para o envio", status: "Pronto para o envio" },
   ];
 
   function togglePedidoCarga(id) {
@@ -1286,7 +1210,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
 
   async function submitCarga() {
     if (!regiaoCarga || pedidosCarga.length === 0) {
-      window.alert("Preencha a região e selecione ao menos um pedido.");
+      window.alert("Preencha a região e selecione ao menos um pedido CIF.");
       return;
     }
     await criarCarga({
@@ -1294,7 +1218,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
       motorista: motoristaCarga,
       placa: placaCarga,
       pedidoIds: pedidosCarga,
-      statusDestino: "Separado para entrega",
+      statusDestino: "Pronto para o envio",
     });
     setPedidosCarga([]);
     setRegiaoCarga("");
@@ -1302,38 +1226,72 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
     setPlacaCarga("");
   }
 
+  function PedidoLogisticaCard({ pedido }) {
+    const isProntos = pedido.status === "Prontos";
+    const isCIF = pedido.tipoFrete === "CIF";
+    const selecionado = pedidosCarga.includes(pedido.id);
+    return (
+      <article className={`rounded-lg border bg-white p-3 shadow-sm ${selecionado ? "border-teal-500 ring-2 ring-teal-100" : "border-slate-200"}`}>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <span className="text-sm font-bold">#{pedido.id}</span>
+          <div className="flex items-center gap-1">
+            <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
+            <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
+              <Trash2 size={14} />
+            </IconButton>
+          </div>
+        </div>
+        <p className="truncate text-sm font-bold text-slate-900">{pedido.cliente || "Cliente não informado"}</p>
+        <p className="truncate text-xs text-slate-500">
+          {pedido.cidade || "-"} - {pedido.produto || "-"} - <strong>{pedido.quantidade || 0} un</strong>
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Frete: <strong>{pedido.tipoFrete || "não informado"}</strong>
+          {pedido.tipoEntrega ? ` - ${pedido.tipoEntrega}` : ""}
+        </p>
+        {isProntos &&
+          (isCIF ? (
+            <button
+              type="button"
+              onClick={() => togglePedidoCarga(pedido.id)}
+              className={`mt-2 w-full rounded-lg border p-2 text-xs font-semibold transition ${
+                selecionado ? "border-teal-500 bg-teal-50 text-teal-800" : "border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {selecionado ? "Selecionado para carga" : "Selecionar para carga (CIF)"}
+            </button>
+          ) : (
+            <Button onClick={() => atualizarStatus(pedido.id, "Pronto para retirada")} className="mt-2 w-full bg-teal-700 text-white hover:bg-teal-800">
+              Pronto para retirada
+            </Button>
+          ))}
+      </article>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <StatCard label="Aguardando separação" value={aguardandoSeparacao.length} tone="amber" />
-        <StatCard label="Separados" value={separados.length} tone="sky" />
-        <StatCard label="Enviados" value={enviados.length} tone="teal" />
-        <StatCard label="Finalizados" value={finalizados.length} tone="green" />
+        <StatCard label="Prontos" value={prontos.length} tone="sky" />
+        <StatCard label="Para retirada" value={paraRetirada.length} tone="teal" />
+        <StatCard label="Para envio" value={paraEnvio.length} tone="teal" />
+        <StatCard label="Cargas" value={cargas.length} tone="green" />
       </section>
 
       <Card className="p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-xl font-bold">Logística</h2>
-            <p className="text-sm text-slate-500">Separação, montagem de cargas e entrega.</p>
+            <p className="text-sm text-slate-500">Separe retirada (FOB) e envio (CIF). Retirada e cargas CIF liberam o faturamento.</p>
           </div>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-[260px_220px]">
-            <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, pedido ou transporte" />
-            <SelectBox value={statusFiltro} onChange={setStatusFiltro}>
-              {statusLogistica.map((status) => (
-                <option key={status} value={status}>
-                  {status === "Todos" ? "Todos status logística" : status}
-                </option>
-              ))}
-            </SelectBox>
-          </div>
+          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, pedido ou frete" className="md:w-80" />
         </div>
       </Card>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_1fr]">
         <Card className="p-5">
-          <h3 className="text-xl font-bold">Montagem de carga</h3>
-          <p className="mb-4 text-sm text-slate-500">Agrupe pedidos com nota emitida ou já separados.</p>
+          <h3 className="text-xl font-bold">Montagem de carga (CIF)</h3>
+          <p className="mb-4 text-sm text-slate-500">Selecione pedidos CIF em "Prontos"; a carga muda para "Pronto para o envio".</p>
           <div className="space-y-3">
             <Field label="Região / rota">
               <Input value={regiaoCarga} onChange={(e) => setRegiaoCarga(e.target.value)} placeholder="Norte PR, SC, SP" />
@@ -1349,29 +1307,27 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
                 <h4 className="font-bold">Pedidos selecionados</h4>
                 <Badge className="border-teal-200 bg-teal-50 text-teal-800">{pedidosCarga.length}</Badge>
               </div>
-              <div className="max-h-72 space-y-2 overflow-auto pr-1">
-                {pedidos
-                  .filter((pedido) => ["Nota emitida", "Separado para entrega"].includes(pedido.status))
-                  .map((pedido) => {
-                    const selecionado = pedidosCarga.includes(pedido.id);
-                    return (
-                      <button
-                        key={pedido.id}
-                        type="button"
-                        onClick={() => togglePedidoCarga(pedido.id)}
-                        className={`w-full rounded-lg border p-3 text-left transition ${
-                          selecionado ? "border-teal-500 bg-teal-50" : "border-slate-200 bg-white hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <strong>#{pedido.id}</strong>
-                          <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
-                        </div>
-                        <p className="text-sm text-slate-700">{pedido.cliente}</p>
-                        <p className="text-xs text-slate-500">{pedido.cidade}</p>
-                      </button>
-                    );
-                  })}
+              <div className="max-h-56 space-y-2 overflow-auto pr-1">
+                {pedidosCarga.length === 0 && <EmptyState>Selecione pedidos CIF na coluna Prontos.</EmptyState>}
+                {prontos
+                  .filter((pedido) => pedidosCarga.includes(pedido.id))
+                  .map((pedido) => (
+                    <button
+                      key={pedido.id}
+                      type="button"
+                      onClick={() => togglePedidoCarga(pedido.id)}
+                      className="w-full rounded-lg border border-teal-200 bg-white p-3 text-left transition hover:bg-teal-50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <strong>#{pedido.id}</strong>
+                        <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
+                      </div>
+                      <p className="text-sm text-slate-700">{pedido.cliente}</p>
+                      <p className="text-xs text-slate-500">
+                        {pedido.cidade} - {pedido.quantidade} un
+                      </p>
+                    </button>
+                  ))}
               </div>
             </div>
             <Button onClick={submitCarga} disabled={salvando} className="w-full bg-teal-700 text-white hover:bg-teal-800">
@@ -1381,12 +1337,12 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
           </div>
         </Card>
 
-        <CargasMontadas cargas={cargas} />
+        <CargasMontadas cargas={cargas} statusLabel="Pronto para o envio" />
       </section>
 
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         {colunas.map((coluna) => {
-          const pedidosColuna = pedidosLogistica.filter((pedido) => pedido.status === coluna.status);
+          const pedidosColuna = visiveis.filter((pedido) => pedido.status === coluna.status);
           return (
             <Card key={coluna.status} className="p-4">
               <div className="mb-4 flex items-center justify-between gap-2">
@@ -1396,13 +1352,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
               <div className="space-y-3">
                 {pedidosColuna.length === 0 && <EmptyState>Nenhum pedido aqui.</EmptyState>}
                 {pedidosColuna.map((pedido) => (
-                  <PedidoCard
-                    key={pedido.id}
-                    pedido={pedido}
-                    layout="logistica"
-                    atualizarStatus={atualizarStatus}
-                    excluirPedido={excluirPedido}
-                  />
+                  <PedidoLogisticaCard key={pedido.id} pedido={pedido} />
                 ))}
               </div>
             </Card>
@@ -1610,13 +1560,11 @@ export default function App() {
           <ClientesLayout clientes={clientes} produtos={produtosCatalogo} onRefresh={() => loadData(false)} salvando={salvando} />
         ) : perfil === "Estoque" ? (
           <EstoqueLayout produtos={produtosCatalogo} onRefresh={() => loadData(false)} />
-        ) : perfil === "PCP/Logística" ? (
-          <PCPLogisticaLayout
+        ) : perfil === "PCP" ? (
+          <PCPLayout
             pedidos={pedidos}
-            cargas={cargas}
             atualizarStatus={atualizarStatus}
             atualizarPedido={atualizarPedido}
-            criarCarga={criarCarga}
             excluirPedido={excluirPedido}
             salvando={salvando}
           />

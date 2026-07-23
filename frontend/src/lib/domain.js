@@ -91,16 +91,16 @@ export function statusColor(status) {
   if (status === "Cancelado") {
     return "bg-red-50 text-red-800 border-red-200";
   }
-  if (["Finalizado", "Enviado", "Nota emitida"].includes(status)) {
+  if (["Nota emitida", "Finalizado", "Enviado"].includes(status)) {
     return "bg-green-50 text-green-800 border-green-200";
   }
   if (["Aguardando pagamento", "Novo pedido"].includes(status)) {
     return "bg-amber-50 text-amber-800 border-amber-200";
   }
-  if (["Vai produzir", "Em produção", "Pronto para faturar", "Separado para entrega"].includes(status)) {
+  if (["A produzir", "Em produção", "Prontos", "Vai produzir", "Pronto para faturar"].includes(status)) {
     return "bg-sky-50 text-sky-800 border-sky-200";
   }
-  if (status === "Pago") {
+  if (["Pago", "Pronto para retirada", "Pronto para o envio", "Separado para entrega"].includes(status)) {
     return "bg-teal-50 text-teal-800 border-teal-200";
   }
   return "bg-slate-100 text-slate-700 border-slate-200";
@@ -115,9 +115,9 @@ export function financeiroColor(statusFinanceiro) {
 export function podeVerPedidoPorPerfil(perfil, status) {
   if (perfil === "Comercial") return true;
   if (perfil === "Financeiro") return status === "Nota emitida";
-  if (perfil === "PCP/Logística") return ["Novo pedido", "Pago", "Vai produzir", "Em produção", "Pronto para faturar"].includes(status);
-  if (perfil === "Faturamento") return ["Pronto para faturar", "Nota emitida"].includes(status);
-  if (perfil === "Logística") return ["Nota emitida", "Separado para entrega", "Enviado", "Finalizado"].includes(status);
+  if (perfil === "PCP") return ["Novo pedido", "Pago", "A produzir", "Em produção", "Prontos"].includes(status);
+  if (perfil === "Faturamento") return ["Pronto para retirada", "Pronto para o envio", "Nota emitida"].includes(status);
+  if (perfil === "Logística") return ["Prontos", "Pronto para retirada", "Pronto para o envio"].includes(status);
   return false;
 }
 
@@ -126,9 +126,9 @@ export function calcularResumo(pedidos) {
   return {
     novos: pedidosAtivos.filter((p) => p.status === "Novo pedido").length,
     aguardando: pedidosAtivos.filter((p) => p.status === "Aguardando pagamento").length,
-    vaiProduzir: pedidosAtivos.filter((p) => p.status === "Vai produzir").length,
+    vaiProduzir: pedidosAtivos.filter((p) => ["A produzir", "Vai produzir"].includes(p.status)).length,
     producao: pedidosAtivos.filter((p) => p.status === "Em produção").length,
-    faturar: pedidosAtivos.filter((p) => p.status === "Pronto para faturar").length,
+    faturar: pedidosAtivos.filter((p) => ["Pronto para retirada", "Pronto para o envio", "Pronto para faturar"].includes(p.status)).length,
     notasEmitidas: pedidosAtivos.filter((p) => p.status === "Nota emitida").length,
     financeiroPago: pedidosAtivos.filter((p) => p.status === "Nota emitida" && p.statusFinanceiro === "Pago").length,
     financeiroPendente: pedidosAtivos.filter((p) => p.status === "Nota emitida" && p.statusFinanceiro !== "Pago").length,

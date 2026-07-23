@@ -2,42 +2,56 @@ from app.models.pedido import Pedido
 
 
 STATUS_CANCELADO = "Cancelado"
+
+# Status legados aceitos por 1 release (removidos quando produção zerar as linhas antigas).
+STATUS_LEGADOS = {"Vai produzir", "Pronto para faturar", "Separado para entrega", "Enviado", "Finalizado"}
+
 STATUS_ATIVOS = {
     "Novo pedido",
     "Aguardando pagamento",
     "Pago",
-    "Vai produzir",
+    "A produzir",
     "Em produção",
-    "Pronto para faturar",
+    "Prontos",
+    "Pronto para retirada",
+    "Pronto para o envio",
     "Nota emitida",
-    "Separado para entrega",
-    "Enviado",
-    "Finalizado",
-}
+} | STATUS_LEGADOS
 STATUS_VALIDOS = STATUS_ATIVOS | {STATUS_CANCELADO}
+
+# Pedido faturado (nota emitida) ou em trilha de entrega legada: bloqueia edição de produto/qtd e exclusão.
+STATUS_FATURADO = {"Nota emitida", "Separado para entrega", "Enviado", "Finalizado"}
+
+# A reserva de estoque fica retida até a emissão da nota; a baixa ocorre ao entrar em "Nota emitida".
 STATUS_COM_RESERVA = {
     "Novo pedido",
     "Aguardando pagamento",
     "Pago",
-    "Vai produzir",
+    "A produzir",
     "Em produção",
+    "Prontos",
+    "Pronto para retirada",
+    "Pronto para o envio",
+    "Vai produzir",
     "Pronto para faturar",
-    "Nota emitida",
-    "Separado para entrega",
-    "Enviado",
 }
 STATUS_TRANSICOES = {
-    "Novo pedido": {"Aguardando pagamento", "Pago", "Vai produzir", "Em produção", "Pronto para faturar", STATUS_CANCELADO},
-    "Aguardando pagamento": {"Pago", "Vai produzir", STATUS_CANCELADO},
-    "Pago": {"Vai produzir", STATUS_CANCELADO},
-    "Vai produzir": {"Novo pedido", "Em produção", "Pronto para faturar", STATUS_CANCELADO},
-    "Em produção": {"Novo pedido", "Vai produzir", "Pronto para faturar", STATUS_CANCELADO},
-    "Pronto para faturar": {"Em produção", "Nota emitida", STATUS_CANCELADO},
-    "Nota emitida": {"Pronto para faturar", "Separado para entrega"},
-    "Separado para entrega": {"Nota emitida", "Enviado"},
-    "Enviado": {"Separado para entrega", "Finalizado"},
-    "Finalizado": set(),
+    "Novo pedido": {"Aguardando pagamento", "Pago", "A produzir", "Em produção", "Prontos", STATUS_CANCELADO},
+    "Aguardando pagamento": {"Pago", "A produzir", STATUS_CANCELADO},
+    "Pago": {"A produzir", STATUS_CANCELADO},
+    "A produzir": {"Novo pedido", "Em produção", "Prontos", STATUS_CANCELADO},
+    "Em produção": {"Novo pedido", "A produzir", "Prontos", STATUS_CANCELADO},
+    "Prontos": {"Em produção", "Pronto para retirada", "Pronto para o envio", STATUS_CANCELADO},
+    "Pronto para retirada": {"Prontos", "Nota emitida", STATUS_CANCELADO},
+    "Pronto para o envio": {"Prontos", "Nota emitida", STATUS_CANCELADO},
+    "Nota emitida": {"Prontos"},
     STATUS_CANCELADO: set(),
+    # --- aliases legados aceitos por 1 release ---
+    "Vai produzir": {"Novo pedido", "A produzir", "Em produção", "Prontos", STATUS_CANCELADO},
+    "Pronto para faturar": {"Em produção", "Prontos", "Pronto para retirada", "Pronto para o envio", "Nota emitida", STATUS_CANCELADO},
+    "Separado para entrega": {"Nota emitida"},
+    "Enviado": {"Nota emitida"},
+    "Finalizado": set(),
 }
 STATUS_FINANCEIRO_VALIDOS = {"Aguardando pagamento", "Pago"}
 
@@ -54,12 +68,12 @@ def pode_ver_pedido_por_perfil(perfil: str, status: str) -> bool:
         return True
     if perfil == "Financeiro":
         return status == "Nota emitida"
-    if perfil == "PCP/Logística":
-        return status in {"Novo pedido", "Pago", "Vai produzir", "Em produção", "Pronto para faturar"}
+    if perfil in {"PCP", "PCP/Logística"}:  # aceita o nome antigo do perfil por 1 release
+        return status in {"Novo pedido", "Pago", "A produzir", "Em produção", "Prontos", "Vai produzir", "Pronto para faturar"}
     if perfil == "Faturamento":
-        return status in {"Pronto para faturar", "Nota emitida"}
+        return status in {"Pronto para retirada", "Pronto para o envio", "Nota emitida", "Pronto para faturar"}
     if perfil == "Logística":
-        return status in {"Nota emitida", "Separado para entrega", "Enviado", "Finalizado"}
+        return status in {"Prontos", "Pronto para retirada", "Pronto para o envio", "Separado para entrega", "Enviado", "Finalizado"}
     return False
 
 
@@ -81,9 +95,9 @@ def calcular_resumo(pedidos: list[Pedido]) -> dict:
         "totalPedidos": len(pedidos_ativos),
         "novos": sum(1 for p in pedidos_ativos if p.status == "Novo pedido"),
         "aguardando": sum(1 for p in pedidos_ativos if p.status == "Aguardando pagamento"),
-        "vaiProduzir": sum(1 for p in pedidos_ativos if p.status == "Vai produzir"),
+        "vaiProduzir": sum(1 for p in pedidos_ativos if p.status in {"A produzir", "Vai produzir"}),
         "producao": sum(1 for p in pedidos_ativos if p.status == "Em produção"),
-        "faturar": sum(1 for p in pedidos_ativos if p.status == "Pronto para faturar"),
+        "faturar": sum(1 for p in pedidos_ativos if p.status in {"Pronto para retirada", "Pronto para o envio", "Pronto para faturar"}),
         "notasEmitidas": sum(1 for p in pedidos_ativos if p.status == "Nota emitida"),
         "financeiroPago": sum(1 for p in pedidos_ativos if p.status == "Nota emitida" and p.statusFinanceiro == "Pago"),
         "financeiroPendente": sum(1 for p in pedidos_ativos if p.status == "Nota emitida" and p.statusFinanceiro != "Pago"),

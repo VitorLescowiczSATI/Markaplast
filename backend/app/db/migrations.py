@@ -71,8 +71,28 @@ def _add_missing_columns(engine: Engine, inspector, table_name: str, columns: di
             connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
 
 
+def _migrate_status_values(engine: Engine, inspector) -> None:
+    """Renomeia status antigos e colapsa a trilha de entrega legada. Idempotente (seguro a cada boot)."""
+    if inspector.has_table("pedidos") and "status" in {c["name"] for c in inspector.get_columns("pedidos")}:
+        with engine.begin() as connection:
+            connection.execute(text("UPDATE pedidos SET status = 'A produzir' WHERE status = 'Vai produzir'"))
+            connection.execute(text("UPDATE pedidos SET status = 'Prontos' WHERE status = 'Pronto para faturar'"))
+            connection.execute(
+                text("UPDATE pedidos SET status = 'Nota emitida' WHERE status IN ('Separado para entrega', 'Enviado', 'Finalizado')")
+            )
+    if inspector.has_table("cargas") and "status_destino" in {c["name"] for c in inspector.get_columns("cargas")}:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE cargas SET status_destino = 'Pronto para o envio' "
+                    "WHERE status_destino IN ('Pronto para faturar', 'Separado para entrega')"
+                )
+            )
+
+
 def ensure_runtime_migrations(engine: Engine) -> None:
     inspector = inspect(engine)
     _repair_timestamp_columns(engine, inspector)
     _add_missing_columns(engine, inspector, "pedidos", PEDIDOS_COLUMNS)
     _add_missing_columns(engine, inspector, "produtos", PRODUTOS_COLUMNS)
+    _migrate_status_values(engine, inspector)

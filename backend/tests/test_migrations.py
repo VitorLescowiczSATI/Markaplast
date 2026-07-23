@@ -24,6 +24,35 @@ def test_ensure_runtime_migrations_adds_pcp_columns_to_existing_pedidos_table():
     }.issubset(columns)
 
 
+def test_migrate_status_values_relabels_and_collapses():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE pedidos (id INTEGER PRIMARY KEY, status VARCHAR(80))"))
+        connection.execute(text("CREATE TABLE cargas (id INTEGER PRIMARY KEY, status_destino VARCHAR(80))"))
+        connection.execute(
+            text(
+                "INSERT INTO pedidos (id, status) VALUES "
+                "(1, 'Vai produzir'), (2, 'Pronto para faturar'), (3, 'Separado para entrega'), "
+                "(4, 'Enviado'), (5, 'Finalizado'), (6, 'Em produção')"
+            )
+        )
+        connection.execute(
+            text("INSERT INTO cargas (id, status_destino) VALUES (1, 'Pronto para faturar'), (2, 'Separado para entrega')")
+        )
+
+    ensure_runtime_migrations(engine)
+
+    with engine.connect() as connection:
+        pedidos = dict(connection.execute(text("SELECT id, status FROM pedidos")).all())
+        cargas = dict(connection.execute(text("SELECT id, status_destino FROM cargas")).all())
+
+    assert pedidos[1] == "A produzir"
+    assert pedidos[2] == "Prontos"
+    assert pedidos[3] == pedidos[4] == pedidos[5] == "Nota emitida"  # trilha de entrega legada colapsada
+    assert pedidos[6] == "Em produção"  # inalterado
+    assert cargas[1] == cargas[2] == "Pronto para o envio"
+
+
 def test_ensure_runtime_migrations_adds_produto_attribute_columns():
     engine = create_engine("sqlite:///:memory:")
     with engine.begin() as connection:

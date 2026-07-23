@@ -26,7 +26,7 @@ def criar_carga(payload: CargaCreate, db: Session = Depends(get_db)):
     if faltantes:
         raise HTTPException(status_code=404, detail=f"Pedidos não encontrados: {faltantes}")
 
-    if payload.statusDestino not in {"Pronto para faturar", "Separado para entrega"}:
+    if payload.statusDestino not in {"Pronto para o envio", "Pronto para faturar", "Separado para entrega"}:
         raise HTTPException(status_code=400, detail="Destino de carga invalido")
     invalidos = [pedido.id for pedido in pedidos if not pode_transicionar_status(pedido.status, payload.statusDestino)]
     if invalidos:

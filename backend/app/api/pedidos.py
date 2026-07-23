@@ -23,6 +23,7 @@ from app.services.historico import registrar_historico
 from app.services.regras import (
     STATUS_CANCELADO,
     STATUS_COM_RESERVA,
+    STATUS_FATURADO,
     STATUS_FINANCEIRO_VALIDOS,
     calcular_resumo,
     pedido_bate_busca,
@@ -106,7 +107,7 @@ def atualizar_pedido(pedido_id: int, payload: PedidoUpdate, db: Session = Depend
         raise HTTPException(status_code=400, detail=f"Transicao de status invalida: {pedido.status} -> {dados['status']}")
     if "statusFinanceiro" in dados and dados["statusFinanceiro"] not in STATUS_FINANCEIRO_VALIDOS:
         raise HTTPException(status_code=400, detail="Status financeiro invalido")
-    if pedido.status in {"Nota emitida", "Separado para entrega", "Enviado", "Finalizado", STATUS_CANCELADO} and {"produto", "quantidade"} & set(dados):
+    if pedido.status in STATUS_FATURADO | {STATUS_CANCELADO} and {"produto", "quantidade"} & set(dados):
         raise HTTPException(status_code=409, detail="Produto e quantidade nao podem ser alterados nesta etapa do pedido")
 
     for key, value in dados.items():
@@ -119,8 +120,8 @@ def atualizar_pedido(pedido_id: int, payload: PedidoUpdate, db: Session = Depend
     if "status" in dados and pedido.status != status_anterior:
         registrar_historico(db, pedido.id, "Status", status_anterior, pedido.status)
         if pedido.status == "Nota emitida" and not pedido.dataEmissao:
+            # Faturou: estampa a emissão e dá baixa na reserva (mercadoria saiu ao faturar).
             pedido.dataEmissao = hoje_brasil()
-        if pedido.status == "Finalizado":
             baixar_reserva_do_pedido(db, pedido)
         elif pedido.status == STATUS_CANCELADO and status_anterior in STATUS_COM_RESERVA:
             liberar_reserva_do_pedido(db, pedido)
@@ -144,7 +145,6 @@ def atualizar_status(pedido_id: int, payload: PedidoStatusUpdate, db: Session = 
     registrar_historico(db, pedido.id, "Status", status_anterior, payload.status)
     if payload.status == "Nota emitida" and not pedido.dataEmissao:
         pedido.dataEmissao = hoje_brasil()
-    if payload.status == "Finalizado" and status_anterior != "Finalizado":
         baixar_reserva_do_pedido(db, pedido)
     elif payload.status == STATUS_CANCELADO and status_anterior in STATUS_COM_RESERVA:
         liberar_reserva_do_pedido(db, pedido)
@@ -173,7 +173,7 @@ def excluir_pedido(pedido_id: int, db: Session = Depends(get_db)):
     pedido = db.get(Pedido, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
-    if pedido.status in {"Nota emitida", "Separado para entrega", "Enviado", "Finalizado"}:
+    if pedido.status in STATUS_FATURADO:
         raise HTTPException(status_code=409, detail="Pedido faturado ou em entrega deve ser cancelado pelo fluxo fiscal/logistico")
     if pedido.status == STATUS_CANCELADO:
         return None

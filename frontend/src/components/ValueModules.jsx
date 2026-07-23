@@ -779,7 +779,7 @@ export function EstoqueLayout({ produtos = [], onRefresh }) {
 }
 
 export function FiscalLayout({ pedidos = [], notas = [], prepararNfe, marcarNfeEmitida, enviarNfeHomologacao }) {
-  const pedidosFiscais = pedidos.filter((pedido) => ["Pronto para faturar", "Nota emitida"].includes(pedido.status));
+  const pedidosFiscais = pedidos.filter((pedido) => ["Pronto para retirada", "Pronto para o envio", "Nota emitida"].includes(pedido.status));
   const notasPorPedido = useMemo(() => new Map(notas.map((nota) => [nota.pedidoId, nota])), [notas]);
 
   return (

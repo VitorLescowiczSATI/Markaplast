@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core.config import get_settings
 from app.models.nota_fiscal import NotaFiscalDraft
-from app.models.pedido import Pedido
+from app.models.pedido import Pedido, hoje_brasil
 from app.schemas.fiscal import NotaFiscalRead, NotaFiscalUpdate
+from app.services.estoque import baixar_reserva_do_pedido
 from app.services.fiscal import enviar_focus_nfe, montar_payload_nfe
 from app.services.historico import registrar_historico
 from app.services.regras import pode_transicionar_status
@@ -71,6 +72,9 @@ def marcar_emitida(nota_id: int, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail=f"Pedido em etapa invalida para emissao: {pedido.status}")
         anterior = pedido.status
         pedido.status = "Nota emitida"
+        if not pedido.dataEmissao:
+            pedido.dataEmissao = hoje_brasil()
+            baixar_reserva_do_pedido(db, pedido)
         registrar_historico(db, pedido.id, "Status", anterior, pedido.status, observacao="Nota marcada como emitida no modulo fiscal.")
     db.commit()
     db.refresh(nota)

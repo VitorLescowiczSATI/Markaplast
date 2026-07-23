@@ -10,7 +10,7 @@ class CargaCreate(BaseModel):
     motorista: str = ""
     placa: str = ""
     pedidoIds: list[int] = Field(..., min_length=1)
-    statusDestino: str = "Pronto para faturar"
+    statusDestino: str = "Pronto para o envio"
 
 
 class CargaRead(BaseModel):

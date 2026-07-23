@@ -20,9 +20,13 @@ def test_valor_total_pedido_soma_embalagem_e_tampa_por_quantidade():
 
 
 def test_permissoes_por_perfil():
-    assert pode_ver_pedido_por_perfil("PCP/Logística", "Novo pedido") is True
-    assert pode_ver_pedido_por_perfil("PCP/Logística", "Aguardando pagamento") is False
+    assert pode_ver_pedido_por_perfil("PCP", "A produzir") is True
+    assert pode_ver_pedido_por_perfil("PCP", "Aguardando pagamento") is False
     assert pode_ver_pedido_por_perfil("Financeiro", "Nota emitida") is True
+    assert pode_ver_pedido_por_perfil("Logística", "Pronto para o envio") is True
+    assert pode_ver_pedido_por_perfil("Faturamento", "Pronto para retirada") is True
+    # nome antigo do perfil ainda aceito por 1 release
+    assert pode_ver_pedido_por_perfil("PCP/Logística", "A produzir") is True
 
 
 def test_calcular_resumo():
@@ -44,8 +48,14 @@ def test_calcular_resumo():
 
 
 def test_transicoes_de_status_basicas():
-    assert pode_transicionar_status("Novo pedido", "Pronto para faturar") is True
-    assert pode_transicionar_status("Pronto para faturar", "Nota emitida") is True
-    assert pode_transicionar_status("Nota emitida", "Pronto para faturar") is True
+    assert pode_transicionar_status("Novo pedido", "A produzir") is True
+    assert pode_transicionar_status("Prontos", "Pronto para retirada") is True
+    assert pode_transicionar_status("Prontos", "Pronto para o envio") is True
+    assert pode_transicionar_status("Pronto para retirada", "Nota emitida") is True
+    assert pode_transicionar_status("Pronto para o envio", "Nota emitida") is True
+    assert pode_transicionar_status("Nota emitida", "Prontos") is True
     assert pode_transicionar_status("Nota emitida", "Finalizado") is False
     assert pode_transicionar_status("Cancelado", "Novo pedido") is False
+    # aliases legados ainda aceitos por 1 release
+    assert pode_transicionar_status("Vai produzir", "A produzir") is True
+    assert pode_transicionar_status("Pronto para faturar", "Nota emitida") is True
