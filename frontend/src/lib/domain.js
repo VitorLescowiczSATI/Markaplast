@@ -19,6 +19,55 @@ export function camposFaltandoPedido(form) {
   }).map(([, label]) => label);
 }
 
+// Pedido é considerado "faturado/realizado" a partir da emissão da nota.
+export const STATUS_FATURADO = ["Nota emitida", "Separado para entrega", "Enviado", "Finalizado"];
+
+function infoData(dataStr) {
+  const [ano, mes, dia] = String(dataStr || "").split("-").map(Number);
+  const mesIdx = (mes || 1) - 1;
+  return { ano: ano || 0, mes: mesIdx, dia: dia || 0, trimestre: Math.floor(mesIdx / 3) };
+}
+
+// Soma o faturado por período (diária/mensal/trimestral) da empresa e por vendedor.
+export function realizadoMetas(pedidos = [], hoje = new Date()) {
+  const H = { ano: hoje.getFullYear(), mes: hoje.getMonth(), dia: hoje.getDate(), trimestre: Math.floor(hoje.getMonth() / 3) };
+  const empresa = { diaria: 0, mensal: 0, trimestral: 0 };
+  const porVendedor = {};
+
+  pedidos.forEach((pedido) => {
+    if (!STATUS_FATURADO.includes(pedido.status)) return;
+    const D = infoData(pedido.data);
+    if (D.ano !== H.ano) return;
+    const total = valorTotalPedido(pedido);
+    const vendedor = pedido.vendedor || "Não informado";
+    if (!porVendedor[vendedor]) porVendedor[vendedor] = { diaria: 0, mensal: 0, trimestral: 0 };
+
+    const noTrimestre = D.trimestre === H.trimestre;
+    const noMes = D.mes === H.mes;
+    const noDia = noMes && D.dia === H.dia;
+    if (noTrimestre) {
+      empresa.trimestral += total;
+      porVendedor[vendedor].trimestral += total;
+    }
+    if (noMes) {
+      empresa.mensal += total;
+      porVendedor[vendedor].mensal += total;
+    }
+    if (noDia) {
+      empresa.diaria += total;
+      porVendedor[vendedor].diaria += total;
+    }
+  });
+
+  return { empresa, porVendedor };
+}
+
+export function percentualMeta(realizado, meta) {
+  const alvo = Number(meta || 0);
+  if (alvo <= 0) return 0;
+  return Math.round((Number(realizado || 0) / alvo) * 100);
+}
+
 export function currency(value) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",

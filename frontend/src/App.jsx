@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardList,
+  Copy,
   Factory,
   FileText,
   Loader2,
@@ -338,6 +339,35 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
     }
   }
 
+  function repetirUltimoPedido() {
+    const cliente = clientes.find((item) => String(item.id) === String(clienteSelecionadoId));
+    const nome = cliente?.nome || form.cliente;
+    if (!nome) return;
+    const ultimo = pedidos
+      .filter((pedido) => pedido.cliente === nome && pedido.status !== "Cancelado")
+      .sort((a, b) => (b.id || 0) - (a.id || 0))[0];
+    if (!ultimo) {
+      window.alert("Nenhum pedido anterior encontrado para este cliente.");
+      return;
+    }
+    setForm((atual) => ({
+      ...atual,
+      produto: ultimo.produto || atual.produto,
+      cor: ultimo.cor || atual.cor,
+      tampa: ultimo.tampa || atual.tampa,
+      quantidade: String(ultimo.quantidade || ""),
+      valor: String(ultimo.valor ?? ""),
+      valorTampa: String(ultimo.valorTampa ?? ""),
+      pagamento: ultimo.pagamento || atual.pagamento,
+      vendedor: ultimo.vendedor || atual.vendedor,
+      tipoFrete: ultimo.tipoFrete || atual.tipoFrete,
+      detalheFOB: ultimo.detalheFOB || atual.detalheFOB,
+      transporte: ultimo.transporte || atual.transporte,
+      faturamento: ultimo.faturamento || atual.faturamento,
+      tipoEntrega: ultimo.tipoEntrega || atual.tipoEntrega,
+    }));
+  }
+
   async function submit(event) {
     event.preventDefault();
     const faltando = camposFaltandoPedido(form);
@@ -374,6 +404,16 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
                 ))}
               </SelectBox>
             </Field>
+            {clienteSelecionadoId && (
+              <Button
+                type="button"
+                onClick={repetirUltimoPedido}
+                className="w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              >
+                <Copy size={16} />
+                Repetir último pedido deste cliente
+              </Button>
+            )}
             <Field label="Cliente">
               <Input value={form.cliente} onChange={(e) => setForm({ ...form, cliente: e.target.value })} placeholder="Nome da empresa" />
             </Field>
@@ -1375,6 +1415,7 @@ export default function App() {
   const [dashboard, setDashboard] = useState(null);
   const [notas, setNotas] = useState([]);
   const [historico, setHistorico] = useState([]);
+  const [metas, setMetas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState("");
@@ -1391,6 +1432,7 @@ export default function App() {
         dashboardResponse,
         notasResponse,
         historicoResponse,
+        metasResponse,
       ] = await Promise.all([
         api.listPedidos(),
         api.listCargas(),
@@ -1399,6 +1441,7 @@ export default function App() {
         api.getDashboard(),
         api.listNotas(),
         api.historicoRecente(),
+        api.listMetas(),
       ]);
       setPedidos(pedidosResponse);
       setCargas(cargasResponse);
@@ -1407,6 +1450,7 @@ export default function App() {
       setDashboard(dashboardResponse);
       setNotas(notasResponse);
       setHistorico(historicoResponse);
+      setMetas(metasResponse);
     } catch (err) {
       setError(err.message || "Não foi possível carregar os dados.");
     } finally {
@@ -1554,7 +1598,7 @@ export default function App() {
             <Loader2 size={28} className="animate-spin text-teal-700" />
           </div>
         ) : perfil === "Inteligência" ? (
-          <InteligenciaLayout dashboard={dashboard} historico={historico} produtos={produtosCatalogo} />
+          <InteligenciaLayout dashboard={dashboard} pedidos={pedidos} metas={metas} produtos={produtosCatalogo} onRefresh={() => loadData(false)} />
         ) : perfil === "Clientes" ? (
           <ClientesLayout clientes={clientes} produtos={produtosCatalogo} onRefresh={() => loadData(false)} salvando={salvando} />
         ) : perfil === "Estoque" ? (

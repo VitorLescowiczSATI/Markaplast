@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, FileText, PackagePlus, Pencil, Search, Tags, Trash2, Users, Warehouse, X } from "lucide-react";
+import { BarChart3, CheckCircle2, FileText, PackagePlus, Pencil, Search, Tags, Target, Trash2, Users, X } from "lucide-react";
 
 import { Badge, Button, Card, EmptyState, Field, Input, SelectBox, StatCard, TextArea } from "./ui.jsx";
 import { api } from "../lib/api.js";
-import { currency, statusColor, valorTotalPedido } from "../lib/domain.js";
+import { vendedores } from "../lib/constants.js";
+import { currency, percentualMeta, realizadoMetas, statusColor, valorTotalPedido } from "../lib/domain.js";
 
 const emptyCliente = {
   nome: "",
@@ -52,58 +53,111 @@ function HorizontalBar({ label, value, max, detail }) {
   );
 }
 
-function AlertasPanel({ alertas = [] }) {
-  const tone = {
-    alta: "border-red-200 bg-red-50 text-red-800",
-    media: "border-amber-200 bg-amber-50 text-amber-800",
-    baixa: "border-slate-200 bg-slate-50 text-slate-700",
-  };
+const PERIODOS_META = [
+  { key: "diaria", label: "Diária" },
+  { key: "mensal", label: "Mensal" },
+  { key: "trimestral", label: "Trimestral" },
+];
 
+function MetaBar({ label, realizado, meta }) {
+  const pct = percentualMeta(realizado, meta);
+  const largura = Math.min(100, pct);
+  const cor = pct >= 100 ? "bg-green-600" : pct >= 60 ? "bg-teal-600" : "bg-amber-500";
   return (
-    <Card className="p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <AlertTriangle size={20} className="text-amber-600" />
-        <h2 className="text-xl font-bold">Alertas automáticos</h2>
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="truncate font-medium text-slate-700">{label}</span>
+        <span className="whitespace-nowrap text-xs font-semibold text-slate-500">
+          {currency(realizado)}
+          {meta > 0 ? ` / ${currency(meta)} · ${pct}%` : " · sem meta"}
+        </span>
       </div>
-      <div className="space-y-2">
-        {alertas.length === 0 && <EmptyState>Nenhum alerta operacional agora.</EmptyState>}
-        {alertas.map((alerta, index) => (
-          <div key={`${alerta.tipo}-${alerta.entidadeId}-${index}`} className={`rounded-lg border p-3 ${tone[alerta.prioridade] || tone.baixa}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-bold">{alerta.titulo}</p>
-              <Badge className="border-current bg-white/60 text-current">{alerta.prioridade}</Badge>
-            </div>
-            <p className="mt-1 text-sm">{alerta.detalhe}</p>
-          </div>
-        ))}
+      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${cor}`} style={{ width: `${largura}%` }} />
       </div>
-    </Card>
+    </div>
   );
 }
 
-export function InteligenciaLayout({ dashboard, historico = [], produtos = [] }) {
+export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefresh }) {
   const resumo = dashboard?.resumo || {};
   const statusMax = Math.max(1, ...(dashboard?.porStatus || []).map((item) => Number(item.valor || 0)));
   const vendedorMax = Math.max(1, ...(dashboard?.porVendedor || []).map((item) => Number(item.valor || 0)));
-  const produtoMax = Math.max(1, ...(dashboard?.porProduto || []).map((item) => Number(item.valor || 0)));
-  const produtosComEstoque = produtos.filter((produto) => Number(produto.estoqueAtual || 0) > 0 || Number(produto.estoqueMinimo || 0) > 0);
-  const coberturaMedia =
-    produtosComEstoque.length > 0
-      ? Math.round(
-          produtosComEstoque.reduce((acc, produto) => acc + Number(produto.disponivel || 0) / Math.max(1, Number(produto.estoqueMinimo || 1)), 0) /
-            produtosComEstoque.length
-        )
-      : 0;
+  const realizado = useMemo(() => realizadoMetas(pedidos), [pedidos]);
+  const [config, setConfig] = useState({ escopo: "empresa", vendedor: "", periodo: "mensal", valor: "" });
+  const [salvandoMeta, setSalvandoMeta] = useState(false);
+
+  const metaValor = (escopo, vendedor, periodo) => {
+    const meta = metas.find(
+      (item) => item.escopo === escopo && item.periodo === periodo && (escopo === "empresa" || item.vendedor === vendedor)
+    );
+    return Number(meta?.valor || 0);
+  };
+
+  const vendedoresPainel = Array.from(
+    new Set([...Object.keys(realizado.porVendedor), ...metas.filter((meta) => meta.escopo === "vendedor").map((meta) => meta.vendedor)])
+  )
+    .filter(Boolean)
+    .sort();
+
+  async function salvarMeta(event) {
+    event.preventDefault();
+    if (!config.valor) return;
+    if (config.escopo === "vendedor" && !config.vendedor) {
+      window.alert("Selecione o vendedor da meta.");
+      return;
+    }
+    setSalvandoMeta(true);
+    try {
+      await api.upsertMeta({
+        escopo: config.escopo,
+        vendedor: config.escopo === "vendedor" ? config.vendedor : "",
+        periodo: config.periodo,
+        valor: Number(config.valor || 0),
+      });
+      setConfig((atual) => ({ ...atual, valor: "" }));
+      if (onRefresh) await onRefresh();
+    } finally {
+      setSalvandoMeta(false);
+    }
+  }
+
+  async function removerMeta(id) {
+    await api.deleteMeta(id);
+    if (onRefresh) await onRefresh();
+  }
+
+  function rotuloMeta(meta) {
+    const alvo = meta.escopo === "empresa" ? "Empresa" : meta.vendedor;
+    const periodo = PERIODOS_META.find((item) => item.key === meta.periodo)?.label || meta.periodo;
+    return `${alvo} · ${periodo}`;
+  }
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Pedidos ativos" value={(resumo.totalPedidos || 0) || Object.values(resumo).filter((v) => typeof v === "number").slice(0, 6).reduce((a, b) => a + b, 0)} tone="teal" />
-        <StatCard label="Valor em carteira" value={currency(resumo.total || 0)} tone="teal" />
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Faturado no mês" value={currency(realizado.empresa.mensal)} tone="teal" />
+        <StatCard label="Faturado no trimestre" value={currency(realizado.empresa.trimestral)} tone="teal" />
         <StatCard label="Prontos para faturar" value={resumo.faturar || 0} tone="green" />
         <StatCard label="Financeiro pendente" value={resumo.financeiroPendente || 0} tone="amber" />
-        <StatCard label="Cobertura média estoque" value={`${coberturaMedia}x`} tone="sky" />
       </section>
+
+      <Card className="p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <Target size={20} className="text-teal-700" />
+          <h2 className="text-xl font-bold">Metas da empresa</h2>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {PERIODOS_META.map((periodo) => (
+            <MetaBar
+              key={periodo.key}
+              label={periodo.label}
+              realizado={realizado.empresa[periodo.key]}
+              meta={metaValor("empresa", "", periodo.key)}
+            />
+          ))}
+        </div>
+      </Card>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="p-5">
@@ -111,7 +165,7 @@ export function InteligenciaLayout({ dashboard, historico = [], produtos = [] })
             <BarChart3 size={20} className="text-teal-700" />
             <h2 className="text-xl font-bold">Indicadores comerciais</h2>
           </div>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="space-y-3">
               <h3 className="font-bold">Por status</h3>
               {(dashboard?.porStatus || []).map((item) => (
@@ -120,63 +174,96 @@ export function InteligenciaLayout({ dashboard, historico = [], produtos = [] })
             </div>
             <div className="space-y-3">
               <h3 className="font-bold">Por vendedor</h3>
-              {(dashboard?.porVendedor || []).slice(0, 7).map((item) => (
+              {(dashboard?.porVendedor || []).slice(0, 8).map((item) => (
                 <HorizontalBar key={item.label} label={item.label} value={item.valor} max={vendedorMax} detail={currency(item.valor)} />
               ))}
             </div>
-            <div className="space-y-3">
-              <h3 className="font-bold">Top produtos</h3>
-              {(dashboard?.porProduto || []).slice(0, 7).map((item) => (
-                <HorizontalBar key={item.label} label={item.label} value={item.valor} max={produtoMax} detail={currency(item.valor)} />
-              ))}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <h2 className="mb-4 text-xl font-bold">Metas por vendedor (mês)</h2>
+          <div className="space-y-3">
+            {vendedoresPainel.length === 0 && <EmptyState>Nenhuma meta ou faturamento por vendedor ainda.</EmptyState>}
+            {vendedoresPainel.map((vendedor) => (
+              <MetaBar
+                key={vendedor}
+                label={vendedor}
+                realizado={realizado.porVendedor[vendedor]?.mensal || 0}
+                meta={metaValor("vendedor", vendedor, "mensal")}
+              />
+            ))}
+          </div>
+        </Card>
+      </section>
+
+      <Card className="p-5">
+        <h2 className="mb-4 text-xl font-bold">Configurar metas</h2>
+        <form onSubmit={salvarMeta} className="flex flex-wrap items-end gap-3">
+          <div className="w-36">
+            <Field label="Escopo">
+              <SelectBox value={config.escopo} onChange={(escopo) => setConfig({ ...config, escopo })}>
+                <option value="empresa">Empresa</option>
+                <option value="vendedor">Vendedor</option>
+              </SelectBox>
+            </Field>
+          </div>
+          {config.escopo === "vendedor" && (
+            <div className="w-44">
+              <Field label="Vendedor">
+                <SelectBox value={config.vendedor} onChange={(vendedor) => setConfig({ ...config, vendedor })}>
+                  <option value="">Selecione</option>
+                  {vendedores.map((vendedor) => (
+                    <option key={vendedor} value={vendedor}>
+                      {vendedor}
+                    </option>
+                  ))}
+                </SelectBox>
+              </Field>
             </div>
+          )}
+          <div className="w-40">
+            <Field label="Período">
+              <SelectBox value={config.periodo} onChange={(periodo) => setConfig({ ...config, periodo })}>
+                {PERIODOS_META.map((periodo) => (
+                  <option key={periodo.key} value={periodo.key}>
+                    {periodo.label}
+                  </option>
+                ))}
+              </SelectBox>
+            </Field>
           </div>
-        </Card>
-
-        <AlertasPanel alertas={dashboard?.alertas || []} />
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <Card className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <Warehouse size={20} className="text-teal-700" />
-            <h2 className="text-xl font-bold">Estoque crítico</h2>
+          <div className="w-40">
+            <Field label="Valor (R$)">
+              <Input type="number" step="0.01" value={config.valor} onChange={(e) => setConfig({ ...config, valor: e.target.value })} placeholder="0,00" />
+            </Field>
           </div>
-          <div className="space-y-2">
-            {(dashboard?.estoqueCritico || []).length === 0 && <EmptyState>Nenhum item abaixo do mínimo.</EmptyState>}
-            {(dashboard?.estoqueCritico || []).map((produto) => (
-              <div key={produto.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <strong>{produto.nome}</strong>
-                  <Badge className="border-amber-300 bg-white text-amber-800">{produto.disponivel} disp.</Badge>
-                </div>
-                <p className="mt-1 text-sm text-amber-800">
-                  Estoque {produto.estoqueAtual}, reservado {produto.estoqueReservado}, mínimo {produto.estoqueMinimo}
-                </p>
+          <Button type="submit" disabled={salvandoMeta} className="bg-teal-700 text-white hover:bg-teal-800">
+            Salvar meta
+          </Button>
+        </form>
+
+        <div className="mt-4 space-y-2">
+          {metas.length === 0 && <EmptyState>Nenhuma meta configurada.</EmptyState>}
+          {metas.map((meta) => (
+            <div key={meta.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">{rotuloMeta(meta)}</p>
+                <p className="text-xs text-slate-500">{currency(meta.valor)}</p>
               </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <h2 className="mb-4 text-xl font-bold">Auditoria recente</h2>
-          <div className="space-y-2">
-            {historico.length === 0 && <EmptyState>Nenhum histórico registrado.</EmptyState>}
-            {historico.slice(0, 12).map((item) => (
-              <div key={item.id} className="rounded-lg border border-slate-200 p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong>Pedido #{item.pedidoId}</strong>
-                  <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("pt-BR")}</span>
-                </div>
-                <p className="mt-1 text-slate-700">
-                  {item.tipo}: {item.deValor || "-"} → {item.paraValor || "-"}
-                </p>
-                {item.observacao && <p className="mt-1 text-xs text-slate-500">{item.observacao}</p>}
-              </div>
-            ))}
-          </div>
-        </Card>
-      </section>
+              <button
+                type="button"
+                onClick={() => removerMeta(meta.id)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                aria-label="Excluir meta"
+                title="Excluir meta"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }
