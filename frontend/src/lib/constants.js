@@ -43,6 +43,11 @@ export const tiposFaturamento = ["NF Gimak", "NF Markaplast", "ROM Gpack"];
 export const tiposEntrega = ["Retirada na empresa", "Entrega CIF"];
 export const tiposFrete = ["CIF", "FOB"];
 
+// Listas-base para as travas do pedido (cor/tampa). Ajustar com a lista real do cliente.
+export const cores = ["Natural", "Branco", "Preto", "Azul", "Vermelho", "Verde", "Amarelo", "Cinza"];
+export const tampas = ["Lacre", "Rosca", "Dosadora", "Flip top", "Batoque", "Sem tampa"];
+export const alcaOpcoes = ["nao", "sim"];
+
 export const emptyForm = {
   cliente: "",
   cnpj: "",

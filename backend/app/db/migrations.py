@@ -15,6 +15,14 @@ PEDIDOS_COLUMNS = {
 }
 
 
+PRODUTOS_COLUMNS = {
+    "capacidade": "VARCHAR(40) NOT NULL DEFAULT ''",
+    "modelo": "VARCHAR(60) NOT NULL DEFAULT ''",
+    "peso": "VARCHAR(40) NOT NULL DEFAULT ''",
+    "alca": "VARCHAR(3) NOT NULL DEFAULT 'nao'",
+}
+
+
 TIMESTAMP_TABLES = {
     "produtos": ("created_at", "updated_at"),
 }
@@ -44,17 +52,14 @@ def _repair_timestamp_columns(engine: Engine, inspector) -> None:
                     connection.execute(text(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET NOT NULL"))
 
 
-def ensure_runtime_migrations(engine: Engine) -> None:
-    inspector = inspect(engine)
-    _repair_timestamp_columns(engine, inspector)
-
-    if not inspector.has_table("pedidos"):
+def _add_missing_columns(engine: Engine, inspector, table_name: str, columns: dict[str, str]) -> None:
+    if not inspector.has_table(table_name):
         return
 
-    existing_columns = {column["name"] for column in inspector.get_columns("pedidos")}
+    existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
     missing_columns = {
         column_name: column_definition
-        for column_name, column_definition in PEDIDOS_COLUMNS.items()
+        for column_name, column_definition in columns.items()
         if column_name not in existing_columns
     }
     if not missing_columns:
@@ -62,4 +67,11 @@ def ensure_runtime_migrations(engine: Engine) -> None:
 
     with engine.begin() as connection:
         for column_name, column_definition in missing_columns.items():
-            connection.execute(text(f"ALTER TABLE pedidos ADD COLUMN {column_name} {column_definition}"))
+            connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
+
+
+def ensure_runtime_migrations(engine: Engine) -> None:
+    inspector = inspect(engine)
+    _repair_timestamp_columns(engine, inspector)
+    _add_missing_columns(engine, inspector, "pedidos", PEDIDOS_COLUMNS)
+    _add_missing_columns(engine, inspector, "produtos", PRODUTOS_COLUMNS)

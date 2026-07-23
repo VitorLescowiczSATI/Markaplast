@@ -6,6 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field
 class ProdutoBase(BaseModel):
     nome: str
     categoria: str = "Embalagem"
+    capacidade: str = ""
+    modelo: str = ""
+    peso: str = ""
+    alca: str = "nao"
     unidade: str = "un"
     precoBase: float = Field(0, ge=0)
     valorTampaPadrao: float = Field(0, ge=0)
@@ -22,6 +26,10 @@ class ProdutoCreate(ProdutoBase):
 class ProdutoUpdate(BaseModel):
     nome: str | None = None
     categoria: str | None = None
+    capacidade: str | None = None
+    modelo: str | None = None
+    peso: str | None = None
+    alca: str | None = None
     unidade: str | None = None
     precoBase: float | None = Field(default=None, ge=0)
     valorTampaPadrao: float | None = Field(default=None, ge=0)

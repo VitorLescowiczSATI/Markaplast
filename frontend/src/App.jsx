@@ -23,17 +23,19 @@ import { Badge, Button, Card, EmptyState, Field, IconButton, Input, SelectBox, S
 import { ClientesLayout, EstoqueLayout, FiscalLayout, InteligenciaLayout } from "./components/ValueModules.jsx";
 import { api } from "./lib/api.js";
 import {
+  cores,
   emptyForm,
   financeiroStatusList,
   produtos,
   setores,
   statusList,
+  tampas,
   tiposEntrega,
   tiposFaturamento,
   tiposFrete,
   vendedores,
 } from "./lib/constants.js";
-import { calcularResumo, currency, filtrarPedidos, financeiroColor, statusColor, valorTotalPedido } from "./lib/domain.js";
+import { calcularResumo, camposFaltandoPedido, currency, filtrarPedidos, financeiroColor, statusColor, valorTotalPedido } from "./lib/domain.js";
 
 // Status que não aparecem na aba Comercial por padrão (cancelado + já faturado/concluído).
 const STATUS_OCULTOS_COMERCIAL = ["Cancelado", "Nota emitida", "Separado para entrega", "Enviado", "Finalizado"];
@@ -338,8 +340,9 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
 
   async function submit(event) {
     event.preventDefault();
-    if (!form.cliente || !form.produto || !form.quantidade) {
-      window.alert("Preencha pelo menos Cliente, Produto e Quantidade.");
+    const faltando = camposFaltandoPedido(form);
+    if (faltando.length) {
+      window.alert(`Preencha os campos obrigatórios: ${faltando.join(", ")}.`);
       return;
     }
     const salvo = await criarPedido(payloadFromForm(form));
@@ -417,14 +420,28 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
             </Field>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Field label="Cor">
-                <Input value={form.cor} onChange={(e) => setForm({ ...form, cor: e.target.value })} placeholder="Branco, natural, azul" />
+                <SelectBox value={form.cor} onChange={(cor) => setForm({ ...form, cor })}>
+                  <option value="">Selecione</option>
+                  {cores.map((cor) => (
+                    <option key={cor} value={cor}>
+                      {cor}
+                    </option>
+                  ))}
+                </SelectBox>
               </Field>
               <Field label="Quantidade">
                 <Input type="number" min="1" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: e.target.value })} placeholder="1500" />
               </Field>
             </div>
             <Field label="Tampa">
-              <Input value={form.tampa} onChange={(e) => setForm({ ...form, tampa: e.target.value })} placeholder="Tampa lacre, dosadora" />
+              <SelectBox value={form.tampa} onChange={(tampa) => setForm({ ...form, tampa })}>
+                <option value="">Selecione</option>
+                {tampas.map((tampa) => (
+                  <option key={tampa} value={tampa}>
+                    {tampa}
+                  </option>
+                ))}
+              </SelectBox>
             </Field>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Field label="Valor da embalagem">

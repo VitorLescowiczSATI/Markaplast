@@ -24,6 +24,10 @@ const emptyCliente = {
 const emptyProduto = {
   nome: "",
   categoria: "Embalagem",
+  capacidade: "",
+  modelo: "",
+  peso: "",
+  alca: "nao",
   unidade: "un",
   precoBase: "",
   valorTampaPadrao: "",
@@ -563,6 +567,23 @@ export function EstoqueLayout({ produtos = [], onRefresh }) {
                   <Input value={produtoForm.unidade} onChange={(e) => setProdutoForm({ ...produtoForm, unidade: e.target.value })} />
                 </Field>
               </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <Field label="Capacidade">
+                  <Input value={produtoForm.capacidade} onChange={(e) => setProdutoForm({ ...produtoForm, capacidade: e.target.value })} placeholder="5L" />
+                </Field>
+                <Field label="Modelo">
+                  <Input value={produtoForm.modelo} onChange={(e) => setProdutoForm({ ...produtoForm, modelo: e.target.value })} placeholder="M2" />
+                </Field>
+                <Field label="Peso">
+                  <Input value={produtoForm.peso} onChange={(e) => setProdutoForm({ ...produtoForm, peso: e.target.value })} placeholder="150g" />
+                </Field>
+              </div>
+              <Field label="Alça">
+                <SelectBox value={produtoForm.alca} onChange={(alca) => setProdutoForm({ ...produtoForm, alca })}>
+                  <option value="nao">Sem alça</option>
+                  <option value="sim">Com alça</option>
+                </SelectBox>
+              </Field>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <Field label="Preço base">
                   <Input type="number" step="0.01" value={produtoForm.precoBase} onChange={(e) => setProdutoForm({ ...produtoForm, precoBase: e.target.value })} />
@@ -633,6 +654,13 @@ export function EstoqueLayout({ produtos = [], onRefresh }) {
                     <div className="min-w-0">
                       <h3 className="truncate font-bold">{produto.nome}</h3>
                       <p className="text-sm text-slate-500">{produto.categoria}</p>
+                      {[produto.capacidade, produto.modelo, produto.peso, produto.alca === "sim" ? "com alça" : ""]
+                        .filter(Boolean)
+                        .join(" · ") && (
+                        <p className="text-xs text-slate-500">
+                          {[produto.capacidade, produto.modelo, produto.peso, produto.alca === "sim" ? "com alça" : ""].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
                     </div>
                     <Badge className={critico ? "border-amber-300 bg-white text-amber-800" : "border-teal-200 bg-teal-50 text-teal-800"}>
                       {produto.disponivel} disp.

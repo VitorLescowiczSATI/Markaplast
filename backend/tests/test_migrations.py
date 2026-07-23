@@ -24,6 +24,17 @@ def test_ensure_runtime_migrations_adds_pcp_columns_to_existing_pedidos_table():
     }.issubset(columns)
 
 
+def test_ensure_runtime_migrations_adds_produto_attribute_columns():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE produtos (id INTEGER PRIMARY KEY, nome VARCHAR(120) NOT NULL)"))
+
+    ensure_runtime_migrations(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("produtos")}
+    assert {"capacidade", "modelo", "peso", "alca"}.issubset(columns)
+
+
 def test_ensure_runtime_migrations_backfills_null_product_timestamps():
     engine = create_engine("sqlite:///:memory:")
     with engine.begin() as connection:

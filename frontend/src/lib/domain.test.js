@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calcularResumo, filtrarPedidos, valorTotalPedido } from "./domain.js";
+import { calcularResumo, camposFaltandoPedido, filtrarPedidos, valorTotalPedido } from "./domain.js";
 
 describe("regras de pedidos", () => {
   it("calcula total com embalagem e tampa", () => {
@@ -31,6 +31,12 @@ describe("regras de pedidos", () => {
     expect(filtrarPedidos(pedidos, "", "Todos", "Arthur", "Comercial")).toHaveLength(1);
     expect(filtrarPedidos(pedidos, "Industrial", "Todos", "Todos", "Comercial")).toHaveLength(1);
     expect(filtrarPedidos(pedidos, "injetora", "Todos", "Todos", "Comercial")).toHaveLength(1);
+  });
+
+  it("aponta campos obrigatórios faltando no pedido", () => {
+    expect(camposFaltandoPedido({})).toEqual(["Cliente", "Produto", "Cor", "Tampa", "Quantidade", "Vendedor"]);
+    expect(camposFaltandoPedido({ cliente: "A", produto: "5L M2", cor: "Branco", tampa: "Rosca", quantidade: 100, vendedor: "Arthur" })).toEqual([]);
+    expect(camposFaltandoPedido({ cliente: "A", produto: "5L M2", cor: "Branco", tampa: "Rosca", quantidade: 0, vendedor: "Arthur" })).toEqual(["Quantidade"]);
   });
 
   it("gera resumo financeiro", () => {

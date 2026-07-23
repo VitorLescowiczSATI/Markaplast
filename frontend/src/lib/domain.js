@@ -2,6 +2,23 @@ export function valorTotalPedido(pedido) {
   return (Number(pedido.valor || 0) + Number(pedido.valorTampa || 0)) * Number(pedido.quantidade || 0);
 }
 
+// Travas do pedido: campos obrigatórios para o pedido chegar completo no PCP.
+export const PEDIDO_CAMPOS_OBRIGATORIOS = [
+  ["cliente", "Cliente"],
+  ["produto", "Produto"],
+  ["cor", "Cor"],
+  ["tampa", "Tampa"],
+  ["quantidade", "Quantidade"],
+  ["vendedor", "Vendedor"],
+];
+
+export function camposFaltandoPedido(form) {
+  return PEDIDO_CAMPOS_OBRIGATORIOS.filter(([campo]) => {
+    if (campo === "quantidade") return !(Number(form?.quantidade) > 0);
+    return !String(form?.[campo] || "").trim();
+  }).map(([, label]) => label);
+}
+
 export function currency(value) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
