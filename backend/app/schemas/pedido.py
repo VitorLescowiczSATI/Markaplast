@@ -78,6 +78,7 @@ class PedidoFinanceiroUpdate(BaseModel):
 class PedidoRead(PedidoBase):
     id: int
     data: date
+    dataEmissao: date | None = None
     status: str
     statusFinanceiro: str
     createdAt: datetime

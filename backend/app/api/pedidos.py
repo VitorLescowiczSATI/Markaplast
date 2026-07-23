@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.pedido import Pedido
+from app.models.pedido import Pedido, hoje_brasil
 from app.schemas.pedido import (
     PedidoCreate,
     PedidoFinanceiroUpdate,
@@ -118,6 +118,8 @@ def atualizar_pedido(pedido_id: int, payload: PedidoUpdate, db: Session = Depend
         recalcular_reserva_do_pedido(db, pedido, produto_anterior, quantidade_anterior)
     if "status" in dados and pedido.status != status_anterior:
         registrar_historico(db, pedido.id, "Status", status_anterior, pedido.status)
+        if pedido.status == "Nota emitida" and not pedido.dataEmissao:
+            pedido.dataEmissao = hoje_brasil()
         if pedido.status == "Finalizado":
             baixar_reserva_do_pedido(db, pedido)
         elif pedido.status == STATUS_CANCELADO and status_anterior in STATUS_COM_RESERVA:
@@ -140,6 +142,8 @@ def atualizar_status(pedido_id: int, payload: PedidoStatusUpdate, db: Session = 
         return pedido
     pedido.status = payload.status
     registrar_historico(db, pedido.id, "Status", status_anterior, payload.status)
+    if payload.status == "Nota emitida" and not pedido.dataEmissao:
+        pedido.dataEmissao = hoje_brasil()
     if payload.status == "Finalizado" and status_anterior != "Finalizado":
         baixar_reserva_do_pedido(db, pedido)
     elif payload.status == STATUS_CANCELADO and status_anterior in STATUS_COM_RESERVA:

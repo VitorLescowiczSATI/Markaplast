@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, Integer, Numeric, String, Text, func
@@ -6,12 +6,20 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
+# Brasil é UTC-3 (sem horário de verão desde 2019). Offset fixo evita depender de tzdata na Render.
+FUSO_BRASIL = timezone(timedelta(hours=-3))
+
+
+def hoje_brasil() -> date:
+    return datetime.now(FUSO_BRASIL).date()
+
 
 class Pedido(Base):
     __tablename__ = "pedidos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    data: Mapped[date] = mapped_column(Date, default=date.today, nullable=False)
+    data: Mapped[date] = mapped_column(Date, default=hoje_brasil, nullable=False)
+    dataEmissao: Mapped[date | None] = mapped_column("data_emissao", Date, nullable=True)
     cliente: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
     cnpj: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     cep: Mapped[str] = mapped_column(String(16), default="", nullable=False)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   CheckCircle2,
@@ -36,7 +36,7 @@ import {
   tiposFrete,
   vendedores,
 } from "./lib/constants.js";
-import { calcularResumo, camposFaltandoPedido, currency, filtrarPedidos, financeiroColor, statusColor, valorTotalPedido } from "./lib/domain.js";
+import { calcularResumo, camposFaltandoPedido, currency, filtrarPedidos, financeiroColor, normalizarOpcao, statusColor, valorTotalPedido } from "./lib/domain.js";
 
 // Status que não aparecem na aba Comercial por padrão (cancelado + já faturado/concluído).
 const STATUS_OCULTOS_COMERCIAL = ["Cancelado", "Nota emitida", "Separado para entrega", "Enviado", "Finalizado"];
@@ -315,17 +315,23 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
     return lista;
   }, [pedidos, busca, statusFiltro, vendedorFiltro, dataInicial, dataFinal]);
 
+  const precoReqId = useRef(0);
   async function aplicarPrecoCliente(clienteId, produtoNome) {
     if (!clienteId || !produtoNome) return;
     const produto = produtosCatalogo.find((item) => item.nome === produtoNome);
     if (!produto) return;
+    const reqId = ++precoReqId.current;
     try {
       const preco = await api.lookupPreco(clienteId, produto.id);
-      if (preco) {
-        setForm((atual) => ({ ...atual, valor: String(preco.valor ?? ""), valorTampa: String(preco.valorTampa ?? "") }));
-      }
+      if (reqId !== precoReqId.current) return; // resposta obsoleta de uma troca anterior: descarta
+      // Sempre escreve: limpa o valor quando não há preço, para não persistir o preço do produto anterior.
+      setForm((atual) => ({
+        ...atual,
+        valor: preco ? String(preco.valor ?? "") : "",
+        valorTampa: preco ? String(preco.valorTampa ?? "") : "",
+      }));
     } catch {
-      // Sem preço cadastrado para este cliente/produto: mantém o que estiver no formulário.
+      // Erro de rede: mantém o que estiver no formulário.
     }
   }
 
@@ -353,8 +359,9 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
     setForm((atual) => ({
       ...atual,
       produto: ultimo.produto || atual.produto,
-      cor: ultimo.cor || atual.cor,
-      tampa: ultimo.tampa || atual.tampa,
+      // Normaliza contra a lista fixa: valores legados fora do catálogo viram "" (em vez de travar o dropdown).
+      cor: normalizarOpcao(ultimo.cor, cores),
+      tampa: normalizarOpcao(ultimo.tampa, tampas),
       quantidade: String(ultimo.quantidade || ""),
       valor: String(ultimo.valor ?? ""),
       valorTampa: String(ultimo.valorTampa ?? ""),

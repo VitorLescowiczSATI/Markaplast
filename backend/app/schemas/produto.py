@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -6,10 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 class ProdutoBase(BaseModel):
     nome: str
     categoria: str = "Embalagem"
-    capacidade: str = ""
-    modelo: str = ""
-    peso: str = ""
-    alca: str = "nao"
+    capacidade: str = Field("", max_length=40)
+    modelo: str = Field("", max_length=60)
+    peso: str = Field("", max_length=40)
+    alca: Literal["sim", "nao"] = "nao"
     unidade: str = "un"
     precoBase: float = Field(0, ge=0)
     valorTampaPadrao: float = Field(0, ge=0)
@@ -26,10 +27,10 @@ class ProdutoCreate(ProdutoBase):
 class ProdutoUpdate(BaseModel):
     nome: str | None = None
     categoria: str | None = None
-    capacidade: str | None = None
-    modelo: str | None = None
-    peso: str | None = None
-    alca: str | None = None
+    capacidade: str | None = Field(default=None, max_length=40)
+    modelo: str | None = Field(default=None, max_length=60)
+    peso: str | None = Field(default=None, max_length=40)
+    alca: Literal["sim", "nao"] | None = None
     unidade: str | None = None
     precoBase: float | None = Field(default=None, ge=0)
     valorTampaPadrao: float | None = Field(default=None, ge=0)

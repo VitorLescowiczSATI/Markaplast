@@ -105,7 +105,9 @@ def backfill_produto_atributos(db: Session) -> None:
         produto.capacidade = attrs["capacidade"]
         produto.modelo = attrs["modelo"]
         produto.peso = attrs["peso"]
-        produto.alca = attrs["alca"]
+        # Nunca rebaixa uma alça setada à mão: só promove p/ "sim" quando o nome indica alça.
+        if attrs["alca"] == "sim":
+            produto.alca = "sim"
         alterou = True
     if alterou:
         db.commit()

@@ -12,6 +12,7 @@ PEDIDOS_COLUMNS = {
     "pcp_previsao_pronto": "VARCHAR(120) NOT NULL DEFAULT ''",
     "pcp_quantidade_produzida": "INTEGER NOT NULL DEFAULT 0",
     "pcp_observacoes": "TEXT NOT NULL DEFAULT ''",
+    "data_emissao": "DATE",
 }
 
 

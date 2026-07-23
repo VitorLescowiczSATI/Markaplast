@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calcularResumo, camposFaltandoPedido, filtrarPedidos, percentualMeta, realizadoMetas, valorTotalPedido } from "./domain.js";
+import { calcularResumo, camposFaltandoPedido, filtrarPedidos, normalizarOpcao, percentualMeta, realizadoMetas, valorTotalPedido } from "./domain.js";
 
 describe("regras de pedidos", () => {
   it("calcula total com embalagem e tampa", () => {
@@ -61,6 +61,27 @@ describe("regras de pedidos", () => {
     expect(r.porVendedor.Ingrid.mensal).toBe(500);
     expect(percentualMeta(1500, 3000)).toBe(50);
     expect(percentualMeta(10, 0)).toBe(0);
+  });
+
+  it("usa a data de emissão (não a de criação) para o realizado da meta", () => {
+    const hoje = new Date(2026, 5, 15); // 15/06/2026
+    const pedidos = [
+      // criado em maio, mas nota emitida em junho -> conta no mês corrente
+      { status: "Nota emitida", data: "2026-05-20", dataEmissao: "2026-06-10", vendedor: "Arthur", valor: 4, valorTampa: 0, quantidade: 100 },
+      // legado sem dataEmissao -> cai na data do pedido (junho)
+      { status: "Finalizado", data: "2026-06-05", vendedor: "Arthur", valor: 3, valorTampa: 0, quantidade: 100 },
+    ];
+    const r = realizadoMetas(pedidos, hoje);
+    expect(r.empresa.mensal).toBe(700); // 400 (emissão junho) + 300 (legado junho)
+  });
+
+  it("normaliza cor/tampa legadas contra a lista fixa", () => {
+    const cores = ["Natural", "Branco", "Azul"];
+    const tampas = ["Lacre", "Rosca"];
+    expect(normalizarOpcao("natural", cores)).toBe("Natural");
+    expect(normalizarOpcao("Tampa lacre", tampas)).toBe("Lacre");
+    expect(normalizarOpcao("verde-limão", cores)).toBe("");
+    expect(normalizarOpcao("", cores)).toBe("");
   });
 
   it("gera resumo financeiro", () => {

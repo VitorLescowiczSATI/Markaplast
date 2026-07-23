@@ -36,7 +36,8 @@ export function realizadoMetas(pedidos = [], hoje = new Date()) {
 
   pedidos.forEach((pedido) => {
     if (!STATUS_FATURADO.includes(pedido.status)) return;
-    const D = infoData(pedido.data);
+    // Fatura pela data de emissão da nota; cai na data do pedido só para faturados legados (sem dataEmissao).
+    const D = infoData(pedido.dataEmissao || pedido.data);
     if (D.ano !== H.ano) return;
     const total = valorTotalPedido(pedido);
     const vendedor = pedido.vendedor || "Não informado";
@@ -66,6 +67,17 @@ export function percentualMeta(realizado, meta) {
   const alvo = Number(meta || 0);
   if (alvo <= 0) return 0;
   return Math.round((Number(realizado || 0) / alvo) * 100);
+}
+
+// Normaliza um valor legado (texto livre) contra a lista fixa de opções (cor/tampa),
+// ignorando caixa e um prefixo "Tampa ". Retorna a string canônica ou "" se não casar.
+export function normalizarOpcao(valor, opcoes = []) {
+  const v = String(valor || "").trim().toLowerCase();
+  if (!v) return "";
+  const direto = opcoes.find((opcao) => opcao.toLowerCase() === v);
+  if (direto) return direto;
+  const semPrefixo = v.replace(/^tampa\s+/, "");
+  return opcoes.find((opcao) => opcao.toLowerCase() === semPrefixo) || "";
 }
 
 export function currency(value) {
