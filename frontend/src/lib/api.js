@@ -1,16 +1,36 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const TOKEN_KEY = "giras.accessToken";
 
-async function request(path, options = {}) {
+let accessToken = window.localStorage.getItem(TOKEN_KEY) || "";
+
+function setAccessToken(token) {
+  accessToken = token || "";
+  if (accessToken) window.localStorage.setItem(TOKEN_KEY, accessToken);
+  else window.localStorage.removeItem(TOKEN_KEY);
+}
+
+async function request(path, options = {}, authenticated = true) {
   const response = await fetch(`${API_URL}${path}`, {
+    ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(authenticated && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(options.headers || {}),
     },
-    ...options,
   });
 
   if (!response.ok) {
-    const message = await response.text();
+    const raw = await response.text();
+    let message = raw;
+    try {
+      message = JSON.parse(raw)?.detail || raw;
+    } catch {
+      // Resposta não JSON: usa o texto original.
+    }
+    if (response.status === 401 && authenticated) {
+      setAccessToken("");
+      window.dispatchEvent(new Event("giras:auth-expired"));
+    }
     throw new Error(message || `Erro HTTP ${response.status}`);
   }
 
@@ -19,8 +39,13 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  getAccessToken: () => accessToken,
+  setAccessToken,
+  login: (username, senha) => request("/api/auth/login", { method: "POST", body: JSON.stringify({ username, senha }) }, false),
+  me: () => request("/api/auth/me"),
+  logout: () => request("/api/auth/logout", { method: "POST" }),
   health: () => request("/health"),
-  listPedidos: () => request("/api/pedidos?perfil=Gestor"),
+  listPedidos: () => request("/api/pedidos"),
   createPedido: (payload) => request("/api/pedidos", { method: "POST", body: JSON.stringify(payload) }),
   updatePedido: (id, payload) => request(`/api/pedidos/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   updateStatus: (id, status) => request(`/api/pedidos/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
@@ -51,5 +76,4 @@ export const api = {
   prepararNfe: (pedidoId) => request(`/api/fiscal/pedidos/${pedidoId}/preparar-nfe`, { method: "POST" }),
   marcarNfeEmitida: (notaId) => request(`/api/fiscal/notas/${notaId}/marcar-emitida`, { method: "POST" }),
   enviarNfeHomologacao: (notaId) => request(`/api/fiscal/notas/${notaId}/enviar-homologacao`, { method: "POST" }),
-  historicoRecente: () => request("/api/historico/pedidos"),
 };

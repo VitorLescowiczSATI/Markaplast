@@ -28,6 +28,12 @@ services:
         value: false
       - key: FOCUS_NFE_BASE_URL
         value: https://api.focusnfe.com.br/v2
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: AUTH_INITIAL_PASSWORD
+        sync: false
+      - key: AUTH_TOKEN_MINUTES
+        value: 720
 
   - type: web
     name: giras-web

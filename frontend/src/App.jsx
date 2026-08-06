@@ -7,7 +7,9 @@ import {
   Copy,
   Factory,
   FileText,
+  LockKeyhole,
   Loader2,
+  LogOut,
   PackageCheck,
   Plus,
   RefreshCw,
@@ -27,7 +29,6 @@ import {
   emptyForm,
   financeiroStatusList,
   produtos,
-  setores,
   statusList,
   tampas,
   tiposEntrega,
@@ -64,28 +65,6 @@ function pedidoFieldsFromCliente(cliente, form) {
   };
 }
 
-function statusOptionsForPedido(statusAtual) {
-  const transicoes = {
-    "Novo pedido": ["Aguardando pagamento", "Pago", "A produzir", "Em produção", "Prontos", "Cancelado"],
-    "Aguardando pagamento": ["Pago", "A produzir", "Cancelado"],
-    Pago: ["A produzir", "Cancelado"],
-    "A produzir": ["Novo pedido", "Em produção", "Prontos", "Cancelado"],
-    "Em produção": ["Novo pedido", "A produzir", "Prontos", "Cancelado"],
-    Prontos: ["Em produção", "Pronto para retirada", "Pronto para o envio", "Cancelado"],
-    "Pronto para retirada": ["Prontos", "Nota emitida", "Cancelado"],
-    "Pronto para o envio": ["Prontos", "Nota emitida", "Cancelado"],
-    "Nota emitida": ["Prontos"],
-    Cancelado: [],
-    // aliases legados aceitos por 1 release
-    "Vai produzir": ["Novo pedido", "A produzir", "Em produção", "Prontos", "Cancelado"],
-    "Pronto para faturar": ["Em produção", "Prontos", "Pronto para retirada", "Pronto para o envio", "Nota emitida", "Cancelado"],
-    "Separado para entrega": ["Nota emitida"],
-    Enviado: ["Nota emitida"],
-    Finalizado: [],
-  };
-  return [statusAtual, ...(transicoes[statusAtual] || [])].filter((status, index, lista) => status && lista.indexOf(status) === index);
-}
-
 function perfilIcon(perfil) {
   const props = { size: 18 };
   if (perfil === "Inteligência") return <BarChart3 {...props} />;
@@ -97,6 +76,77 @@ function perfilIcon(perfil) {
   if (perfil === "Fiscal") return <FileText {...props} />;
   if (perfil === "Logística") return <Truck {...props} />;
   return <ClipboardList {...props} />;
+}
+
+function LoginScreen({ onLogin }) {
+  const [username, setUsername] = useState("");
+  const [senha, setSenha] = useState("");
+  const [entrando, setEntrando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function entrar(event) {
+    event.preventDefault();
+    if (!username.trim() || !senha) return;
+    setEntrando(true);
+    setErro("");
+    try {
+      await onLogin(username, senha);
+    } catch (err) {
+      setErro(err.message || "Não foi possível entrar.");
+    } finally {
+      setEntrando(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10 text-slate-900">
+      <Card className="w-full max-w-md overflow-hidden">
+        <div className="border-b border-slate-200 bg-teal-700 px-6 py-7 text-white">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-white/15 p-2">
+              <PackageCheck size={30} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Giras Markaplast</h1>
+              <p className="text-sm text-teal-50">Acesso por área de trabalho</p>
+            </div>
+          </div>
+        </div>
+        <form onSubmit={entrar} className="space-y-4 p-6">
+          <div>
+            <h2 className="flex items-center gap-2 text-xl font-bold">
+              <LockKeyhole size={20} className="text-teal-700" />
+              Entrar no sistema
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">Use o acesso correspondente à sua área.</p>
+          </div>
+          {erro && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{erro}</div>}
+          <Field label="Usuário">
+            <Input
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              autoComplete="username"
+              autoFocus
+              placeholder="ex.: comercial"
+            />
+          </Field>
+          <Field label="Senha">
+            <Input
+              type="password"
+              value={senha}
+              onChange={(event) => setSenha(event.target.value)}
+              autoComplete="current-password"
+              placeholder="Sua senha"
+            />
+          </Field>
+          <Button type="submit" disabled={entrando || !username.trim() || !senha} className="w-full bg-teal-700 text-white hover:bg-teal-800">
+            {entrando ? <Loader2 size={17} className="animate-spin" /> : <LockKeyhole size={17} />}
+            {entrando ? "Entrando..." : "Entrar"}
+          </Button>
+        </form>
+      </Card>
+    </div>
+  );
 }
 
 function ResumoCards({ pedidos }) {
@@ -115,30 +165,31 @@ function ResumoCards({ pedidos }) {
 
 function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido, bare = false }) {
   const total = valorTotalPedido(pedido);
-  const isLogistica = layout === "logistica";
   const temDetalhePcp =
     pedido.pcpPrevisaoProducao || pedido.pcpPrevisaoPronto || Number(pedido.pcpQuantidadeProduzida || 0) > 0 || pedido.pcpObservacoes;
 
   return (
-    <article className={bare ? "" : `rounded-lg border border-slate-200 bg-white shadow-sm ${isLogistica ? "p-3" : "p-4"}`}>
-      <div className={`flex flex-col gap-4 ${isLogistica ? "" : "lg:flex-row lg:items-start lg:justify-between"}`}>
+    <article className={bare ? "" : "rounded-lg border border-slate-200 bg-white p-4 shadow-sm"}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold">Pedido #{pedido.id}</h3>
-            <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
-              <Trash2 size={16} />
-            </IconButton>
+            {layout === "comercial" && (
+              <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
+                <Trash2 size={16} />
+              </IconButton>
+            )}
             <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
             {layout === "financeiro" && (
               <Badge className={financeiroColor(pedido.statusFinanceiro)}>{pedido.statusFinanceiro}</Badge>
             )}
           </div>
 
-          <p className={`${isLogistica ? "text-xs" : "text-sm"} break-words text-slate-700`}>
+          <p className="break-words text-sm text-slate-700">
             <strong>{pedido.cliente}</strong> - {pedido.cidade || "cidade não informada"}
           </p>
           {(pedido.logradouro || pedido.cep || pedido.uf || pedido.cnpj) && (
-            <p className={`${isLogistica ? "text-xs" : "text-sm"} break-words text-slate-600`}>
+            <p className="break-words text-sm text-slate-600">
               {pedido.cnpj && (
                 <span>
                   CNPJ: <strong>{pedido.cnpj}</strong> -{" "}
@@ -148,15 +199,15 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
               {pedido.cep ? ` - CEP ${pedido.cep}` : ""} {pedido.uf ? `- ${pedido.uf}` : ""}
             </p>
           )}
-          <p className={`${isLogistica ? "text-xs" : "text-sm"} break-words text-slate-600`}>
+          <p className="break-words text-sm text-slate-600">
             {pedido.produto} - {pedido.cor || "cor não informada"} - <strong>{pedido.quantidade} un</strong>
           </p>
           {pedido.tampa && (
-            <p className={`${isLogistica ? "text-xs" : "text-sm"} break-words text-slate-600`}>
+            <p className="break-words text-sm text-slate-600">
               Tampa: <strong>{pedido.tampa}</strong>
             </p>
           )}
-          <div className={`grid grid-cols-1 gap-2 text-slate-600 ${isLogistica ? "text-xs" : "text-sm md:grid-cols-2"}`}>
+          <div className="grid grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-2">
             <p>
               Frete: <strong>{pedido.tipoFrete || "Não informado"}</strong>
             </p>
@@ -197,10 +248,10 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
           )}
         </div>
 
-        <div className={`space-y-3 ${isLogistica ? "w-full" : "lg:min-w-64"}`}>
-          <div className={`rounded-lg border border-slate-200 bg-slate-50 ${isLogistica ? "p-3" : "p-4"}`}>
+        <div className="space-y-3 lg:min-w-64">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">Valor do pedido</p>
-            <p className={`${isLogistica ? "text-xl" : "text-2xl"} font-bold`}>{currency(total)}</p>
+            <p className="text-2xl font-bold">{currency(total)}</p>
             <p className="mt-1 text-xs text-slate-500">
               Embalagem {currency(pedido.valor)} + tampa {currency(pedido.valorTampa)}
             </p>
@@ -228,29 +279,7 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
               <FileText size={16} />
               {pedido.status === "Nota emitida" ? "NF já emitida" : "Nota fiscal emitida"}
             </Button>
-          ) : layout === "logistica" ? (
-            <div className="grid grid-cols-1 gap-2">
-              {statusOptionsForPedido(pedido.status)
-                .filter((status) => status !== pedido.status && ["Separado para entrega", "Enviado", "Finalizado"].includes(status))
-                .map((status) => (
-                  <Button
-                    key={status}
-                    onClick={() => atualizarStatus(pedido.id, status)}
-                    className={status === "Finalizado" ? "bg-green-600 text-white hover:bg-green-700" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}
-                  >
-                    {status}
-                  </Button>
-                ))}
-            </div>
-          ) : (
-            <SelectBox value={pedido.status} onChange={(status) => atualizarStatus(pedido.id, status)}>
-              {statusOptionsForPedido(pedido.status).map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </SelectBox>
-          )}
+          ) : null}
         </div>
       </div>
     </article>
@@ -1183,7 +1212,7 @@ function FinanceiroLayout({ pedidos, atualizarFinanceiro, excluirPedido }) {
   );
 }
 
-function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluirPedido, salvando }) {
+function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, salvando }) {
   const [busca, setBusca] = useState("");
   const [regiaoCarga, setRegiaoCarga] = useState("");
   const [motoristaCarga, setMotoristaCarga] = useState("");
@@ -1236,9 +1265,6 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
           <span className="text-sm font-bold">#{pedido.id}</span>
           <div className="flex items-center gap-1">
             <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
-            <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
-              <Trash2 size={14} />
-            </IconButton>
           </div>
         </div>
         <p className="truncate text-sm font-bold text-slate-900">{pedido.cliente || "Cliente não informado"}</p>
@@ -1364,41 +1390,45 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
 }
 
 export default function App() {
-  const [perfil, setPerfil] = useState("Inteligência");
+  const [sessao, setSessao] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [pedidos, setPedidos] = useState([]);
   const [cargas, setCargas] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [produtosCatalogo, setProdutosCatalogo] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [notas, setNotas] = useState([]);
-  const [historico, setHistorico] = useState([]);
   const [metas, setMetas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState("");
+  const perfil = sessao?.perfil || "";
+
+  function limparDados() {
+    setPedidos([]);
+    setCargas([]);
+    setClientes([]);
+    setProdutosCatalogo([]);
+    setDashboard(null);
+    setNotas([]);
+    setMetas([]);
+  }
 
   async function loadData(showSpinner = true) {
     if (showSpinner) setLoading(true);
     setError("");
     try {
-      const [
-        pedidosResponse,
-        cargasResponse,
-        clientesResponse,
-        produtosResponse,
-        dashboardResponse,
-        notasResponse,
-        historicoResponse,
-        metasResponse,
-      ] = await Promise.all([
-        api.listPedidos(),
-        api.listCargas(),
-        api.listClientes(),
-        api.listProdutos(),
-        api.getDashboard(),
-        api.listNotas(),
-        api.historicoRecente(),
-        api.listMetas(),
+      const carregaPedidos = ["Inteligência", "Comercial", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal"].includes(perfil);
+      const carregaClientes = ["Comercial", "Clientes"].includes(perfil);
+      const carregaProdutos = ["Comercial", "Clientes", "Estoque"].includes(perfil);
+      const [pedidosResponse, cargasResponse, clientesResponse, produtosResponse, dashboardResponse, notasResponse, metasResponse] = await Promise.all([
+        carregaPedidos ? api.listPedidos() : Promise.resolve([]),
+        perfil === "Logística" ? api.listCargas() : Promise.resolve([]),
+        carregaClientes ? api.listClientes() : Promise.resolve([]),
+        carregaProdutos ? api.listProdutos() : Promise.resolve([]),
+        perfil === "Inteligência" ? api.getDashboard() : Promise.resolve(null),
+        perfil === "Fiscal" ? api.listNotas() : Promise.resolve([]),
+        perfil === "Inteligência" ? api.listMetas() : Promise.resolve([]),
       ]);
       setPedidos(pedidosResponse);
       setCargas(cargasResponse);
@@ -1406,7 +1436,6 @@ export default function App() {
       setProdutosCatalogo(produtosResponse);
       setDashboard(dashboardResponse);
       setNotas(notasResponse);
-      setHistorico(historicoResponse);
       setMetas(metasResponse);
     } catch (err) {
       setError(err.message || "Não foi possível carregar os dados.");
@@ -1416,8 +1445,59 @@ export default function App() {
   }
 
   useEffect(() => {
-    loadData();
+    let ativo = true;
+    async function restaurarSessao() {
+      if (!api.getAccessToken()) {
+        setAuthLoading(false);
+        return;
+      }
+      try {
+        const usuario = await api.me();
+        if (ativo) setSessao(usuario);
+      } catch {
+        api.setAccessToken("");
+      } finally {
+        if (ativo) setAuthLoading(false);
+      }
+    }
+    restaurarSessao();
+    return () => {
+      ativo = false;
+    };
   }, []);
+
+  useEffect(() => {
+    function sessaoExpirada() {
+      setSessao(null);
+      setLoading(false);
+      limparDados();
+    }
+    window.addEventListener("giras:auth-expired", sessaoExpirada);
+    return () => window.removeEventListener("giras:auth-expired", sessaoExpirada);
+  }, []);
+
+  useEffect(() => {
+    if (sessao) loadData();
+  }, [sessao]);
+
+  async function entrar(username, senha) {
+    const resposta = await api.login(username, senha);
+    api.setAccessToken(resposta.accessToken);
+    setSessao(resposta.usuario);
+  }
+
+  async function sair() {
+    try {
+      await api.logout();
+    } catch {
+      // A sessão local deve ser encerrada mesmo se o servidor estiver indisponível.
+    } finally {
+      api.setAccessToken("");
+      setSessao(null);
+      setLoading(false);
+      limparDados();
+    }
+  }
 
   async function runAction(action) {
     setSalvando(true);
@@ -1497,6 +1577,16 @@ export default function App() {
     });
   }
 
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100">
+        <Loader2 size={30} className="animate-spin text-teal-700" />
+      </div>
+    );
+  }
+
+  if (!sessao) return <LoginScreen onLogin={entrar} />;
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -1514,33 +1604,19 @@ export default function App() {
               {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
               Atualizar
             </Button>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-slate-500">Área</span>
-              <SelectBox value={perfil} onChange={setPerfil} className="w-56">
-                {setores.map((setor) => (
-                  <option key={setor} value={setor}>
-                    {setor}
-                  </option>
-                ))}
-              </SelectBox>
+            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="text-teal-700">{perfilIcon(perfil)}</span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-slate-800">{sessao.nome}</p>
+                <p className="text-xs text-slate-500">{perfil}</p>
+              </div>
             </div>
+            <Button onClick={sair} className="border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+              <LogOut size={16} />
+              Sair
+            </Button>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 pb-3 md:px-6">
-          {setores.map((setor) => (
-            <button
-              key={setor}
-              type="button"
-              onClick={() => setPerfil(setor)}
-              className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                perfil === setor ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              {perfilIcon(setor)}
-              {setor}
-            </button>
-          ))}
-        </nav>
       </header>
 
       <main className="mx-auto max-w-7xl p-4 md:p-6">
@@ -1555,7 +1631,7 @@ export default function App() {
             <Loader2 size={28} className="animate-spin text-teal-700" />
           </div>
         ) : perfil === "Inteligência" ? (
-          <InteligenciaLayout dashboard={dashboard} pedidos={pedidos} metas={metas} produtos={produtosCatalogo} onRefresh={() => loadData(false)} />
+          <InteligenciaLayout dashboard={dashboard} pedidos={pedidos} metas={metas} onRefresh={() => loadData(false)} />
         ) : perfil === "Clientes" ? (
           <ClientesLayout clientes={clientes} produtos={produtosCatalogo} onRefresh={() => loadData(false)} salvando={salvando} />
         ) : perfil === "Estoque" ? (
@@ -1586,7 +1662,6 @@ export default function App() {
             cargas={cargas}
             atualizarStatus={atualizarStatus}
             criarCarga={criarCarga}
-            excluirPedido={excluirPedido}
             salvando={salvando}
           />
         ) : (

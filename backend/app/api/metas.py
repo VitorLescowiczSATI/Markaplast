@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.models.meta import Meta
 from app.schemas.meta import MetaRead, MetaUpsert
@@ -11,12 +12,12 @@ router = APIRouter(prefix="/metas", tags=["metas"])
 
 
 @router.get("", response_model=list[MetaRead])
-def listar_metas(db: Session = Depends(get_db)):
+def listar_metas(db: Session = Depends(get_db), _usuario=Depends(require_profiles("Inteligência"))):
     return db.scalars(select(Meta).order_by(Meta.escopo, Meta.vendedor, Meta.periodo)).all()
 
 
 @router.post("", response_model=MetaRead, status_code=status.HTTP_201_CREATED)
-def salvar_meta(payload: MetaUpsert, db: Session = Depends(get_db)):
+def salvar_meta(payload: MetaUpsert, db: Session = Depends(get_db), _usuario=Depends(require_profiles("Inteligência"))):
     if payload.escopo not in ESCOPOS_VALIDOS:
         raise HTTPException(status_code=422, detail="Escopo invalido")
     if payload.periodo not in PERIODOS_VALIDOS:
@@ -30,7 +31,7 @@ def salvar_meta(payload: MetaUpsert, db: Session = Depends(get_db)):
 
 
 @router.delete("/{meta_id}", status_code=status.HTTP_204_NO_CONTENT)
-def excluir_meta(meta_id: int, db: Session = Depends(get_db)):
+def excluir_meta(meta_id: int, db: Session = Depends(get_db), _usuario=Depends(require_profiles("Inteligência"))):
     meta = db.get(Meta, meta_id)
     if not meta:
         raise HTTPException(status_code=404, detail="Meta nao encontrada")

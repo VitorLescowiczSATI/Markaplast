@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     focus_nfe_token: str = ""
     focus_nfe_base_url: str = "https://api.focusnfe.com.br/v2"
     fiscal_emit_enabled: bool = False
+    auth_secret: str = "development-only-change-me"
+    auth_initial_password: str = ""
+    auth_token_minutes: int = 720
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
 
     model_config = SettingsConfigDict(

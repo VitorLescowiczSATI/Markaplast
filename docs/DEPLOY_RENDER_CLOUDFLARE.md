@@ -67,7 +67,12 @@ ENVIRONMENT=production
 FISCAL_EMIT_ENABLED=false
 FOCUS_NFE_TOKEN=
 FOCUS_NFE_BASE_URL=https://api.focusnfe.com.br/v2
+AUTH_SECRET=<valor-longo-e-aleatorio; o Blueprint gera automaticamente>
+AUTH_INITIAL_PASSWORD=<senha-inicial-dos-acessos>
+AUTH_TOKEN_MINUTES=720
 ```
+
+`AUTH_INITIAL_PASSWORD` é usada somente para criar os usuários que ainda não existem. Guarde-a em local seguro e não a coloque no repositório.
 
 Quando for ativar NF-e em homologação:
 
@@ -78,7 +83,7 @@ FOCUS_NFE_TOKEN=<token_do_provedor>
 
 ## Checklist antes de liberar para uso real
 
-- Validar login/autenticação antes de entregar para operação.
+- Entrar com ao menos dois perfis e confirmar que cada um vê somente sua própria área.
 - Usar Postgres pago se o sistema for usado de verdade.
 - Confirmar backup do banco no plano contratado.
 - Validar CORS com o domínio final.

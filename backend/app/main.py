@@ -2,12 +2,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api import cargas, clientes, dashboard, fiscal, historico, integracoes, metas, pedidos, precos, produtos
+from app.api import auth, cargas, clientes, dashboard, fiscal, historico, integracoes, metas, pedidos, precos, produtos
 from app.core.config import get_settings
 from app.db.migrations import ensure_runtime_migrations
 from app.db.session import Base, SessionLocal, engine
 from app import models  # noqa: F401
 from app.services.seed import seed_produtos
+from app.services.auth import seed_usuarios
 
 
 settings = get_settings()
@@ -25,11 +26,14 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup():
+    if settings.environment == "production" and settings.auth_secret == "development-only-change-me":
+        raise RuntimeError("AUTH_SECRET precisa ser configurada em produção")
     Base.metadata.create_all(bind=engine)
     ensure_runtime_migrations(engine)
     db = SessionLocal()
     try:
         seed_produtos(db)
+        seed_usuarios(db, settings.auth_initial_password)
     finally:
         db.close()
 
@@ -54,6 +58,7 @@ def root():
     }
 
 
+app.include_router(auth.router, prefix="/api")
 app.include_router(pedidos.router, prefix="/api")
 app.include_router(cargas.router, prefix="/api")
 app.include_router(clientes.router, prefix="/api")

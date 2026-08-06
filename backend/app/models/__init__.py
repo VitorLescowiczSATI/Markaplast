@@ -6,6 +6,7 @@ from app.models.pedido import Pedido
 from app.models.pedido_historico import PedidoHistorico
 from app.models.preco_cliente import PrecoCliente
 from app.models.produto import MovimentoEstoque, Produto
+from app.models.usuario import Usuario
 
 __all__ = [
     "Carga",
@@ -17,5 +18,6 @@ __all__ = [
     "PedidoHistorico",
     "PrecoCliente",
     "Produto",
+    "Usuario",
     "carga_pedidos",
 ]

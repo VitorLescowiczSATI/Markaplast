@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.models.carga import Carga
 from app.models.pedido import Pedido
@@ -88,7 +89,7 @@ def montar_alertas(pedidos: list[Pedido], produtos: list[Produto], cargas: list[
 
 
 @router.get("", response_model=DashboardRead)
-def dashboard(db: Session = Depends(get_db)):
+def dashboard(db: Session = Depends(get_db), _usuario=Depends(require_profiles("Inteligência"))):
     pedidos = db.scalars(select(Pedido)).all()
     produtos = db.scalars(select(Produto)).all()
     cargas = db.scalars(select(Carga)).all()

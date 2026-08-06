@@ -1,5 +1,3 @@
-export const setores = ["Inteligência", "Comercial", "Clientes", "Estoque", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal"];
-
 export const statusList = [
   "Novo pedido",
   "Aguardando pagamento",

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.models.carga import Carga
 from app.models.pedido import Pedido
@@ -9,7 +10,7 @@ from app.schemas.carga import CargaCreate, CargaRead
 from app.services.historico import registrar_historico
 from app.services.regras import pode_transicionar_status
 
-router = APIRouter(prefix="/cargas", tags=["cargas"])
+router = APIRouter(prefix="/cargas", tags=["cargas"], dependencies=[Depends(require_profiles("Logística"))])
 
 
 @router.get("", response_model=list[CargaRead])

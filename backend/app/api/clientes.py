@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.models.cliente import Cliente
 from app.schemas.cliente import ClienteCreate, ClienteRead, ClienteUpdate
@@ -10,7 +11,11 @@ router = APIRouter(prefix="/clientes", tags=["clientes"])
 
 
 @router.get("", response_model=list[ClienteRead])
-def listar_clientes(busca: str = "", db: Session = Depends(get_db)):
+def listar_clientes(
+    busca: str = "",
+    db: Session = Depends(get_db),
+    _usuario=Depends(require_profiles("Comercial", "Clientes")),
+):
     statement = select(Cliente).order_by(Cliente.nome)
     if busca:
         termo = f"%{busca}%"
@@ -25,7 +30,7 @@ def listar_clientes(busca: str = "", db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ClienteRead, status_code=status.HTTP_201_CREATED)
-def criar_cliente(payload: ClienteCreate, db: Session = Depends(get_db)):
+def criar_cliente(payload: ClienteCreate, db: Session = Depends(get_db), _usuario=Depends(require_profiles("Clientes"))):
     cliente = Cliente(**payload.model_dump())
     db.add(cliente)
     db.commit()
@@ -34,7 +39,12 @@ def criar_cliente(payload: ClienteCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/{cliente_id}", response_model=ClienteRead)
-def atualizar_cliente(cliente_id: int, payload: ClienteUpdate, db: Session = Depends(get_db)):
+def atualizar_cliente(
+    cliente_id: int,
+    payload: ClienteUpdate,
+    db: Session = Depends(get_db),
+    _usuario=Depends(require_profiles("Clientes")),
+):
     cliente = db.get(Cliente, cliente_id)
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente nao encontrado")
@@ -46,7 +56,7 @@ def atualizar_cliente(cliente_id: int, payload: ClienteUpdate, db: Session = Dep
 
 
 @router.delete("/{cliente_id}", status_code=status.HTTP_204_NO_CONTENT)
-def excluir_cliente(cliente_id: int, db: Session = Depends(get_db)):
+def excluir_cliente(cliente_id: int, db: Session = Depends(get_db), _usuario=Depends(require_profiles("Clientes"))):
     cliente = db.get(Cliente, cliente_id)
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente nao encontrado")

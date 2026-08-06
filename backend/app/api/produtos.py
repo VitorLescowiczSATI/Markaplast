@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.models.produto import MovimentoEstoque, Produto
 from app.schemas.produto import MovimentoEstoqueCreate, MovimentoEstoqueRead, ProdutoCreate, ProdutoRead, ProdutoUpdate
@@ -11,12 +12,12 @@ router = APIRouter(prefix="/produtos", tags=["produtos"])
 
 
 @router.get("", response_model=list[ProdutoRead])
-def listar_produtos(db: Session = Depends(get_db)):
+def listar_produtos(db: Session = Depends(get_db), _usuario=Depends(require_profiles("Comercial", "Clientes", "Estoque"))):
     return db.scalars(select(Produto).order_by(Produto.nome)).all()
 
 
 @router.post("", response_model=ProdutoRead, status_code=status.HTTP_201_CREATED)
-def criar_produto(payload: ProdutoCreate, db: Session = Depends(get_db)):
+def criar_produto(payload: ProdutoCreate, db: Session = Depends(get_db), _usuario=Depends(require_profiles("Estoque"))):
     produto = Produto(**payload.model_dump())
     db.add(produto)
     db.commit()
@@ -25,7 +26,12 @@ def criar_produto(payload: ProdutoCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/{produto_id}", response_model=ProdutoRead)
-def atualizar_produto(produto_id: int, payload: ProdutoUpdate, db: Session = Depends(get_db)):
+def atualizar_produto(
+    produto_id: int,
+    payload: ProdutoUpdate,
+    db: Session = Depends(get_db),
+    _usuario=Depends(require_profiles("Estoque")),
+):
     produto = db.get(Produto, produto_id)
     if not produto:
         raise HTTPException(status_code=404, detail="Produto nao encontrado")
@@ -37,7 +43,12 @@ def atualizar_produto(produto_id: int, payload: ProdutoUpdate, db: Session = Dep
 
 
 @router.post("/{produto_id}/movimentos", response_model=MovimentoEstoqueRead, status_code=status.HTTP_201_CREATED)
-def criar_movimento(produto_id: int, payload: MovimentoEstoqueCreate, db: Session = Depends(get_db)):
+def criar_movimento(
+    produto_id: int,
+    payload: MovimentoEstoqueCreate,
+    db: Session = Depends(get_db),
+    _usuario=Depends(require_profiles("Estoque")),
+):
     produto = db.get(Produto, produto_id)
     if not produto:
         raise HTTPException(status_code=404, detail="Produto nao encontrado")
@@ -54,7 +65,11 @@ def criar_movimento(produto_id: int, payload: MovimentoEstoqueCreate, db: Sessio
 
 
 @router.get("/{produto_id}/movimentos", response_model=list[MovimentoEstoqueRead])
-def listar_movimentos(produto_id: int, db: Session = Depends(get_db)):
+def listar_movimentos(
+    produto_id: int,
+    db: Session = Depends(get_db),
+    _usuario=Depends(require_profiles("Estoque")),
+):
     return db.scalars(
         select(MovimentoEstoque)
         .where(MovimentoEstoque.produtoId == produto_id)

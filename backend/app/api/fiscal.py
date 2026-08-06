@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.core.config import get_settings
 from app.models.nota_fiscal import NotaFiscalDraft
@@ -12,7 +13,7 @@ from app.services.fiscal import enviar_focus_nfe, montar_payload_nfe
 from app.services.historico import registrar_historico
 from app.services.regras import pode_transicionar_status
 
-router = APIRouter(prefix="/fiscal", tags=["fiscal"])
+router = APIRouter(prefix="/fiscal", tags=["fiscal"], dependencies=[Depends(require_profiles("Fiscal"))])
 
 
 @router.get("/notas", response_model=list[NotaFiscalRead])

@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.models.pedido import Pedido, hoje_brasil
+from app.models.usuario import Usuario
 from app.schemas.pedido import (
     PedidoCreate,
     PedidoFinanceiroUpdate,
@@ -39,9 +41,11 @@ def listar_pedidos(
     busca: str = "",
     status_filtro: str = Query("Todos", alias="status"),
     vendedor: str = "Todos",
-    perfil: str = "Gestor",
     financeiro: str = "Todos",
     db: Session = Depends(get_db),
+    usuario: Usuario = Depends(
+        require_profiles("Inteligência", "Comercial", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal")
+    ),
 ):
     pedidos = db.scalars(select(Pedido).order_by(Pedido.id.desc())).all()
     return [
@@ -51,18 +55,18 @@ def listar_pedidos(
         and (status_filtro == "Todos" or pedido.status == status_filtro)
         and (vendedor == "Todos" or pedido.vendedor == vendedor)
         and (financeiro == "Todos" or pedido.statusFinanceiro == financeiro)
-        and pode_ver_pedido_por_perfil(perfil, pedido.status)
+        and pode_ver_pedido_por_perfil(usuario.perfil, pedido.status)
     ]
 
 
 @router.get("/resumo", response_model=ResumoRead)
-def resumo_pedidos(db: Session = Depends(get_db)):
+def resumo_pedidos(db: Session = Depends(get_db), _usuario=Depends(require_profiles("Inteligência"))):
     pedidos = db.scalars(select(Pedido)).all()
     return calcular_resumo(list(pedidos))
 
 
 @router.post("", response_model=PedidoRead, status_code=status.HTTP_201_CREATED)
-def criar_pedido(payload: PedidoCreate, db: Session = Depends(get_db)):
+def criar_pedido(payload: PedidoCreate, db: Session = Depends(get_db), _usuario=Depends(require_profiles("Comercial"))):
     upsert_cliente_do_pedido(db, payload)
     pedido = Pedido(
         **payload.model_dump(),
@@ -85,18 +89,33 @@ def criar_pedido(payload: PedidoCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{pedido_id}", response_model=PedidoRead)
-def obter_pedido(pedido_id: int, db: Session = Depends(get_db)):
+def obter_pedido(
+    pedido_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(
+        require_profiles("Inteligência", "Comercial", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal")
+    ),
+):
     pedido = db.get(Pedido, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
+        raise HTTPException(status_code=403, detail="Seu perfil não pode acessar este pedido")
     return pedido
 
 
 @router.patch("/{pedido_id}", response_model=PedidoRead)
-def atualizar_pedido(pedido_id: int, payload: PedidoUpdate, db: Session = Depends(get_db)):
+def atualizar_pedido(
+    pedido_id: int,
+    payload: PedidoUpdate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_profiles("PCP")),
+):
     pedido = db.get(Pedido, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
+        raise HTTPException(status_code=403, detail="Seu perfil não pode alterar este pedido")
 
     dados = payload.model_dump(exclude_unset=True)
     produto_anterior = pedido.produto
@@ -132,10 +151,17 @@ def atualizar_pedido(pedido_id: int, payload: PedidoUpdate, db: Session = Depend
 
 
 @router.patch("/{pedido_id}/status", response_model=PedidoRead)
-def atualizar_status(pedido_id: int, payload: PedidoStatusUpdate, db: Session = Depends(get_db)):
+def atualizar_status(
+    pedido_id: int,
+    payload: PedidoStatusUpdate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_profiles("PCP", "Logística", "Faturamento")),
+):
     pedido = db.get(Pedido, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
+        raise HTTPException(status_code=403, detail="Seu perfil não pode alterar este pedido")
     if not pode_transicionar_status(pedido.status, payload.status):
         raise HTTPException(status_code=400, detail=f"Transicao de status invalida: {pedido.status} -> {payload.status}")
     status_anterior = pedido.status
@@ -154,10 +180,17 @@ def atualizar_status(pedido_id: int, payload: PedidoStatusUpdate, db: Session = 
 
 
 @router.patch("/{pedido_id}/financeiro", response_model=PedidoRead)
-def atualizar_financeiro(pedido_id: int, payload: PedidoFinanceiroUpdate, db: Session = Depends(get_db)):
+def atualizar_financeiro(
+    pedido_id: int,
+    payload: PedidoFinanceiroUpdate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_profiles("Financeiro")),
+):
     pedido = db.get(Pedido, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
+        raise HTTPException(status_code=403, detail="Seu perfil não pode alterar este pedido")
     if payload.statusFinanceiro not in STATUS_FINANCEIRO_VALIDOS:
         raise HTTPException(status_code=400, detail="Status financeiro invalido")
     status_anterior = pedido.statusFinanceiro
@@ -169,7 +202,11 @@ def atualizar_financeiro(pedido_id: int, payload: PedidoFinanceiroUpdate, db: Se
 
 
 @router.delete("/{pedido_id}", status_code=status.HTTP_204_NO_CONTENT)
-def excluir_pedido(pedido_id: int, db: Session = Depends(get_db)):
+def excluir_pedido(
+    pedido_id: int,
+    db: Session = Depends(get_db),
+    _usuario=Depends(require_profiles("Comercial", "PCP")),
+):
     pedido = db.get(Pedido, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")

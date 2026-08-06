@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.deps import require_profiles
 from app.services.cep import consultar_cep
 
 router = APIRouter(prefix="/integracoes", tags=["integracoes"])
 
 
 @router.get("/cep/{cep}")
-async def buscar_cep(cep: str):
+async def buscar_cep(cep: str, _usuario=Depends(require_profiles("Comercial", "Clientes"))):
     try:
         return await consultar_cep(cep)
     except ValueError as exc:
