@@ -39,7 +39,7 @@ def test_login_sessao_e_bloqueio_por_perfil():
     Base.metadata.create_all(bind=engine)
     with TestingSession() as db:
         seed_usuarios(db, "Senha@123")
-        assert len(db.scalars(select(Usuario)).all()) == 9
+        assert len(db.scalars(select(Usuario)).all()) == 10
 
     app = FastAPI()
     app.include_router(auth_api.router, prefix="/api")
@@ -71,3 +71,40 @@ def test_login_sessao_e_bloqueio_por_perfil():
     token_comercial = login_comercial.json()["accessToken"]
     assert client.get("/restrito", headers={"Authorization": f"Bearer {token_comercial}"}).status_code == 403
     assert client.get("/restrito").status_code == 401
+
+    login_admin = client.post("/api/auth/login", json={"username": "admin", "senha": "Senha@123"})
+    assert login_admin.status_code == 200
+    token_admin = login_admin.json()["accessToken"]
+    headers_admin = {"Authorization": f"Bearer {token_admin}"}
+    assert client.get("/restrito", headers=headers_admin).status_code == 200
+    assert len(client.get("/api/auth/usuarios", headers=headers_admin).json()) == 10
+    assert client.get("/api/auth/usuarios", headers={"Authorization": f"Bearer {token_pcp}"}).status_code == 403
+
+    novo = client.post(
+        "/api/auth/usuarios",
+        headers=headers_admin,
+        json={"nome": "Nova Pessoa", "username": "Nova.Pessoa", "senha": "Temporaria@123", "perfil": "Logística"},
+    )
+    assert novo.status_code == 201
+    novo_id = novo.json()["id"]
+    assert novo.json()["username"] == "nova.pessoa"
+    assert client.post("/api/auth/login", json={"username": "nova.pessoa", "senha": "Temporaria@123"}).status_code == 200
+
+    desativado = client.patch(f"/api/auth/usuarios/{novo_id}", headers=headers_admin, json={"ativo": False})
+    assert desativado.status_code == 200
+    assert desativado.json()["ativo"] is False
+    assert client.post("/api/auth/login", json={"username": "nova.pessoa", "senha": "Temporaria@123"}).status_code == 401
+
+    reativado = client.patch(f"/api/auth/usuarios/{novo_id}", headers=headers_admin, json={"ativo": True, "perfil": "PCP"})
+    assert reativado.status_code == 200
+    assert reativado.json()["perfil"] == "PCP"
+    assert client.post(
+        f"/api/auth/usuarios/{novo_id}/senha",
+        headers=headers_admin,
+        json={"senha": "NovaSenha@456"},
+    ).status_code == 204
+    assert client.post("/api/auth/login", json={"username": "nova.pessoa", "senha": "NovaSenha@456"}).status_code == 200
+
+    admin_id = login_admin.json()["usuario"]["id"]
+    assert client.patch(f"/api/auth/usuarios/{admin_id}", headers=headers_admin, json={"ativo": False}).status_code == 400
+    assert client.patch(f"/api/auth/usuarios/{admin_id}", headers=headers_admin, json={"perfil": "Comercial"}).status_code == 400

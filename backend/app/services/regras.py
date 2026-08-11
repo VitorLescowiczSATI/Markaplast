@@ -64,7 +64,7 @@ def valor_total_pedido(pedido: Pedido) -> float:
 
 
 def pode_ver_pedido_por_perfil(perfil: str, status: str) -> bool:
-    if perfil in {"Gestor", "Inteligência", "Comercial"}:
+    if perfil in {"Administrador", "Gestor", "Inteligência", "Comercial"}:
         return True
     if perfil == "Financeiro":
         return status == "Nota emitida"

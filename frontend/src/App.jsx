@@ -14,8 +14,10 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
   Trash2,
   Truck,
+  UserPlus,
   Users,
   WalletCards,
   Warehouse,
@@ -40,6 +42,20 @@ import { calcularResumo, camposFaltandoPedido, currency, filtrarPedidos, finance
 
 // Status que não aparecem na aba Comercial por padrão (cancelado + já faturado/concluído).
 const STATUS_OCULTOS_COMERCIAL = ["Cancelado", "Nota emitida", "Separado para entrega", "Enviado", "Finalizado"];
+const PERFIL_ADMIN = "Administrador";
+const PERFIS_USUARIO = [
+  PERFIL_ADMIN,
+  "Inteligência",
+  "Comercial",
+  "Clientes",
+  "Estoque",
+  "PCP",
+  "Logística",
+  "Faturamento",
+  "Financeiro",
+  "Fiscal",
+];
+const MODULOS_ADMIN = ["Inteligência", "Comercial", "Clientes", "Estoque", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal", "Usuários"];
 
 function payloadFromForm(form) {
   return {
@@ -67,6 +83,7 @@ function pedidoFieldsFromCliente(cliente, form) {
 
 function perfilIcon(perfil) {
   const props = { size: 18 };
+  if (perfil === PERFIL_ADMIN) return <ShieldCheck {...props} />;
   if (perfil === "Inteligência") return <BarChart3 {...props} />;
   if (perfil === "Clientes") return <Users {...props} />;
   if (perfil === "Estoque") return <Warehouse {...props} />;
@@ -144,6 +161,160 @@ function LoginScreen({ onLogin }) {
             {entrando ? "Entrando..." : "Entrar"}
           </Button>
         </form>
+      </Card>
+    </div>
+  );
+}
+
+function UsuariosLayout({ usuarios, usuarioAtual, criarUsuario, atualizarUsuario, redefinirSenha, salvando }) {
+  const [form, setForm] = useState({ nome: "", username: "", perfil: "Comercial", senha: "" });
+  const [resetId, setResetId] = useState(null);
+  const [novaSenha, setNovaSenha] = useState("");
+  const ativos = usuarios.filter((usuario) => usuario.ativo).length;
+
+  async function cadastrar(event) {
+    event.preventDefault();
+    const sucesso = await criarUsuario(form);
+    if (sucesso) setForm({ nome: "", username: "", perfil: "Comercial", senha: "" });
+  }
+
+  async function salvarNovaSenha(event, usuarioId) {
+    event.preventDefault();
+    const sucesso = await redefinirSenha(usuarioId, novaSenha);
+    if (sucesso) {
+      setResetId(null);
+      setNovaSenha("");
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <StatCard label="Usuários cadastrados" value={usuarios.length} tone="teal" />
+        <StatCard label="Acessos ativos" value={ativos} tone="green" />
+        <StatCard label="Acessos desativados" value={usuarios.length - ativos} tone="amber" />
+      </section>
+
+      <Card className="p-5">
+        <div className="mb-4">
+          <h2 className="flex items-center gap-2 text-xl font-bold">
+            <UserPlus size={20} className="text-teal-700" />
+            Cadastrar usuário
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">Crie um acesso e escolha a área que a pessoa poderá visualizar.</p>
+        </div>
+        <form onSubmit={cadastrar} className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <Field label="Nome">
+            <Input value={form.nome} onChange={(event) => setForm({ ...form, nome: event.target.value })} placeholder="Nome da pessoa" />
+          </Field>
+          <Field label="Usuário">
+            <Input
+              value={form.username}
+              onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
+              placeholder="nome.sobrenome"
+              autoComplete="off"
+            />
+          </Field>
+          <Field label="Perfil">
+            <SelectBox value={form.perfil} onChange={(perfil) => setForm({ ...form, perfil })}>
+              {PERFIS_USUARIO.map((perfilOpcao) => (
+                <option key={perfilOpcao} value={perfilOpcao}>{perfilOpcao}</option>
+              ))}
+            </SelectBox>
+          </Field>
+          <Field label="Senha temporária">
+            <Input
+              type="password"
+              value={form.senha}
+              onChange={(event) => setForm({ ...form, senha: event.target.value })}
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="Mínimo de 8 caracteres"
+            />
+          </Field>
+          <div className="flex items-end">
+            <Button
+              type="submit"
+              disabled={salvando || !form.nome.trim() || !form.username.trim() || form.senha.length < 8}
+              className="w-full bg-teal-700 text-white hover:bg-teal-800"
+            >
+              <UserPlus size={16} />
+              Criar acesso
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="border-b border-slate-200 p-5">
+          <h2 className="text-xl font-bold">Usuários e permissões</h2>
+          <p className="mt-1 text-sm text-slate-500">Altere o perfil, bloqueie um acesso ou defina uma nova senha temporária.</p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {usuarios.map((usuario) => {
+            const acessoAtual = usuario.id === usuarioAtual.id;
+            return (
+              <div key={usuario.id} className="p-4">
+                <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(180px,1fr)_minmax(140px,0.7fr)_minmax(180px,0.8fr)_auto]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-bold text-slate-800">{usuario.nome}</p>
+                      <Badge className={usuario.ativo ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-100 text-slate-600"}>
+                        {usuario.ativo ? "Ativo" : "Desativado"}
+                      </Badge>
+                      {acessoAtual && <Badge className="border-teal-200 bg-teal-50 text-teal-700">Seu acesso</Badge>}
+                    </div>
+                    <p className="text-sm text-slate-500">@{usuario.username}</p>
+                  </div>
+                  <SelectBox
+                    value={usuario.perfil}
+                    onChange={(perfil) => atualizarUsuario(usuario.id, { perfil })}
+                    disabled={salvando || acessoAtual}
+                    className="disabled:bg-slate-100"
+                  >
+                    {PERFIS_USUARIO.map((perfilOpcao) => (
+                      <option key={perfilOpcao} value={perfilOpcao}>{perfilOpcao}</option>
+                    ))}
+                  </SelectBox>
+                  <Button
+                    onClick={() => atualizarUsuario(usuario.id, { ativo: !usuario.ativo })}
+                    disabled={salvando || acessoAtual}
+                    className={usuario.ativo
+                      ? "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                      : "border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}
+                  >
+                    {usuario.ativo ? "Desativar acesso" : "Reativar acesso"}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setResetId(resetId === usuario.id ? null : usuario.id);
+                      setNovaSenha("");
+                    }}
+                    className="border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  >
+                    Redefinir senha
+                  </Button>
+                </div>
+                {resetId === usuario.id && (
+                  <form onSubmit={(event) => salvarNovaSenha(event, usuario.id)} className="mt-3 flex flex-col gap-2 rounded-lg bg-slate-50 p-3 sm:flex-row">
+                    <Input
+                      type="password"
+                      value={novaSenha}
+                      onChange={(event) => setNovaSenha(event.target.value)}
+                      minLength={8}
+                      autoComplete="new-password"
+                      placeholder="Nova senha temporária"
+                    />
+                    <Button type="submit" disabled={salvando || novaSenha.length < 8} className="whitespace-nowrap bg-teal-700 text-white hover:bg-teal-800">
+                      Salvar nova senha
+                    </Button>
+                  </form>
+                )}
+              </div>
+            );
+          })}
+          {usuarios.length === 0 && <EmptyState>Nenhum usuário cadastrado.</EmptyState>}
+        </div>
       </Card>
     </div>
   );
@@ -1391,6 +1562,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, salvand
 
 export default function App() {
   const [sessao, setSessao] = useState(null);
+  const [moduloAtivo, setModuloAtivo] = useState("Inteligência");
   const [authLoading, setAuthLoading] = useState(true);
   const [pedidos, setPedidos] = useState([]);
   const [cargas, setCargas] = useState([]);
@@ -1399,10 +1571,12 @@ export default function App() {
   const [dashboard, setDashboard] = useState(null);
   const [notas, setNotas] = useState([]);
   const [metas, setMetas] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState("");
   const perfil = sessao?.perfil || "";
+  const moduloAtual = perfil === PERFIL_ADMIN ? moduloAtivo : perfil;
 
   function limparDados() {
     setPedidos([]);
@@ -1412,23 +1586,26 @@ export default function App() {
     setDashboard(null);
     setNotas([]);
     setMetas([]);
+    setUsuarios([]);
   }
 
   async function loadData(showSpinner = true) {
     if (showSpinner) setLoading(true);
     setError("");
     try {
-      const carregaPedidos = ["Inteligência", "Comercial", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal"].includes(perfil);
-      const carregaClientes = ["Comercial", "Clientes"].includes(perfil);
-      const carregaProdutos = ["Comercial", "Clientes", "Estoque"].includes(perfil);
-      const [pedidosResponse, cargasResponse, clientesResponse, produtosResponse, dashboardResponse, notasResponse, metasResponse] = await Promise.all([
+      const isAdmin = perfil === PERFIL_ADMIN;
+      const carregaPedidos = isAdmin || ["Inteligência", "Comercial", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal"].includes(perfil);
+      const carregaClientes = isAdmin || ["Comercial", "Clientes"].includes(perfil);
+      const carregaProdutos = isAdmin || ["Comercial", "Clientes", "Estoque"].includes(perfil);
+      const [pedidosResponse, cargasResponse, clientesResponse, produtosResponse, dashboardResponse, notasResponse, metasResponse, usuariosResponse] = await Promise.all([
         carregaPedidos ? api.listPedidos() : Promise.resolve([]),
-        perfil === "Logística" ? api.listCargas() : Promise.resolve([]),
+        isAdmin || perfil === "Logística" ? api.listCargas() : Promise.resolve([]),
         carregaClientes ? api.listClientes() : Promise.resolve([]),
         carregaProdutos ? api.listProdutos() : Promise.resolve([]),
-        perfil === "Inteligência" ? api.getDashboard() : Promise.resolve(null),
-        perfil === "Fiscal" ? api.listNotas() : Promise.resolve([]),
-        perfil === "Inteligência" ? api.listMetas() : Promise.resolve([]),
+        isAdmin || perfil === "Inteligência" ? api.getDashboard() : Promise.resolve(null),
+        isAdmin || perfil === "Fiscal" ? api.listNotas() : Promise.resolve([]),
+        isAdmin || perfil === "Inteligência" ? api.listMetas() : Promise.resolve([]),
+        isAdmin ? api.listUsuarios() : Promise.resolve([]),
       ]);
       setPedidos(pedidosResponse);
       setCargas(cargasResponse);
@@ -1437,6 +1614,7 @@ export default function App() {
       setDashboard(dashboardResponse);
       setNotas(notasResponse);
       setMetas(metasResponse);
+      setUsuarios(usuariosResponse);
     } catch (err) {
       setError(err.message || "Não foi possível carregar os dados.");
     } finally {
@@ -1453,7 +1631,10 @@ export default function App() {
       }
       try {
         const usuario = await api.me();
-        if (ativo) setSessao(usuario);
+        if (ativo) {
+          setSessao(usuario);
+          setModuloAtivo(usuario.perfil === PERFIL_ADMIN ? "Inteligência" : usuario.perfil);
+        }
       } catch {
         api.setAccessToken("");
       } finally {
@@ -1484,6 +1665,7 @@ export default function App() {
     const resposta = await api.login(username, senha);
     api.setAccessToken(resposta.accessToken);
     setSessao(resposta.usuario);
+    setModuloAtivo(resposta.usuario.perfil === PERFIL_ADMIN ? "Inteligência" : resposta.usuario.perfil);
   }
 
   async function sair() {
@@ -1494,6 +1676,7 @@ export default function App() {
     } finally {
       api.setAccessToken("");
       setSessao(null);
+      setModuloAtivo("Inteligência");
       setLoading(false);
       limparDados();
     }
@@ -1577,6 +1760,29 @@ export default function App() {
     });
   }
 
+  async function criarUsuario(payload) {
+    return runAction(async () => {
+      await api.createUsuario(payload);
+      setUsuarios(await api.listUsuarios());
+    });
+  }
+
+  async function atualizarUsuario(id, payload) {
+    return runAction(async () => {
+      await api.updateUsuario(id, payload);
+      const usuariosAtualizados = await api.listUsuarios();
+      setUsuarios(usuariosAtualizados);
+      const sessaoAtualizada = usuariosAtualizados.find((usuario) => usuario.id === sessao.id);
+      if (sessaoAtualizada) setSessao(sessaoAtualizada);
+    });
+  }
+
+  async function redefinirSenha(id, senha) {
+    return runAction(async () => {
+      await api.resetUsuarioSenha(id, senha);
+    });
+  }
+
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100">
@@ -1620,6 +1826,32 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-7xl p-4 md:p-6">
+        {perfil === PERFIL_ADMIN && (
+          <nav className="mb-5 rounded-xl border border-teal-100 bg-white p-3 shadow-sm" aria-label="Áreas administrativas">
+            <div className="mb-3 flex items-center gap-2 px-1">
+              <ShieldCheck size={18} className="text-teal-700" />
+              <div>
+                <p className="text-sm font-bold text-slate-800">Visão administrativa</p>
+                <p className="text-xs text-slate-500">Acesse todas as áreas sem sair da conta.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {MODULOS_ADMIN.map((modulo) => (
+                <button
+                  key={modulo}
+                  type="button"
+                  onClick={() => setModuloAtivo(modulo)}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition ${
+                    moduloAtual === modulo ? "bg-teal-700 text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {modulo === "Usuários" ? <Users size={16} /> : perfilIcon(modulo)}
+                  {modulo}
+                </button>
+              ))}
+            </div>
+          </nav>
+        )}
         {error && (
           <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {error}
@@ -1630,13 +1862,22 @@ export default function App() {
           <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-slate-200 bg-white">
             <Loader2 size={28} className="animate-spin text-teal-700" />
           </div>
-        ) : perfil === "Inteligência" ? (
+        ) : moduloAtual === "Usuários" && perfil === PERFIL_ADMIN ? (
+          <UsuariosLayout
+            usuarios={usuarios}
+            usuarioAtual={sessao}
+            criarUsuario={criarUsuario}
+            atualizarUsuario={atualizarUsuario}
+            redefinirSenha={redefinirSenha}
+            salvando={salvando}
+          />
+        ) : moduloAtual === "Inteligência" ? (
           <InteligenciaLayout dashboard={dashboard} pedidos={pedidos} metas={metas} onRefresh={() => loadData(false)} />
-        ) : perfil === "Clientes" ? (
+        ) : moduloAtual === "Clientes" ? (
           <ClientesLayout clientes={clientes} produtos={produtosCatalogo} onRefresh={() => loadData(false)} salvando={salvando} />
-        ) : perfil === "Estoque" ? (
+        ) : moduloAtual === "Estoque" ? (
           <EstoqueLayout produtos={produtosCatalogo} onRefresh={() => loadData(false)} />
-        ) : perfil === "PCP" ? (
+        ) : moduloAtual === "PCP" ? (
           <PCPLayout
             pedidos={pedidos}
             atualizarStatus={atualizarStatus}
@@ -1644,11 +1885,11 @@ export default function App() {
             excluirPedido={excluirPedido}
             salvando={salvando}
           />
-        ) : perfil === "Faturamento" ? (
+        ) : moduloAtual === "Faturamento" ? (
           <FaturamentoLayout pedidos={pedidos} atualizarStatus={atualizarStatus} excluirPedido={excluirPedido} />
-        ) : perfil === "Financeiro" ? (
+        ) : moduloAtual === "Financeiro" ? (
           <FinanceiroLayout pedidos={pedidos} atualizarFinanceiro={atualizarFinanceiro} excluirPedido={excluirPedido} />
-        ) : perfil === "Fiscal" ? (
+        ) : moduloAtual === "Fiscal" ? (
           <FiscalLayout
             pedidos={pedidos}
             notas={notas}
@@ -1656,7 +1897,7 @@ export default function App() {
             marcarNfeEmitida={marcarNfeEmitida}
             enviarNfeHomologacao={enviarNfeHomologacao}
           />
-        ) : perfil === "Logística" ? (
+        ) : moduloAtual === "Logística" ? (
           <LogisticaLayout
             pedidos={pedidos}
             cargas={cargas}

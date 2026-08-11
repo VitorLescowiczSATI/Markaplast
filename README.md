@@ -13,6 +13,7 @@ Sistema inicial para controle de pedidos, produção, faturamento, financeiro e 
 
 - Cadastro de pedidos por área comercial.
 - Login com sessão expirada e acesso restrito à área de cada usuário.
+- Perfil Administrador com acesso a todas as áreas e gestão de usuários.
 - Cadastro de clientes com consulta de CEP via API.
 - Cadastro de produtos/SKUs e controle de estoque.
 - Reserva automática de estoque quando um pedido é criado.
@@ -103,7 +104,9 @@ Antes de produção fiscal real, valide com contador: certificado A1, emitente, 
 
 ## Acessos iniciais
 
-No primeiro boot, a API cria um usuário para cada área: `inteligencia`, `comercial`, `clientes`, `estoque`, `pcp`, `logistica`, `faturamento`, `financeiro` e `fiscal`.
+No primeiro boot, a API cria o usuário `admin` e um usuário para cada área: `inteligencia`, `comercial`, `clientes`, `estoque`, `pcp`, `logistica`, `faturamento`, `financeiro` e `fiscal`.
+
+O perfil Administrador navega por todas as áreas sem trocar de sessão e pode cadastrar usuários, alterar perfis, ativar ou desativar acessos e redefinir senhas temporárias.
 
 Todos recebem inicialmente a senha definida em `AUTH_INITIAL_PASSWORD`. A variável deve ser configurada antes do primeiro deploy e não altera senhas de usuários que já existam. As sessões expiram conforme `AUTH_TOKEN_MINUTES` (12 horas por padrão), e `AUTH_SECRET` deve ser um valor longo e aleatório.
 
@@ -111,4 +114,4 @@ No ambiente local do `docker compose`, a senha inicial de desenvolvimento é `Ma
 
 ## Observações técnicas
 
-O backend cria as tabelas automaticamente na inicialização para facilitar o MVP. Antes de virar produção crítica, a próxima etapa correta é adicionar Alembic para migrations versionadas e uma tela administrativa para gerenciar usuários e trocar senhas.
+O backend cria as tabelas automaticamente na inicialização para facilitar o MVP. Antes de virar produção crítica, a próxima etapa correta é adicionar Alembic para migrations versionadas e recuperação/troca de senha pelo próprio usuário.

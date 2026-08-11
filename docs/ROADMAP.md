@@ -5,6 +5,7 @@
 - Cadastro de pedidos pelo Comercial.
 - Fluxo de status separado por Comercial, PCP, Logística, Faturamento, Financeiro e Fiscal.
 - Autenticação por usuário e perfil, com cada acesso restrito à sua área.
+- Perfil Administrador com acesso a todos os módulos e gestão de usuários.
 - Persistência em PostgreSQL.
 - Montagem de cargas com pedidos vinculados.
 - Deploy separado no Render para API, frontend e banco.
@@ -17,7 +18,7 @@
 
 ## Próximas melhorias recomendadas
 
-1. Gestão de usuários, troca e recuperação de senha.
+1. Troca de senha pelo próprio usuário e recuperação de acesso.
 2. Migrations com Alembic antes de uso em produção real.
 3. Cadastro fiscal completo do emitente, NCM, CFOP, CST/CSOSN e regras tributárias por produto.
 4. Impressão real de etiquetas por carga.
