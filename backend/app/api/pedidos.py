@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import require_profiles
 from app.db.session import get_db
-from app.models.pedido import Pedido, hoje_brasil
+from app.models.pedido import Pedido, PedidoItem, hoje_brasil
 from app.models.usuario import Usuario
 from app.schemas.pedido import (
     PedidoCreate,
@@ -17,8 +17,9 @@ from app.schemas.pedido import (
 from app.services.clientes import upsert_cliente_do_pedido
 from app.services.estoque import (
     baixar_reserva_do_pedido,
+    quantidades_por_produto,
     liberar_reserva_do_pedido,
-    recalcular_reserva_do_pedido,
+    recalcular_reservas_do_pedido,
     reservar_estoque_para_pedido,
 )
 from app.services.historico import registrar_historico
@@ -47,7 +48,7 @@ def listar_pedidos(
         require_profiles("Inteligência", "Comercial", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal")
     ),
 ):
-    pedidos = db.scalars(select(Pedido).order_by(Pedido.id.desc())).all()
+    pedidos = db.scalars(select(Pedido).options(selectinload(Pedido.itens)).order_by(Pedido.id.desc())).all()
     return [
         pedido
         for pedido in pedidos
@@ -61,19 +62,35 @@ def listar_pedidos(
 
 @router.get("/resumo", response_model=ResumoRead)
 def resumo_pedidos(db: Session = Depends(get_db), _usuario=Depends(require_profiles("Inteligência"))):
-    pedidos = db.scalars(select(Pedido)).all()
+    pedidos = db.scalars(select(Pedido).options(selectinload(Pedido.itens))).all()
     return calcular_resumo(list(pedidos))
 
 
 @router.post("", response_model=PedidoRead, status_code=status.HTTP_201_CREATED)
 def criar_pedido(payload: PedidoCreate, db: Session = Depends(get_db), _usuario=Depends(require_profiles("Comercial"))):
     upsert_cliente_do_pedido(db, payload)
+    itens_payload = payload.itens or [
+        {
+            "produto": payload.produto,
+            "tampa": payload.tampa,
+            "cor": payload.cor,
+            "quantidade": payload.quantidade,
+            "valor": payload.valor,
+            "valorTampa": payload.valorTampa,
+        }
+    ]
+    itens_dados = [item.model_dump() if hasattr(item, "model_dump") else item for item in itens_payload]
+    primeiro_item = itens_dados[0]
+    dados_pedido = payload.model_dump(exclude={"itens"})
+    dados_pedido.update(primeiro_item)
     pedido = Pedido(
-        **payload.model_dump(),
+        **dados_pedido,
         status="Novo pedido",
         statusFinanceiro="Aguardando pagamento",
     )
     db.add(pedido)
+    db.flush()
+    pedido.itens = [PedidoItem(ordem=ordem, **item) for ordem, item in enumerate(itens_dados)]
     db.flush()
     reservar_estoque_para_pedido(db, pedido)
     registrar_historico(
@@ -96,7 +113,7 @@ def obter_pedido(
         require_profiles("Inteligência", "Comercial", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal")
     ),
 ):
-    pedido = db.get(Pedido, pedido_id)
+    pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == pedido_id))
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
     if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
@@ -111,31 +128,40 @@ def atualizar_pedido(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_profiles("PCP")),
 ):
-    pedido = db.get(Pedido, pedido_id)
+    pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == pedido_id))
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
     if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
         raise HTTPException(status_code=403, detail="Seu perfil não pode alterar este pedido")
 
     dados = payload.model_dump(exclude_unset=True)
-    produto_anterior = pedido.produto
-    quantidade_anterior = int(pedido.quantidade or 0)
+    quantidades_anteriores = quantidades_por_produto(pedido)
     status_anterior = pedido.status
 
     if "status" in dados and not pode_transicionar_status(pedido.status, dados["status"]):
         raise HTTPException(status_code=400, detail=f"Transicao de status invalida: {pedido.status} -> {dados['status']}")
     if "statusFinanceiro" in dados and dados["statusFinanceiro"] not in STATUS_FINANCEIRO_VALIDOS:
         raise HTTPException(status_code=400, detail="Status financeiro invalido")
-    if pedido.status in STATUS_FATURADO | {STATUS_CANCELADO} and {"produto", "quantidade"} & set(dados):
-        raise HTTPException(status_code=409, detail="Produto e quantidade nao podem ser alterados nesta etapa do pedido")
+    if pedido.status in STATUS_FATURADO | {STATUS_CANCELADO} and {"produto", "quantidade", "itens"} & set(dados):
+        raise HTTPException(status_code=409, detail="Itens do pedido nao podem ser alterados nesta etapa")
+
+    itens_novos = dados.pop("itens", None)
+    if itens_novos is not None:
+        if not itens_novos:
+            raise HTTPException(status_code=400, detail="O pedido precisa ter pelo menos um item")
+        primeiro_item = itens_novos[0]
+        dados.update(primeiro_item)
 
     for key, value in dados.items():
         setattr(pedido, key, value)
+    if itens_novos is not None:
+        pedido.itens = [PedidoItem(ordem=ordem, **item) for ordem, item in enumerate(itens_novos)]
+        db.flush()
 
     if {"cliente", "cnpj", "cidade", "pagamento"} & set(dados.keys()):
         upsert_cliente_do_pedido(db, pedido)
-    if pedido.status in STATUS_COM_RESERVA and {"produto", "quantidade"} & set(dados.keys()):
-        recalcular_reserva_do_pedido(db, pedido, produto_anterior, quantidade_anterior)
+    if pedido.status in STATUS_COM_RESERVA and ({"produto", "quantidade"} & set(dados.keys()) or itens_novos is not None):
+        recalcular_reservas_do_pedido(db, pedido, quantidades_anteriores)
     if "status" in dados and pedido.status != status_anterior:
         registrar_historico(db, pedido.id, "Status", status_anterior, pedido.status)
         if pedido.status == "Nota emitida" and not pedido.dataEmissao:

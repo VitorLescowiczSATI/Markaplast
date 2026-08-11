@@ -4,7 +4,7 @@ import { BarChart3, CheckCircle2, FileText, PackagePlus, Pencil, Search, Tags, T
 import { Badge, Button, Card, EmptyState, Field, Input, SelectBox, StatCard, TextArea } from "./ui.jsx";
 import { api } from "../lib/api.js";
 import { vendedores } from "../lib/constants.js";
-import { currency, percentualMeta, realizadoMetas, statusColor, valorTotalPedido } from "../lib/domain.js";
+import { currency, itensPedido, percentualMeta, quantidadeTotalPedido, realizadoMetas, statusColor, valorTotalPedido } from "../lib/domain.js";
 
 const emptyCliente = {
   nome: "",
@@ -812,9 +812,14 @@ export function FiscalLayout({ pedidos = [], notas = [], prepararNfe, marcarNfeE
                     <p className="text-sm text-slate-700">
                       <strong>{pedido.cliente}</strong> - {pedido.cnpj || "CNPJ pendente"}
                     </p>
-                    <p className="text-sm text-slate-600">
-                      {pedido.produto} - {pedido.quantidade} un - {currency(valorTotalPedido(pedido))}
-                    </p>
+                    <div className="space-y-1 text-sm text-slate-600">
+                      {itensPedido(pedido).map((item, indice) => (
+                        <p key={item.id || indice}>
+                          {item.quantidade}x {item.produto}{item.cor ? ` ${item.cor}` : ""}
+                        </p>
+                      ))}
+                      <p className="font-semibold">{quantidadeTotalPedido(pedido)} un - {currency(valorTotalPedido(pedido))}</p>
+                    </div>
                     <p className="text-sm text-slate-500">Faturamento: {pedido.faturamento || "Não informado"}</p>
                     {nota && (
                       <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">

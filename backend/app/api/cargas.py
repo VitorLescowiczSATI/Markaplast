@@ -15,13 +15,13 @@ router = APIRouter(prefix="/cargas", tags=["cargas"], dependencies=[Depends(requ
 
 @router.get("", response_model=list[CargaRead])
 def listar_cargas(db: Session = Depends(get_db)):
-    statement = select(Carga).options(selectinload(Carga.pedidos)).order_by(Carga.id.desc())
+    statement = select(Carga).options(selectinload(Carga.pedidos).selectinload(Pedido.itens)).order_by(Carga.id.desc())
     return db.scalars(statement).all()
 
 
 @router.post("", response_model=CargaRead, status_code=status.HTTP_201_CREATED)
 def criar_carga(payload: CargaCreate, db: Session = Depends(get_db)):
-    pedidos = db.scalars(select(Pedido).where(Pedido.id.in_(payload.pedidoIds))).all()
+    pedidos = db.scalars(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id.in_(payload.pedidoIds))).all()
     encontrados = {pedido.id for pedido in pedidos}
     faltantes = [pedido_id for pedido_id in payload.pedidoIds if pedido_id not in encontrados]
     if faltantes:

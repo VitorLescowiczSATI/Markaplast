@@ -90,9 +90,26 @@ def _migrate_status_values(engine: Engine, inspector) -> None:
             )
 
 
+def _backfill_pedido_itens(engine: Engine, inspector) -> None:
+    """Cria o primeiro item dos pedidos antigos. Idempotente e seguro a cada boot."""
+    if not inspector.has_table("pedidos") or not inspector.has_table("pedido_itens"):
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO pedido_itens "
+                "(pedido_id, ordem, produto, tampa, cor, quantidade, valor, valor_tampa) "
+                "SELECT p.id, 0, p.produto, p.tampa, p.cor, p.quantidade, p.valor, p.valor_tampa "
+                "FROM pedidos p "
+                "WHERE NOT EXISTS (SELECT 1 FROM pedido_itens i WHERE i.pedido_id = p.id)"
+            )
+        )
+
+
 def ensure_runtime_migrations(engine: Engine) -> None:
     inspector = inspect(engine)
     _repair_timestamp_columns(engine, inspector)
     _add_missing_columns(engine, inspector, "pedidos", PEDIDOS_COLUMNS)
     _add_missing_columns(engine, inspector, "produtos", PRODUTOS_COLUMNS)
     _migrate_status_values(engine, inspector)
+    _backfill_pedido_itens(engine, inspector)

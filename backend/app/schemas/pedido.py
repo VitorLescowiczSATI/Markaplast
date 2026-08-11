@@ -3,6 +3,27 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class PedidoItemBase(BaseModel):
+    produto: str = Field(..., min_length=1, max_length=120)
+    tampa: str = ""
+    cor: str = ""
+    quantidade: int = Field(..., gt=0)
+    valor: float = Field(0, ge=0)
+    valorTampa: float = Field(0, ge=0)
+
+
+class PedidoItemCreate(PedidoItemBase):
+    pass
+
+
+class PedidoItemRead(PedidoItemBase):
+    id: int
+    pedidoId: int
+    ordem: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PedidoBase(BaseModel):
     cliente: str = Field(..., min_length=1, max_length=180)
     cnpj: str = ""
@@ -33,7 +54,7 @@ class PedidoBase(BaseModel):
 
 
 class PedidoCreate(PedidoBase):
-    pass
+    itens: list[PedidoItemCreate] = Field(default_factory=list, max_length=50)
 
 
 class PedidoUpdate(BaseModel):
@@ -65,6 +86,7 @@ class PedidoUpdate(BaseModel):
     pcpObservacoes: str | None = None
     status: str | None = None
     statusFinanceiro: str | None = None
+    itens: list[PedidoItemCreate] | None = Field(default=None, max_length=50)
 
 
 class PedidoStatusUpdate(BaseModel):
@@ -83,6 +105,7 @@ class PedidoRead(PedidoBase):
     statusFinanceiro: str
     createdAt: datetime
     updatedAt: datetime
+    itens: list[PedidoItemRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

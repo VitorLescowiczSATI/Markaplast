@@ -1,5 +1,26 @@
+export function itensPedido(pedido) {
+  if (Array.isArray(pedido?.itens) && pedido.itens.length) return pedido.itens;
+  return [
+    {
+      produto: pedido?.produto || "",
+      tampa: pedido?.tampa || "",
+      cor: pedido?.cor || "",
+      quantidade: pedido?.quantidade || 0,
+      valor: pedido?.valor || 0,
+      valorTampa: pedido?.valorTampa || 0,
+    },
+  ];
+}
+
+export function quantidadeTotalPedido(pedido) {
+  return itensPedido(pedido).reduce((total, item) => total + Number(item.quantidade || 0), 0);
+}
+
 export function valorTotalPedido(pedido) {
-  return (Number(pedido.valor || 0) + Number(pedido.valorTampa || 0)) * Number(pedido.quantidade || 0);
+  return itensPedido(pedido).reduce(
+    (total, item) => total + (Number(item.valor || 0) + Number(item.valorTampa || 0)) * Number(item.quantidade || 0),
+    0
+  );
 }
 
 // Travas do pedido: campos obrigatórios para o pedido chegar completo no PCP.
@@ -13,10 +34,20 @@ export const PEDIDO_CAMPOS_OBRIGATORIOS = [
 ];
 
 export function camposFaltandoPedido(form) {
-  return PEDIDO_CAMPOS_OBRIGATORIOS.filter(([campo]) => {
-    if (campo === "quantidade") return !(Number(form?.quantidade) > 0);
-    return !String(form?.[campo] || "").trim();
-  }).map(([, label]) => label);
+  const faltando = [];
+  const usaItens = Array.isArray(form?.itens) && form.itens.length > 0;
+  const itens = usaItens ? form.itens : [form || {}];
+  for (const [campo, label] of PEDIDO_CAMPOS_OBRIGATORIOS) {
+    if (["cliente", "vendedor"].includes(campo)) {
+      if (!String(form?.[campo] || "").trim()) faltando.push(label);
+      continue;
+    }
+    itens.forEach((item, indice) => {
+      const vazio = campo === "quantidade" ? !(Number(item?.quantidade) > 0) : !String(item?.[campo] || "").trim();
+      if (vazio) faltando.push(`${itens.length > 1 ? `Item ${indice + 1} - ` : ""}${label}`);
+    });
+  }
+  return faltando;
 }
 
 // Pedido é considerado "faturado/realizado" a partir da emissão da nota.
@@ -139,7 +170,10 @@ export function calcularResumo(pedidos) {
 
 export function filtrarPedidos(pedidos, busca, statusFiltro, vendedorFiltro, perfil, financeiroFiltro = "Todos") {
   return pedidos.filter((p) => {
-    const textoBusca = `${p.id} ${p.cliente} ${p.cnpj} ${p.cep} ${p.logradouro} ${p.numero} ${p.bairro} ${p.cidade} ${p.uf} ${p.produto} ${p.tampa} ${p.cor} ${p.status} ${p.pagamento} ${p.statusFinanceiro} ${p.transporte} ${p.tipoFrete} ${p.detalheFOB} ${p.faturamento} ${p.tipoEntrega} ${p.pcpPrevisaoProducao} ${p.pcpPrevisaoPronto} ${p.pcpQuantidadeProduzida} ${p.pcpObservacoes}`.toLowerCase();
+    const textoItens = itensPedido(p)
+      .map((item) => `${item.produto} ${item.tampa} ${item.cor} ${item.quantidade}`)
+      .join(" ");
+    const textoBusca = `${p.id} ${p.cliente} ${p.cnpj} ${p.cep} ${p.logradouro} ${p.numero} ${p.bairro} ${p.cidade} ${p.uf} ${textoItens} ${p.status} ${p.pagamento} ${p.statusFinanceiro} ${p.transporte} ${p.tipoFrete} ${p.detalheFOB} ${p.faturamento} ${p.tipoEntrega} ${p.pcpPrevisaoProducao} ${p.pcpPrevisaoPronto} ${p.pcpQuantidadeProduzida} ${p.pcpObservacoes}`.toLowerCase();
     const matchBusca = textoBusca.includes(String(busca || "").toLowerCase());
     const matchStatus = statusFiltro === "Todos" || p.status === statusFiltro;
     const matchVendedor = vendedorFiltro === "Todos" || p.vendedor === vendedorFiltro;

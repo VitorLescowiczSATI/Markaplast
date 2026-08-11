@@ -1,4 +1,5 @@
 from app.models.pedido import Pedido
+from app.services.estoque import itens_do_pedido
 
 
 STATUS_CANCELADO = "Cancelado"
@@ -57,10 +58,10 @@ STATUS_FINANCEIRO_VALIDOS = {"Aguardando pagamento", "Pago"}
 
 
 def valor_total_pedido(pedido: Pedido) -> float:
-    valor = float(pedido.valor or 0)
-    valor_tampa = float(pedido.valorTampa or 0)
-    quantidade = int(pedido.quantidade or 0)
-    return (valor + valor_tampa) * quantidade
+    return sum(
+        (float(item.valor or 0) + float(item.valorTampa or 0)) * int(item.quantidade or 0)
+        for item in itens_do_pedido(pedido)
+    )
 
 
 def pode_ver_pedido_por_perfil(perfil: str, status: str) -> bool:
@@ -112,6 +113,10 @@ def pedido_bate_busca(pedido: Pedido, busca: str) -> bool:
     termo = (busca or "").strip().lower()
     if not termo:
         return True
+    texto_itens = " ".join(
+        f"{item.produto or ''} {item.tampa or ''} {item.cor or ''} {item.quantidade or ''}"
+        for item in itens_do_pedido(pedido)
+    )
     texto = " ".join(
         str(item or "")
         for item in [
@@ -124,9 +129,7 @@ def pedido_bate_busca(pedido: Pedido, busca: str) -> bool:
             pedido.bairro,
             pedido.cidade,
             pedido.uf,
-            pedido.produto,
-            pedido.tampa,
-            pedido.cor,
+            texto_itens,
             pedido.status,
             pedido.pagamento,
             pedido.statusFinanceiro,

@@ -1,9 +1,9 @@
 from app.models.pedido import Pedido
+from app.services.estoque import itens_do_pedido
 import httpx
 
 
 def montar_payload_nfe(pedido: Pedido) -> dict:
-    valor_unitario = float(pedido.valor or 0) + float(pedido.valorTampa or 0)
     return {
         "natureza_operacao": "Venda de mercadoria",
         "data_emissao": pedido.data.isoformat(),
@@ -21,12 +21,14 @@ def montar_payload_nfe(pedido: Pedido) -> dict:
         },
         "itens": [
             {
-                "numero_item": 1,
-                "descricao": pedido.produto,
-                "quantidade_comercial": pedido.quantidade,
-                "valor_unitario_comercial": valor_unitario,
-                "valor_total_bruto": valor_unitario * int(pedido.quantidade or 0),
+                "numero_item": numero,
+                "descricao": " - ".join(parte for parte in [item.produto, item.cor, item.tampa] if parte),
+                "quantidade_comercial": item.quantidade,
+                "valor_unitario_comercial": float(item.valor or 0) + float(item.valorTampa or 0),
+                "valor_total_bruto": (float(item.valor or 0) + float(item.valorTampa or 0))
+                * int(item.quantidade or 0),
             }
+            for numero, item in enumerate(itens_do_pedido(pedido), start=1)
         ],
         "transporte": {
             "modalidade_frete": pedido.tipoFrete,

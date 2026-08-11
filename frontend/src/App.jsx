@@ -28,8 +28,9 @@ import { ClientesLayout, EstoqueLayout, FiscalLayout, InteligenciaLayout } from 
 import { api } from "./lib/api.js";
 import {
   cores,
-  emptyForm,
+  emptyItem,
   financeiroStatusList,
+  novoPedidoForm,
   produtos,
   statusList,
   tampas,
@@ -38,7 +39,18 @@ import {
   tiposFrete,
   vendedores,
 } from "./lib/constants.js";
-import { calcularResumo, camposFaltandoPedido, currency, filtrarPedidos, financeiroColor, normalizarOpcao, statusColor, valorTotalPedido } from "./lib/domain.js";
+import {
+  calcularResumo,
+  camposFaltandoPedido,
+  currency,
+  filtrarPedidos,
+  financeiroColor,
+  itensPedido,
+  normalizarOpcao,
+  quantidadeTotalPedido,
+  statusColor,
+  valorTotalPedido,
+} from "./lib/domain.js";
 
 // Status que não aparecem na aba Comercial por padrão (cancelado + já faturado/concluído).
 const STATUS_OCULTOS_COMERCIAL = ["Cancelado", "Nota emitida", "Separado para entrega", "Enviado", "Finalizado"];
@@ -58,12 +70,32 @@ const PERFIS_USUARIO = [
 const MODULOS_ADMIN = ["Inteligência", "Comercial", "Clientes", "Estoque", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal", "Usuários"];
 
 function payloadFromForm(form) {
+  const itens = (form.itens || []).map((item) => ({
+    produto: item.produto,
+    tampa: item.tampa,
+    cor: item.cor,
+    quantidade: Number(item.quantidade || 0),
+    valor: Number(item.valor || 0),
+    valorTampa: Number(item.valorTampa || 0),
+  }));
+  const primeiro = itens[0] || {};
   return {
     ...form,
-    quantidade: Number(form.quantidade || 0),
-    valor: Number(form.valor || 0),
-    valorTampa: Number(form.valorTampa || 0),
+    ...primeiro,
+    itens,
   };
+}
+
+function textoItensPedido(pedido) {
+  return itensPedido(pedido)
+    .map((item) => `${item.produto || ""} ${item.cor || ""} ${item.tampa || ""} ${item.quantidade || 0}`)
+    .join(" ");
+}
+
+function resumoItensPedido(pedido) {
+  return itensPedido(pedido)
+    .map((item) => `${item.quantidade || 0}x ${item.produto || "produto"}${item.cor ? ` ${item.cor}` : ""}`)
+    .join(" · ");
 }
 
 function pedidoFieldsFromCliente(cliente, form) {
@@ -336,6 +368,7 @@ function ResumoCards({ pedidos }) {
 
 function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido, bare = false }) {
   const total = valorTotalPedido(pedido);
+  const itens = itensPedido(pedido);
   const temDetalhePcp =
     pedido.pcpPrevisaoProducao || pedido.pcpPrevisaoPronto || Number(pedido.pcpQuantidadeProduzida || 0) > 0 || pedido.pcpObservacoes;
 
@@ -370,14 +403,18 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
               {pedido.cep ? ` - CEP ${pedido.cep}` : ""} {pedido.uf ? `- ${pedido.uf}` : ""}
             </p>
           )}
-          <p className="break-words text-sm text-slate-600">
-            {pedido.produto} - {pedido.cor || "cor não informada"} - <strong>{pedido.quantidade} un</strong>
-          </p>
-          {pedido.tampa && (
-            <p className="break-words text-sm text-slate-600">
-              Tampa: <strong>{pedido.tampa}</strong>
-            </p>
-          )}
+          <div className="space-y-1 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
+            {itens.map((item, indice) => (
+              <div key={item.id || `${item.produto}-${item.cor}-${indice}`} className="flex flex-wrap justify-between gap-2">
+                <span>
+                  {itens.length > 1 && <strong>{indice + 1}. </strong>}
+                  <strong>{item.produto}</strong> - {item.cor || "cor não informada"}
+                  {item.tampa ? ` - tampa ${item.tampa}` : ""}
+                </span>
+                <strong>{item.quantidade} un</strong>
+              </div>
+            ))}
+          </div>
           <div className="grid grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-2">
             <p>
               Frete: <strong>{pedido.tipoFrete || "Não informado"}</strong>
@@ -424,7 +461,7 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
             <p className="text-xs uppercase tracking-wide text-slate-500">Valor do pedido</p>
             <p className="text-2xl font-bold">{currency(total)}</p>
             <p className="mt-1 text-xs text-slate-500">
-              Embalagem {currency(pedido.valor)} + tampa {currency(pedido.valorTampa)}
+              {itens.length} {itens.length === 1 ? "item" : "itens"} · {quantidadeTotalPedido(pedido)} unidades
             </p>
           </div>
 
@@ -501,7 +538,7 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
   const [dataInicial, setDataInicial] = useState("");
   const [dataFinal, setDataFinal] = useState("");
   const [clienteSelecionadoId, setClienteSelecionadoId] = useState("");
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => novoPedidoForm());
   const clientesOrdenados = useMemo(() => [...clientes].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""))), [clientes]);
   const produtosOrdenados = useMemo(
     () => [...produtosCatalogo].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""))),
@@ -519,20 +556,28 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
     return lista;
   }, [pedidos, busca, statusFiltro, vendedorFiltro, dataInicial, dataFinal]);
 
-  const precoReqId = useRef(0);
-  async function aplicarPrecoCliente(clienteId, produtoNome) {
+  const precoReqIds = useRef({});
+  async function aplicarPrecoCliente(clienteId, produtoNome, indiceItem) {
     if (!clienteId || !produtoNome) return;
     const produto = produtosCatalogo.find((item) => item.nome === produtoNome);
     if (!produto) return;
-    const reqId = ++precoReqId.current;
+    const reqId = (precoReqIds.current[indiceItem] || 0) + 1;
+    precoReqIds.current[indiceItem] = reqId;
     try {
       const preco = await api.lookupPreco(clienteId, produto.id);
-      if (reqId !== precoReqId.current) return; // resposta obsoleta de uma troca anterior: descarta
+      if (reqId !== precoReqIds.current[indiceItem]) return;
       // Sempre escreve: limpa o valor quando não há preço, para não persistir o preço do produto anterior.
       setForm((atual) => ({
         ...atual,
-        valor: preco ? String(preco.valor ?? "") : "",
-        valorTampa: preco ? String(preco.valorTampa ?? "") : "",
+        itens: atual.itens.map((item, indice) =>
+          indice === indiceItem && item.produto === produtoNome
+            ? {
+                ...item,
+                valor: preco ? String(preco.valor ?? "") : "",
+                valorTampa: preco ? String(preco.valorTampa ?? "") : "",
+              }
+            : item
+        ),
       }));
     } catch {
       // Erro de rede: mantém o que estiver no formulário.
@@ -545,8 +590,23 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
     const cliente = clientes.find((item) => String(item.id) === String(clienteId));
     if (cliente) {
       setForm((atual) => pedidoFieldsFromCliente(cliente, atual));
-      aplicarPrecoCliente(clienteId, form.produto);
+      form.itens.forEach((item, indice) => aplicarPrecoCliente(clienteId, item.produto, indice));
     }
+  }
+
+  function atualizarItem(indice, campo, valor) {
+    setForm((atual) => ({
+      ...atual,
+      itens: atual.itens.map((item, itemIndice) => (itemIndice === indice ? { ...item, [campo]: valor } : item)),
+    }));
+  }
+
+  function adicionarItem() {
+    setForm((atual) => ({ ...atual, itens: [...atual.itens, { ...emptyItem }] }));
+  }
+
+  function removerItem(indice) {
+    setForm((atual) => ({ ...atual, itens: atual.itens.filter((_, itemIndice) => itemIndice !== indice) }));
   }
 
   function repetirUltimoPedido() {
@@ -560,15 +620,17 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
       window.alert("Nenhum pedido anterior encontrado para este cliente.");
       return;
     }
+    const itens = itensPedido(ultimo).map((item) => ({
+      produto: item.produto || "",
+      cor: normalizarOpcao(item.cor, cores),
+      tampa: normalizarOpcao(item.tampa, tampas),
+      quantidade: String(item.quantidade || ""),
+      valor: String(item.valor ?? ""),
+      valorTampa: String(item.valorTampa ?? ""),
+    }));
     setForm((atual) => ({
       ...atual,
-      produto: ultimo.produto || atual.produto,
-      // Normaliza contra a lista fixa: valores legados fora do catálogo viram "" (em vez de travar o dropdown).
-      cor: normalizarOpcao(ultimo.cor, cores),
-      tampa: normalizarOpcao(ultimo.tampa, tampas),
-      quantidade: String(ultimo.quantidade || ""),
-      valor: String(ultimo.valor ?? ""),
-      valorTampa: String(ultimo.valorTampa ?? ""),
+      itens,
       pagamento: ultimo.pagamento || atual.pagamento,
       vendedor: ultimo.vendedor || atual.vendedor,
       tipoFrete: ultimo.tipoFrete || atual.tipoFrete,
@@ -588,7 +650,7 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
     }
     const salvo = await criarPedido(payloadFromForm(form));
     if (salvo) {
-      setForm(emptyForm);
+      setForm(novoPedidoForm());
       setClienteSelecionadoId("");
     }
   }
@@ -653,60 +715,108 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
             <Field label="Cidade">
               <Input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} placeholder="Curitiba" />
             </Field>
-            <Field label="Produto">
-              <SelectBox
-                value={form.produto}
-                onChange={(produto) => {
-                  setForm({ ...form, produto });
-                  aplicarPrecoCliente(clienteSelecionadoId, produto);
-                }}
+            <div className="space-y-3">
+              <div>
+                <h3 className="font-bold text-slate-800">Itens do pedido</h3>
+                <p className="text-xs text-slate-500">Adicione quantos produtos, modelos e cores forem necessários.</p>
+              </div>
+              {form.itens.map((item, indice) => (
+                <div key={indice} className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between">
+                    <strong className="text-sm text-slate-700">Item {indice + 1}</strong>
+                    {form.itens.length > 1 && (
+                      <IconButton type="button" label={`Remover item ${indice + 1}`} onClick={() => removerItem(indice)}>
+                        <Trash2 size={15} />
+                      </IconButton>
+                    )}
+                  </div>
+                  <Field label="Produto / modelo">
+                    <SelectBox
+                      value={item.produto}
+                      aria-label={`Produto / modelo item ${indice + 1}`}
+                      onChange={(produto) => {
+                        atualizarItem(indice, "produto", produto);
+                        aplicarPrecoCliente(clienteSelecionadoId, produto, indice);
+                      }}
+                    >
+                      <option value="">Selecione</option>
+                      {nomesProdutos.map((produto) => (
+                        <option key={produto} value={produto}>
+                          {produto}
+                        </option>
+                      ))}
+                    </SelectBox>
+                  </Field>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <Field label="Cor">
+                      <SelectBox aria-label={`Cor item ${indice + 1}`} value={item.cor} onChange={(cor) => atualizarItem(indice, "cor", cor)}>
+                        <option value="">Selecione</option>
+                        {cores.map((cor) => (
+                          <option key={cor} value={cor}>
+                            {cor}
+                          </option>
+                        ))}
+                      </SelectBox>
+                    </Field>
+                    <Field label="Quantidade">
+                      <Input
+                        type="number"
+                        min="1"
+                        aria-label={`Quantidade item ${indice + 1}`}
+                        value={item.quantidade}
+                        onChange={(e) => atualizarItem(indice, "quantidade", e.target.value)}
+                        placeholder="1500"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Tampa">
+                    <SelectBox aria-label={`Tampa item ${indice + 1}`} value={item.tampa} onChange={(tampa) => atualizarItem(indice, "tampa", tampa)}>
+                      <option value="">Selecione</option>
+                      {tampas.map((tampa) => (
+                        <option key={tampa} value={tampa}>
+                          {tampa}
+                        </option>
+                      ))}
+                    </SelectBox>
+                  </Field>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <Field label="Valor da embalagem">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        aria-label={`Valor da embalagem item ${indice + 1}`}
+                        value={item.valor}
+                        onChange={(e) => atualizarItem(indice, "valor", e.target.value)}
+                        placeholder="0,00"
+                      />
+                    </Field>
+                    <Field label="Valor da tampa">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        aria-label={`Valor da tampa item ${indice + 1}`}
+                        value={item.valorTampa}
+                        onChange={(e) => atualizarItem(indice, "valorTampa", e.target.value)}
+                        placeholder="0,00"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+              <Button
+                type="button"
+                onClick={adicionarItem}
+                className="w-full border border-dashed border-teal-300 bg-teal-50 text-teal-800 hover:bg-teal-100"
               >
-                <option value="">Selecione</option>
-                {nomesProdutos.map((produto) => (
-                  <option key={produto} value={produto}>
-                    {produto}
-                  </option>
-                ))}
-              </SelectBox>
-            </Field>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Field label="Cor">
-                <SelectBox value={form.cor} onChange={(cor) => setForm({ ...form, cor })}>
-                  <option value="">Selecione</option>
-                  {cores.map((cor) => (
-                    <option key={cor} value={cor}>
-                      {cor}
-                    </option>
-                  ))}
-                </SelectBox>
-              </Field>
-              <Field label="Quantidade">
-                <Input type="number" min="1" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: e.target.value })} placeholder="1500" />
-              </Field>
-            </div>
-            <Field label="Tampa">
-              <SelectBox value={form.tampa} onChange={(tampa) => setForm({ ...form, tampa })}>
-                <option value="">Selecione</option>
-                {tampas.map((tampa) => (
-                  <option key={tampa} value={tampa}>
-                    {tampa}
-                  </option>
-                ))}
-              </SelectBox>
-            </Field>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Field label="Valor da embalagem">
-                <Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} placeholder="0,00" />
-              </Field>
-              <Field label="Valor da tampa">
-                <Input type="number" step="0.01" value={form.valorTampa} onChange={(e) => setForm({ ...form, valorTampa: e.target.value })} placeholder="0,00" />
-              </Field>
+                <Plus size={16} />
+                Adicionar outro produto
+              </Button>
             </div>
             <Field label="Tipo de pagamento">
               <Input value={form.pagamento} onChange={(e) => setForm({ ...form, pagamento: e.target.value })} placeholder="PIX, boleto 28 dias" />
             </Field>
             <Field label="Vendedor">
-              <SelectBox value={form.vendedor} onChange={(vendedor) => setForm({ ...form, vendedor })}>
+              <SelectBox aria-label="Vendedor" value={form.vendedor} onChange={(vendedor) => setForm({ ...form, vendedor })}>
                 <option value="">Selecione</option>
                 {vendedores.map((vendedor) => (
                   <option key={vendedor} value={vendedor}>
@@ -839,7 +949,7 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
   const termo = busca.toLowerCase();
   const pedidosVisiveis = pedidos.filter((pedido) => {
     const texto =
-      `${pedido.id} ${pedido.cliente} ${pedido.cnpj} ${pedido.cep} ${pedido.logradouro} ${pedido.numero} ${pedido.bairro} ${pedido.cidade} ${pedido.uf} ${pedido.produto} ${pedido.cor} ${pedido.tampa} ${pedido.transporte} ${pedido.tipoFrete} ${pedido.detalheFOB} ${pedido.faturamento} ${pedido.tipoEntrega} ${pedido.vendedor} ${pedido.pagamento} ${pedido.pcpPrevisaoProducao} ${pedido.pcpPrevisaoPronto} ${pedido.pcpQuantidadeProduzida} ${pedido.pcpObservacoes}`.toLowerCase();
+      `${pedido.id} ${pedido.cliente} ${pedido.cnpj} ${pedido.cep} ${pedido.logradouro} ${pedido.numero} ${pedido.bairro} ${pedido.cidade} ${pedido.uf} ${textoItensPedido(pedido)} ${pedido.transporte} ${pedido.tipoFrete} ${pedido.detalheFOB} ${pedido.faturamento} ${pedido.tipoEntrega} ${pedido.vendedor} ${pedido.pagamento} ${pedido.pcpPrevisaoProducao} ${pedido.pcpPrevisaoPronto} ${pedido.pcpQuantidadeProduzida} ${pedido.pcpObservacoes}`.toLowerCase();
     return statusPcp.includes(pedido.status) && texto.includes(termo);
   });
 
@@ -860,7 +970,7 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
     }));
     const total = valorTotalPedido(pedido);
     const quantidadeProduzida = Number(pedido.pcpQuantidadeProduzida || 0);
-    const percentualProduzido = Math.min(100, Math.round((quantidadeProduzida / Number(pedido.quantidade || 1)) * 100));
+    const percentualProduzido = Math.min(100, Math.round((quantidadeProduzida / Math.max(1, quantidadeTotalPedido(pedido))) * 100));
     const temDetalhePcp =
       pedido.pcpPrevisaoProducao || pedido.pcpPrevisaoPronto || quantidadeProduzida > 0 || pedido.pcpObservacoes;
 
@@ -890,9 +1000,7 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
               <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
             </div>
             <p className="truncate text-sm font-bold text-slate-900">{pedido.cliente || "Cliente não informado"}</p>
-            <p className="truncate text-xs text-slate-500">
-              {pedido.produto || "Produto não informado"} - {pedido.cor || "cor não informada"} - <strong>{pedido.quantidade || 0} un</strong>
-            </p>
+            <p className="truncate text-xs text-slate-500">{resumoItensPedido(pedido)}</p>
           </div>
           <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
             <Trash2 size={15} />
@@ -938,11 +1046,13 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
                   {pedido.cep ? ` - CEP ${pedido.cep}` : ""}
                 </p>
               )}
-              {pedido.tampa && (
-                <p className="break-words text-xs text-slate-500">
-                  Tampa: <strong>{pedido.tampa}</strong>
-                </p>
-              )}
+              <div className="space-y-1 rounded-lg bg-slate-50 p-2">
+                {itensPedido(pedido).map((item, indice) => (
+                  <p key={item.id || indice} className="break-words text-xs text-slate-600">
+                    <strong>{indice + 1}. {item.produto}</strong> · {item.cor || "cor não informada"} · {item.tampa || "tampa não informada"} · {item.quantidade} un
+                  </p>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-2">
@@ -981,9 +1091,7 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Valor do pedido</p>
               <p className="text-lg font-bold text-slate-900">{currency(total)}</p>
-              <p className="text-xs text-slate-500">
-                Embalagem {currency(pedido.valor)} + tampa {currency(pedido.valorTampa)}
-              </p>
+              <p className="text-xs text-slate-500">{itensPedido(pedido).length} {itensPedido(pedido).length === 1 ? "item" : "itens"} · {quantidadeTotalPedido(pedido)} unidades</p>
             </div>
 
             {pedido.observacoes && <p className="break-words rounded-lg bg-slate-50 p-3 text-xs text-slate-700">{pedido.observacoes}</p>}
@@ -1144,7 +1252,7 @@ function CargasMontadas({ cargas, statusLabel }) {
                         Pedido #{pedido.id} - {pedido.cliente}
                       </p>
                       <p className="text-sm text-slate-500">
-                        {pedido.cidade} - {pedido.quantidade} un
+                        {pedido.cidade} - {quantidadeTotalPedido(pedido)} un
                       </p>
                     </div>
                     <Badge className={statusColor(statusDaCarga || pedido.status)}>{statusDaCarga || pedido.status}</Badge>
@@ -1215,7 +1323,7 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
                     </div>
                     <p className="truncate font-semibold text-slate-800">{pedido.cliente}</p>
                     <p className="truncate text-xs text-slate-500">
-                      {pedido.cidade} - {pedido.produto} - {pedido.quantidade} un
+                      {pedido.cidade} - {resumoItensPedido(pedido)}
                     </p>
                   </div>
                 ))}
@@ -1393,7 +1501,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, salvand
   const visiveis = pedidos.filter(
     (pedido) =>
       ["Prontos", "Pronto para retirada", "Pronto para o envio"].includes(pedido.status) &&
-      `${pedido.id} ${pedido.cliente} ${pedido.cidade} ${pedido.produto} ${pedido.tipoFrete} ${pedido.tipoEntrega}`.toLowerCase().includes(termo)
+      `${pedido.id} ${pedido.cliente} ${pedido.cidade} ${textoItensPedido(pedido)} ${pedido.tipoFrete} ${pedido.tipoEntrega}`.toLowerCase().includes(termo)
   );
   const prontos = pedidos.filter((pedido) => pedido.status === "Prontos");
   const paraRetirada = pedidos.filter((pedido) => pedido.status === "Pronto para retirada");
@@ -1440,7 +1548,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, salvand
         </div>
         <p className="truncate text-sm font-bold text-slate-900">{pedido.cliente || "Cliente não informado"}</p>
         <p className="truncate text-xs text-slate-500">
-          {pedido.cidade || "-"} - {pedido.produto || "-"} - <strong>{pedido.quantidade || 0} un</strong>
+          {pedido.cidade || "-"} - {resumoItensPedido(pedido)}
         </p>
         <p className="mt-1 text-xs text-slate-500">
           Frete: <strong>{pedido.tipoFrete || "não informado"}</strong>
@@ -1521,7 +1629,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, salvand
                       </div>
                       <p className="text-sm text-slate-700">{pedido.cliente}</p>
                       <p className="text-xs text-slate-500">
-                        {pedido.cidade} - {pedido.quantidade} un
+                        {pedido.cidade} - {quantidadeTotalPedido(pedido)} un
                       </p>
                     </button>
                   ))}

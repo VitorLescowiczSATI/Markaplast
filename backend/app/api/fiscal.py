@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import require_profiles
 from app.db.session import get_db
@@ -23,7 +23,7 @@ def listar_notas(db: Session = Depends(get_db)):
 
 @router.post("/pedidos/{pedido_id}/preparar-nfe", response_model=NotaFiscalRead, status_code=status.HTTP_201_CREATED)
 def preparar_nfe(pedido_id: int, db: Session = Depends(get_db)):
-    pedido = db.get(Pedido, pedido_id)
+    pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == pedido_id))
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido nao encontrado")
 
@@ -66,7 +66,7 @@ def marcar_emitida(nota_id: int, db: Session = Depends(get_db)):
     nota = db.get(NotaFiscalDraft, nota_id)
     if not nota:
         raise HTTPException(status_code=404, detail="Nota fiscal nao encontrada")
-    pedido = db.get(Pedido, nota.pedidoId)
+    pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == nota.pedidoId))
     nota.status = "Emitida manualmente"
     if pedido and pedido.status != "Nota emitida":
         if not pode_transicionar_status(pedido.status, "Nota emitida"):

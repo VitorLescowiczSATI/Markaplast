@@ -45,6 +45,15 @@ export const cores = ["Natural", "Branco", "Preto", "Azul", "Vermelho", "Verde",
 export const tampas = ["Lacre", "Rosca", "Dosadora", "Flip top", "Batoque", "Sem tampa"];
 export const alcaOpcoes = ["nao", "sim"];
 
+export const emptyItem = {
+  produto: "",
+  tampa: "",
+  cor: "",
+  quantidade: "",
+  valor: "",
+  valorTampa: "",
+};
+
 export const emptyForm = {
   cliente: "",
   cnpj: "",
@@ -54,12 +63,8 @@ export const emptyForm = {
   bairro: "",
   cidade: "",
   uf: "",
-  produto: "",
-  tampa: "",
-  cor: "",
-  quantidade: "",
-  valor: "",
-  valorTampa: "",
+  ...emptyItem,
+  itens: [{ ...emptyItem }],
   pagamento: "",
   vendedor: "",
   transporte: "",
@@ -69,3 +74,7 @@ export const emptyForm = {
   tipoEntrega: "",
   observacoes: "",
 };
+
+export function novoPedidoForm() {
+  return { ...emptyForm, itens: [{ ...emptyItem }] };
+}

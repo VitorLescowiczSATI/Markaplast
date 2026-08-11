@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import require_profiles
 from app.db.session import get_db
@@ -10,6 +10,7 @@ from app.models.carga import Carga
 from app.models.pedido import Pedido
 from app.models.produto import Produto
 from app.schemas.dashboard import AlertaRead, DashboardItem, DashboardRead
+from app.services.estoque import itens_do_pedido
 from app.services.regras import calcular_resumo, valor_total_pedido
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -90,7 +91,7 @@ def montar_alertas(pedidos: list[Pedido], produtos: list[Produto], cargas: list[
 
 @router.get("", response_model=DashboardRead)
 def dashboard(db: Session = Depends(get_db), _usuario=Depends(require_profiles("Inteligência"))):
-    pedidos = db.scalars(select(Pedido)).all()
+    pedidos = db.scalars(select(Pedido).options(selectinload(Pedido.itens))).all()
     produtos = db.scalars(select(Produto)).all()
     cargas = db.scalars(select(Carga)).all()
 
@@ -109,12 +110,17 @@ def dashboard(db: Session = Depends(get_db), _usuario=Depends(require_profiles("
         for vendedor in vendedores
     ]
 
-    produtos_nomes = sorted({pedido.produto or "Nao informado" for pedido in pedidos})
+    itens = [(pedido, item) for pedido in pedidos for item in itens_do_pedido(pedido)]
+    produtos_nomes = sorted({item.produto or "Nao informado" for _, item in itens})
     por_produto = [
         DashboardItem(
             label=produto,
-            quantidade=sum(int(pedido.quantidade or 0) for pedido in pedidos if (pedido.produto or "Nao informado") == produto),
-            valor=sum(valor_total_pedido(pedido) for pedido in pedidos if (pedido.produto or "Nao informado") == produto),
+            quantidade=sum(int(item.quantidade or 0) for _, item in itens if (item.produto or "Nao informado") == produto),
+            valor=sum(
+                (float(item.valor or 0) + float(item.valorTampa or 0)) * int(item.quantidade or 0)
+                for _, item in itens
+                if (item.produto or "Nao informado") == produto
+            ),
         )
         for produto in produtos_nomes
     ]

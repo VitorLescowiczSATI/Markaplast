@@ -4,6 +4,20 @@ from sqlalchemy.orm import Session
 from app.models.produto import MovimentoEstoque, Produto
 
 
+def itens_do_pedido(pedido) -> list:
+    itens = list(getattr(pedido, "itens", None) or [])
+    return itens or [pedido]
+
+
+def quantidades_por_produto(pedido) -> dict[str, int]:
+    totais: dict[str, int] = {}
+    for item in itens_do_pedido(pedido):
+        nome = str(item.produto or "")
+        if nome:
+            totais[nome] = totais.get(nome, 0) + int(item.quantidade or 0)
+    return totais
+
+
 def get_produto_por_nome(db: Session, nome: str) -> Produto | None:
     if not nome:
         return None
@@ -49,45 +63,62 @@ def registrar_movimento(
 
 
 def reservar_estoque_para_pedido(db: Session, pedido) -> None:
-    produto = get_produto_por_nome(db, pedido.produto)
-    if not produto:
-        return
-    registrar_movimento(
-        db,
-        produto,
-        "Reserva",
-        int(pedido.quantidade or 0),
-        pedido_id=pedido.id,
-        observacao=f"Reserva automatica do pedido #{pedido.id}",
-    )
+    for nome, quantidade in quantidades_por_produto(pedido).items():
+        produto = get_produto_por_nome(db, nome)
+        if produto:
+            registrar_movimento(
+                db,
+                produto,
+                "Reserva",
+                quantidade,
+                pedido_id=pedido.id,
+                observacao=f"Reserva automatica do pedido #{pedido.id}",
+            )
 
 
 def liberar_reserva_do_pedido(db: Session, pedido) -> None:
-    produto = get_produto_por_nome(db, pedido.produto)
-    if not produto:
-        return
-    registrar_movimento(
-        db,
-        produto,
-        "Liberacao",
-        int(pedido.quantidade or 0),
-        pedido_id=pedido.id,
-        observacao=f"Liberacao de reserva do pedido #{pedido.id}",
-    )
+    for nome, quantidade in quantidades_por_produto(pedido).items():
+        produto = get_produto_por_nome(db, nome)
+        if produto:
+            registrar_movimento(
+                db,
+                produto,
+                "Liberacao",
+                quantidade,
+                pedido_id=pedido.id,
+                observacao=f"Liberacao de reserva do pedido #{pedido.id}",
+            )
 
 
 def baixar_reserva_do_pedido(db: Session, pedido) -> None:
-    produto = get_produto_por_nome(db, pedido.produto)
-    if not produto:
-        return
-    registrar_movimento(
-        db,
-        produto,
-        "Baixa reserva",
-        int(pedido.quantidade or 0),
-        pedido_id=pedido.id,
-        observacao=f"Baixa de estoque ao finalizar pedido #{pedido.id}",
-    )
+    for nome, quantidade in quantidades_por_produto(pedido).items():
+        produto = get_produto_por_nome(db, nome)
+        if produto:
+            registrar_movimento(
+                db,
+                produto,
+                "Baixa reserva",
+                quantidade,
+                pedido_id=pedido.id,
+                observacao=f"Baixa de estoque ao finalizar pedido #{pedido.id}",
+            )
+
+
+def recalcular_reservas_do_pedido(db: Session, pedido, quantidades_anteriores: dict[str, int]) -> None:
+    quantidades_novas = quantidades_por_produto(pedido)
+    for nome in set(quantidades_anteriores) | set(quantidades_novas):
+        delta = quantidades_novas.get(nome, 0) - quantidades_anteriores.get(nome, 0)
+        produto = get_produto_por_nome(db, nome)
+        if not produto or delta == 0:
+            continue
+        registrar_movimento(
+            db,
+            produto,
+            "Reserva" if delta > 0 else "Liberacao",
+            abs(delta),
+            pedido_id=pedido.id,
+            observacao=f"Ajuste de reserva do pedido #{pedido.id}",
+        )
 
 
 def recalcular_reserva_do_pedido(
@@ -96,43 +127,4 @@ def recalcular_reserva_do_pedido(
     produto_anterior: str,
     quantidade_anterior: int,
 ) -> None:
-    produto_novo = pedido.produto
-    quantidade_nova = int(pedido.quantidade or 0)
-
-    if produto_anterior == produto_novo:
-        delta = quantidade_nova - int(quantidade_anterior or 0)
-        produto = get_produto_por_nome(db, produto_novo)
-        if not produto or delta == 0:
-            return
-        if delta > 0:
-            registrar_movimento(
-                db,
-                produto,
-                "Reserva",
-                delta,
-                pedido_id=pedido.id,
-                observacao=f"Ajuste de reserva do pedido #{pedido.id}",
-            )
-        else:
-            registrar_movimento(
-                db,
-                produto,
-                "Liberacao",
-                abs(delta),
-                pedido_id=pedido.id,
-                observacao=f"Reducao de reserva do pedido #{pedido.id}",
-            )
-        return
-
-    produto_antigo = get_produto_por_nome(db, produto_anterior)
-    if produto_antigo:
-        registrar_movimento(
-            db,
-            produto_antigo,
-            "Liberacao",
-            int(quantidade_anterior or 0),
-            pedido_id=pedido.id,
-            observacao=f"Liberacao por troca de produto no pedido #{pedido.id}",
-        )
-
-    reservar_estoque_para_pedido(db, pedido)
+    recalcular_reservas_do_pedido(db, pedido, {produto_anterior: int(quantidade_anterior or 0)})

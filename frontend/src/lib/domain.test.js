@@ -39,6 +39,22 @@ describe("regras de pedidos", () => {
     expect(camposFaltandoPedido({ cliente: "A", produto: "5L M2", cor: "Branco", tampa: "Rosca", quantidade: 0, vendedor: "Arthur" })).toEqual(["Quantidade"]);
   });
 
+  it("soma e valida vários itens no mesmo pedido", () => {
+    const pedido = {
+      cliente: "Cliente",
+      vendedor: "Arthur",
+      itens: [
+        { produto: "5L", cor: "Azul", tampa: "Rosca", quantidade: 30, valor: 2, valorTampa: 0.5 },
+        { produto: "1L", cor: "Verde", tampa: "Lacre", quantidade: 100, valor: 1, valorTampa: 0.25 },
+      ],
+    };
+    expect(valorTotalPedido(pedido)).toBe(200);
+    expect(camposFaltandoPedido(pedido)).toEqual([]);
+    expect(camposFaltandoPedido({ ...pedido, itens: [pedido.itens[0], { ...pedido.itens[1], cor: "" }] })).toEqual([
+      "Item 2 - Cor",
+    ]);
+  });
+
   it("soma o faturado por período e vendedor", () => {
     const hoje = new Date(2026, 5, 15); // 15/06/2026 (mês 5 = junho, trimestre 1)
     const pedidos = [

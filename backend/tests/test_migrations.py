@@ -1,6 +1,10 @@
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy.orm import Session
 
+from app import models  # noqa: F401
+from app.db.session import Base
 from app.db.migrations import ensure_runtime_migrations
+from app.models.pedido import Pedido, PedidoItem
 
 
 def test_ensure_runtime_migrations_adds_pcp_columns_to_existing_pedidos_table():
@@ -88,3 +92,20 @@ def test_ensure_runtime_migrations_backfills_null_product_timestamps():
 
     assert row.created_at is not None
     assert row.updated_at is not None
+
+
+def test_runtime_migration_cria_item_para_pedido_antigo():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        pedido = Pedido(cliente="Legado", produto="5L", cor="Azul", tampa="Rosca", quantidade=20, valor=2, valorTampa=0.5)
+        db.add(pedido)
+        db.commit()
+        pedido_id = pedido.id
+
+    ensure_runtime_migrations(engine)
+
+    with Session(engine) as db:
+        item = db.scalar(select(PedidoItem).where(PedidoItem.pedidoId == pedido_id))
+        assert item is not None
+        assert (item.produto, item.cor, item.quantidade) == ("5L", "Azul", 20)

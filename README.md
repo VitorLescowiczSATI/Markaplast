@@ -11,12 +11,12 @@ Sistema inicial para controle de pedidos, produção, faturamento, financeiro e 
 
 ## O que o produto já entrega
 
-- Cadastro de pedidos por área comercial.
+- Cadastro de pedidos por área comercial, com vários itens (produto/modelo, cor, tampa, quantidade e preço) no mesmo pedido.
 - Login com sessão expirada e acesso restrito à área de cada usuário.
 - Perfil Administrador com acesso a todas as áreas e gestão de usuários.
 - Cadastro de clientes com consulta de CEP via API.
 - Cadastro de produtos/SKUs e controle de estoque.
-- Reserva automática de estoque quando um pedido é criado.
+- Reserva automática de estoque de todos os itens quando um pedido é criado.
 - Baixa de estoque quando o pedido é finalizado.
 - Histórico de alterações por pedido.
 - Dashboard de gestão com status, vendedores, produtos, estoque crítico e alertas.

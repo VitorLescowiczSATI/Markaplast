@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Integer, Numeric, String, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -52,3 +52,30 @@ class Pedido(Base):
     updatedAt: Mapped[datetime] = mapped_column("updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     cargas = relationship("Carga", secondary="carga_pedidos", back_populates="pedidos")
+    itens: Mapped[list["PedidoItem"]] = relationship(
+        "PedidoItem",
+        back_populates="pedido",
+        cascade="all, delete-orphan",
+        order_by="PedidoItem.ordem",
+    )
+
+
+class PedidoItem(Base):
+    __tablename__ = "pedido_itens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    pedidoId: Mapped[int] = mapped_column(
+        "pedido_id",
+        ForeignKey("pedidos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    ordem: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    produto: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    tampa: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    cor: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    valor: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=0, nullable=False)
+    valorTampa: Mapped[Decimal] = mapped_column("valor_tampa", Numeric(12, 4), default=0, nullable=False)
+
+    pedido: Mapped[Pedido] = relationship("Pedido", back_populates="itens")
