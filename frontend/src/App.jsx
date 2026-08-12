@@ -50,6 +50,7 @@ import {
   quantidadeTotalPedido,
   statusColor,
   valorTotalPedido,
+  valorUnitarioItem,
 } from "./lib/domain.js";
 
 // Status que não aparecem na aba Comercial por padrão (cancelado + já faturado/concluído).
@@ -405,13 +406,20 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
           )}
           <div className="space-y-1 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
             {itens.map((item, indice) => (
-              <div key={item.id || `${item.produto}-${item.cor}-${indice}`} className="flex flex-wrap justify-between gap-2">
+              <div key={item.id || `${item.produto}-${item.cor}-${indice}`} className="flex flex-wrap items-start justify-between gap-2">
                 <span>
                   {itens.length > 1 && <strong>{indice + 1}. </strong>}
                   <strong>{item.produto}</strong> - {item.cor || "cor não informada"}
                   {item.tampa ? ` - tampa ${item.tampa}` : ""}
                 </span>
-                <strong>{item.quantidade} un</strong>
+                <span className="text-right">
+                  <strong className="block">{item.quantidade} un</strong>
+                  {layout === "faturamento" && (
+                    <span className="block whitespace-nowrap text-xs font-semibold text-teal-700">
+                      {currency(valorUnitarioItem(item))}/un
+                    </span>
+                  )}
+                </span>
               </div>
             ))}
           </div>

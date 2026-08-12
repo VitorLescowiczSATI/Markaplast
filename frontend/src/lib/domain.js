@@ -16,9 +16,13 @@ export function quantidadeTotalPedido(pedido) {
   return itensPedido(pedido).reduce((total, item) => total + Number(item.quantidade || 0), 0);
 }
 
+export function valorUnitarioItem(item) {
+  return Number(item?.valor || 0) + Number(item?.valorTampa || 0);
+}
+
 export function valorTotalPedido(pedido) {
   return itensPedido(pedido).reduce(
-    (total, item) => total + (Number(item.valor || 0) + Number(item.valorTampa || 0)) * Number(item.quantidade || 0),
+    (total, item) => total + valorUnitarioItem(item) * Number(item.quantidade || 0),
     0
   );
 }

@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { calcularResumo, camposFaltandoPedido, filtrarPedidos, normalizarOpcao, percentualMeta, realizadoMetas, valorTotalPedido } from "./domain.js";
+import {
+  calcularResumo,
+  camposFaltandoPedido,
+  filtrarPedidos,
+  normalizarOpcao,
+  percentualMeta,
+  realizadoMetas,
+  valorTotalPedido,
+  valorUnitarioItem,
+} from "./domain.js";
 
 describe("regras de pedidos", () => {
   it("calcula total com embalagem e tampa", () => {
     expect(valorTotalPedido({ valor: 10, valorTampa: 5, quantidade: 2 })).toBe(30);
+    expect(valorUnitarioItem({ valor: 10, valorTampa: 5 })).toBe(15);
   });
 
   it("filtra por tampa e vendedor", () => {
