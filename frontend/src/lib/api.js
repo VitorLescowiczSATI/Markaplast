@@ -80,4 +80,6 @@ export const api = {
   prepararNfe: (pedidoId) => request(`/api/fiscal/pedidos/${pedidoId}/preparar-nfe`, { method: "POST" }),
   marcarNfeEmitida: (notaId) => request(`/api/fiscal/notas/${notaId}/marcar-emitida`, { method: "POST" }),
   enviarNfeHomologacao: (notaId) => request(`/api/fiscal/notas/${notaId}/enviar-homologacao`, { method: "POST" }),
+  excluirNota: (notaId) => request(`/api/fiscal/notas/${notaId}`, { method: "DELETE" }),
+  excluirNotaDoPedido: (pedidoId) => request(`/api/pedidos/${pedidoId}/nota`, { method: "DELETE" }),
 };

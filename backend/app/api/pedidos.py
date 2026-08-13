@@ -22,6 +22,7 @@ from app.services.estoque import (
     recalcular_reservas_do_pedido,
     reservar_estoque_para_pedido,
 )
+from app.services.fiscal import excluir_nota_do_pedido, reverter_baixa_da_emissao
 from app.services.historico import registrar_historico
 from app.services.regras import (
     STATUS_CANCELADO,
@@ -168,6 +169,9 @@ def atualizar_pedido(
             # Faturou: estampa a emissão e dá baixa na reserva (mercadoria saiu ao faturar).
             pedido.dataEmissao = hoje_brasil()
             baixar_reserva_do_pedido(db, pedido)
+        elif status_anterior == "Nota emitida":
+            # Saiu da emissão: devolve a mercadoria ao saldo e recoloca a reserva.
+            reverter_baixa_da_emissao(db, pedido)
         elif pedido.status == STATUS_CANCELADO and status_anterior in STATUS_COM_RESERVA:
             liberar_reserva_do_pedido(db, pedido)
     registrar_historico(db, pedido.id, "Edicao", observacao="Pedido atualizado.")
@@ -198,6 +202,8 @@ def atualizar_status(
     if payload.status == "Nota emitida" and not pedido.dataEmissao:
         pedido.dataEmissao = hoje_brasil()
         baixar_reserva_do_pedido(db, pedido)
+    elif status_anterior == "Nota emitida":
+        reverter_baixa_da_emissao(db, pedido)
     elif payload.status == STATUS_CANCELADO and status_anterior in STATUS_COM_RESERVA:
         liberar_reserva_do_pedido(db, pedido)
     db.commit()
@@ -225,6 +231,24 @@ def atualizar_financeiro(
     db.commit()
     db.refresh(pedido)
     return pedido
+
+
+@router.delete("/{pedido_id}/nota", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_nota_emitida(
+    pedido_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_profiles("Faturamento", "Fiscal")),
+):
+    pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == pedido_id))
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if pedido.status != "Nota emitida":
+        raise HTTPException(status_code=409, detail=f"Pedido não tem nota emitida para excluir (status atual: {pedido.status})")
+    if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
+        raise HTTPException(status_code=403, detail="Seu perfil não pode alterar este pedido")
+    excluir_nota_do_pedido(db, pedido, "faturamento")
+    db.commit()
+    return None
 
 
 @router.delete("/{pedido_id}", status_code=status.HTTP_204_NO_CONTENT)

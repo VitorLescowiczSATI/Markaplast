@@ -9,7 +9,7 @@ from app.models.nota_fiscal import NotaFiscalDraft
 from app.models.pedido import Pedido, hoje_brasil
 from app.schemas.fiscal import NotaFiscalRead, NotaFiscalUpdate
 from app.services.estoque import baixar_reserva_do_pedido
-from app.services.fiscal import enviar_focus_nfe, montar_payload_nfe
+from app.services.fiscal import enviar_focus_nfe, estornar_emissao_do_pedido, montar_payload_nfe
 from app.services.historico import registrar_historico
 from app.services.regras import pode_transicionar_status
 
@@ -80,6 +80,19 @@ def marcar_emitida(nota_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(nota)
     return nota
+
+
+@router.delete("/notas/{nota_id}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_nota(nota_id: int, db: Session = Depends(get_db)):
+    nota = db.get(NotaFiscalDraft, nota_id)
+    if not nota:
+        raise HTTPException(status_code=404, detail="Nota fiscal nao encontrada")
+    pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == nota.pedidoId))
+    referencia = nota.referencia
+    db.delete(nota)
+    estornar_emissao_do_pedido(db, pedido, "modulo fiscal", referencia)
+    db.commit()
+    return None
 
 
 @router.post("/notas/{nota_id}/enviar-homologacao", response_model=NotaFiscalRead)

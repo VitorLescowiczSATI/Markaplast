@@ -45,7 +45,8 @@ STATUS_TRANSICOES = {
     "Prontos": {"Em produção", "Pronto para retirada", "Pronto para o envio", STATUS_CANCELADO},
     "Pronto para retirada": {"Prontos", "Nota emitida", STATUS_CANCELADO},
     "Pronto para o envio": {"Prontos", "Nota emitida", STATUS_CANCELADO},
-    "Nota emitida": {"Prontos"},
+    # Estorno da emissao: volta para a fila de onde saiu (a baixa de estoque e desfeita junto).
+    "Nota emitida": {"Prontos", "Pronto para retirada", "Pronto para o envio"},
     STATUS_CANCELADO: set(),
     # --- aliases legados aceitos por 1 release ---
     "Vai produzir": {"Novo pedido", "A produzir", "Em produção", "Prontos", STATUS_CANCELADO},

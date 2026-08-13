@@ -104,6 +104,30 @@ def baixar_reserva_do_pedido(db: Session, pedido) -> None:
             )
 
 
+def estornar_baixa_do_pedido(db: Session, pedido) -> None:
+    """Desfaz a baixa da emissao: devolve a mercadoria ao saldo e recoloca a reserva."""
+    for nome, quantidade in quantidades_por_produto(pedido).items():
+        produto = get_produto_por_nome(db, nome)
+        if not produto:
+            continue
+        registrar_movimento(
+            db,
+            produto,
+            "Entrada",
+            quantidade,
+            pedido_id=pedido.id,
+            observacao=f"Estorno da baixa por exclusao da nota do pedido #{pedido.id}",
+        )
+        registrar_movimento(
+            db,
+            produto,
+            "Reserva",
+            quantidade,
+            pedido_id=pedido.id,
+            observacao=f"Reserva restaurada por exclusao da nota do pedido #{pedido.id}",
+        )
+
+
 def recalcular_reservas_do_pedido(db: Session, pedido, quantidades_anteriores: dict[str, int]) -> None:
     quantidades_novas = quantidades_por_produto(pedido)
     for nome in set(quantidades_anteriores) | set(quantidades_novas):

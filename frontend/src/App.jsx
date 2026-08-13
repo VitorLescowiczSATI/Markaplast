@@ -367,7 +367,7 @@ function ResumoCards({ pedidos }) {
   );
 }
 
-function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido, bare = false }) {
+function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido, excluirNotaDoPedido, bare = false }) {
   const total = valorTotalPedido(pedido);
   const itens = itensPedido(pedido);
   const temDetalhePcp =
@@ -487,14 +487,25 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
               </Button>
             </>
           ) : layout === "faturamento" ? (
-            <Button
-              onClick={() => atualizarStatus(pedido.id, "Nota emitida")}
-              disabled={pedido.status === "Nota emitida"}
-              className="w-full bg-green-600 text-white hover:bg-green-700"
-            >
-              <FileText size={16} />
-              {pedido.status === "Nota emitida" ? "NF já emitida" : "Nota fiscal emitida"}
-            </Button>
+            <>
+              <Button
+                onClick={() => atualizarStatus(pedido.id, "Nota emitida")}
+                disabled={pedido.status === "Nota emitida"}
+                className="w-full bg-green-600 text-white hover:bg-green-700"
+              >
+                <FileText size={16} />
+                {pedido.status === "Nota emitida" ? "NF já emitida" : "Nota fiscal emitida"}
+              </Button>
+              {pedido.status === "Nota emitida" && excluirNotaDoPedido && (
+                <Button
+                  onClick={() => excluirNotaDoPedido(pedido.id)}
+                  className="w-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                >
+                  <Trash2 size={16} />
+                  Excluir nota emitida
+                </Button>
+              )}
+            </>
           ) : null}
         </div>
       </div>
@@ -1275,7 +1286,7 @@ function CargasMontadas({ cargas, statusLabel }) {
   );
 }
 
-function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
+function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido, excluirNotaDoPedido }) {
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
   const pedidosFaturamento = useMemo(() => filtrarPedidos(pedidos, busca, statusFiltro, "Todos", "Faturamento"), [pedidos, busca, statusFiltro]);
@@ -1350,6 +1361,7 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
             layout="faturamento"
             atualizarStatus={atualizarStatus}
             excluirPedido={excluirPedido}
+            excluirNotaDoPedido={excluirNotaDoPedido}
           />
         ))}
       </div>
@@ -1876,6 +1888,22 @@ export default function App() {
     });
   }
 
+  async function excluirNota(notaId) {
+    if (!window.confirm("Excluir esta nota? O pedido volta para 'Prontos' e o estoque baixado na emissão é devolvido.")) return;
+    await runAction(async () => {
+      await api.excluirNota(notaId);
+      await loadData(false);
+    });
+  }
+
+  async function excluirNotaDoPedido(pedidoId) {
+    if (!window.confirm("Excluir a nota emitida deste pedido? Ele volta para 'Prontos' e o estoque baixado é devolvido.")) return;
+    await runAction(async () => {
+      await api.excluirNotaDoPedido(pedidoId);
+      await loadData(false);
+    });
+  }
+
   async function criarUsuario(payload) {
     return runAction(async () => {
       await api.createUsuario(payload);
@@ -2002,7 +2030,12 @@ export default function App() {
             salvando={salvando}
           />
         ) : moduloAtual === "Faturamento" ? (
-          <FaturamentoLayout pedidos={pedidos} atualizarStatus={atualizarStatus} excluirPedido={excluirPedido} />
+          <FaturamentoLayout
+            pedidos={pedidos}
+            atualizarStatus={atualizarStatus}
+            excluirPedido={excluirPedido}
+            excluirNotaDoPedido={excluirNotaDoPedido}
+          />
         ) : moduloAtual === "Financeiro" ? (
           <FinanceiroLayout pedidos={pedidos} atualizarFinanceiro={atualizarFinanceiro} excluirPedido={excluirPedido} />
         ) : moduloAtual === "Fiscal" ? (
@@ -2012,6 +2045,7 @@ export default function App() {
             prepararNfe={prepararNfe}
             marcarNfeEmitida={marcarNfeEmitida}
             enviarNfeHomologacao={enviarNfeHomologacao}
+            excluirNota={excluirNota}
           />
         ) : moduloAtual === "Logística" ? (
           <LogisticaLayout
