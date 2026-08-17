@@ -77,7 +77,7 @@ def criar_pedido_faturado(client: TestClient) -> int:
     return pedido_id
 
 
-def test_excluir_nota_no_fiscal_devolve_estoque_e_status_anterior():
+def test_excluir_nota_emitida_no_fiscal_cancela_pedido_e_devolve_estoque():
     client, TestingSession = montar_app()
     pedido_id = criar_pedido_faturado(client)
 
@@ -99,17 +99,37 @@ def test_excluir_nota_no_fiscal_devolve_estoque_e_status_anterior():
     with TestingSession() as db:
         pedido = db.get(Pedido, pedido_id)
         produto = db.scalars(select(Produto)).first()
-        assert pedido.status == "Pronto para retirada"
+        assert pedido.status == "Cancelado"
         assert pedido.dataEmissao is None
         assert produto.estoqueAtual == 1000
-        assert produto.estoqueReservado == 40
+        assert produto.estoqueReservado == 0
         assert db.scalars(select(NotaFiscalDraft)).all() == []
 
     # Nota já excluída não pode ser excluída de novo.
     assert client.delete(f"/api/fiscal/notas/{nota_id}", headers=fiscal).status_code == 404
 
 
-def test_faturamento_exclui_nota_emitida_e_apaga_rascunho_fiscal():
+def test_excluir_rascunho_nao_emitido_nao_cancela_pedido():
+    client, TestingSession = montar_app()
+    pedido_id = criar_pedido_faturado(client)
+
+    fiscal = logar(client, "fiscal")
+    preparada = client.post(f"/api/fiscal/pedidos/{pedido_id}/preparar-nfe", headers=fiscal)
+    assert preparada.status_code == 201, preparada.text
+
+    excluida = client.delete(f"/api/fiscal/notas/{preparada.json()['id']}", headers=fiscal)
+    assert excluida.status_code == 204, excluida.text
+
+    with TestingSession() as db:
+        pedido = db.get(Pedido, pedido_id)
+        produto = db.scalars(select(Produto)).first()
+        assert pedido.status == "Pronto para retirada"
+        assert produto.estoqueAtual == 1000
+        assert produto.estoqueReservado == 40
+        assert db.scalars(select(NotaFiscalDraft)).all() == []
+
+
+def test_faturamento_exclui_nota_emitida_cancela_pedido_e_apaga_rascunho():
     client, TestingSession = montar_app()
     pedido_id = criar_pedido_faturado(client)
 
@@ -127,15 +147,58 @@ def test_faturamento_exclui_nota_emitida_e_apaga_rascunho_fiscal():
     with TestingSession() as db:
         pedido = db.get(Pedido, pedido_id)
         produto = db.scalars(select(Produto)).first()
-        assert pedido.status == "Pronto para retirada"
+        assert pedido.status == "Cancelado"
         assert pedido.dataEmissao is None
         assert produto.estoqueAtual == 1000
-        assert produto.estoqueReservado == 40
+        assert produto.estoqueReservado == 0
         assert db.scalars(select(NotaFiscalDraft)).all() == []
 
     # Sem nota emitida o endpoint recusa a exclusão.
     repetida = client.delete(f"/api/pedidos/{pedido_id}/nota", headers=faturamento)
     assert repetida.status_code == 409, repetida.text
+
+
+def test_faturamento_exclui_pedido_ainda_nao_faturado():
+    client, TestingSession = montar_app()
+    pedido_id = criar_pedido_faturado(client)
+
+    faturamento = logar(client, "faturamento")
+    excluido = client.delete(f"/api/pedidos/{pedido_id}", headers=faturamento)
+    assert excluido.status_code == 204, excluido.text
+
+    with TestingSession() as db:
+        pedido = db.get(Pedido, pedido_id)
+        produto = db.scalars(select(Produto)).first()
+        assert pedido.status == "Cancelado"
+        assert produto.estoqueAtual == 1000
+        assert produto.estoqueReservado == 0
+
+
+def test_faturamento_nao_exclui_pedido_faturado_pelo_endpoint_de_pedido():
+    client, _ = montar_app()
+    pedido_id = criar_pedido_faturado(client)
+
+    faturamento = logar(client, "faturamento")
+    emitida = client.patch(f"/api/pedidos/{pedido_id}/status", headers=faturamento, json={"status": "Nota emitida"})
+    assert emitida.status_code == 200, emitida.text
+
+    recusado = client.delete(f"/api/pedidos/{pedido_id}", headers=faturamento)
+    assert recusado.status_code == 409, recusado.text
+
+
+def test_faturamento_nao_exclui_pedido_fora_da_sua_etapa():
+    client, _ = montar_app()
+    comercial = logar(client, "comercial")
+    criado = client.post(
+        "/api/pedidos",
+        headers=comercial,
+        json={"cliente": "Cliente Novo", "produto": "5L", "quantidade": 10, "valor": 3, "vendedor": "Arthur"},
+    )
+    assert criado.status_code == 201, criado.text
+
+    faturamento = logar(client, "faturamento")
+    recusado = client.delete(f"/api/pedidos/{criado.json()['id']}", headers=faturamento)
+    assert recusado.status_code == 403, recusado.text
 
 
 def test_reverter_status_da_emissao_devolve_estoque():

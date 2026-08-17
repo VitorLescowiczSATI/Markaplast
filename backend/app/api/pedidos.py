@@ -255,15 +255,17 @@ def excluir_nota_emitida(
 def excluir_pedido(
     pedido_id: int,
     db: Session = Depends(get_db),
-    _usuario=Depends(require_profiles("Comercial", "PCP")),
+    usuario: Usuario = Depends(require_profiles("Comercial", "PCP", "Faturamento", "Fiscal")),
 ):
     pedido = db.get(Pedido, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
-    if pedido.status in STATUS_FATURADO:
-        raise HTTPException(status_code=409, detail="Pedido faturado ou em entrega deve ser cancelado pelo fluxo fiscal/logistico")
     if pedido.status == STATUS_CANCELADO:
         return None
+    if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
+        raise HTTPException(status_code=403, detail="Seu perfil não pode excluir este pedido")
+    if pedido.status in STATUS_FATURADO:
+        raise HTTPException(status_code=409, detail="Pedido com nota emitida: use a exclusão da nota, que cancela o pedido e devolve o estoque")
     liberar_reserva_do_pedido(db, pedido)
     status_anterior = pedido.status
     pedido.status = STATUS_CANCELADO

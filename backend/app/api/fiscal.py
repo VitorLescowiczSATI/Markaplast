@@ -9,7 +9,7 @@ from app.models.nota_fiscal import NotaFiscalDraft
 from app.models.pedido import Pedido, hoje_brasil
 from app.schemas.fiscal import NotaFiscalRead, NotaFiscalUpdate
 from app.services.estoque import baixar_reserva_do_pedido
-from app.services.fiscal import enviar_focus_nfe, estornar_emissao_do_pedido, montar_payload_nfe
+from app.services.fiscal import cancelar_pedido_da_nota, enviar_focus_nfe, montar_payload_nfe
 from app.services.historico import registrar_historico
 from app.services.regras import pode_transicionar_status
 
@@ -90,7 +90,8 @@ def excluir_nota(nota_id: int, db: Session = Depends(get_db)):
     pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == nota.pedidoId))
     referencia = nota.referencia
     db.delete(nota)
-    estornar_emissao_do_pedido(db, pedido, "modulo fiscal", referencia)
+    # Rascunho ainda nao emitido some sozinho; nota emitida leva o pedido para cancelado.
+    cancelar_pedido_da_nota(db, pedido, "modulo fiscal", referencia)
     db.commit()
     return None
 

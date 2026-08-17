@@ -104,6 +104,21 @@ def baixar_reserva_do_pedido(db: Session, pedido) -> None:
             )
 
 
+def devolver_saldo_da_emissao(db: Session, pedido) -> None:
+    """Devolve a mercadoria ao saldo sem recriar reserva (usado quando o pedido e cancelado)."""
+    for nome, quantidade in quantidades_por_produto(pedido).items():
+        produto = get_produto_por_nome(db, nome)
+        if produto:
+            registrar_movimento(
+                db,
+                produto,
+                "Entrada",
+                quantidade,
+                pedido_id=pedido.id,
+                observacao=f"Devolucao ao estoque por exclusao da nota do pedido #{pedido.id}",
+            )
+
+
 def estornar_baixa_do_pedido(db: Session, pedido) -> None:
     """Desfaz a baixa da emissao: devolve a mercadoria ao saldo e recoloca a reserva."""
     for nome, quantidade in quantidades_por_produto(pedido).items():

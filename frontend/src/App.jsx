@@ -496,14 +496,26 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
                 <FileText size={16} />
                 {pedido.status === "Nota emitida" ? "NF já emitida" : "Nota fiscal emitida"}
               </Button>
-              {pedido.status === "Nota emitida" && excluirNotaDoPedido && (
-                <Button
-                  onClick={() => excluirNotaDoPedido(pedido.id)}
-                  className="w-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                >
-                  <Trash2 size={16} />
-                  Excluir nota emitida
-                </Button>
+              {pedido.status === "Nota emitida" ? (
+                excluirNotaDoPedido && (
+                  <Button
+                    onClick={() => excluirNotaDoPedido(pedido.id)}
+                    className="w-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                  >
+                    <Trash2 size={16} />
+                    Excluir nota emitida
+                  </Button>
+                )
+              ) : (
+                excluirPedido && (
+                  <Button
+                    onClick={() => excluirPedido(pedido.id)}
+                    className="w-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                  >
+                    <Trash2 size={16} />
+                    Excluir pedido
+                  </Button>
+                )
               )}
             </>
           ) : null}
@@ -1889,7 +1901,7 @@ export default function App() {
   }
 
   async function excluirNota(notaId) {
-    if (!window.confirm("Excluir esta nota? O pedido volta para 'Prontos' e o estoque baixado na emissão é devolvido.")) return;
+    if (!window.confirm("Excluir esta nota? Se ela já foi emitida, o pedido é cancelado e a mercadoria volta para o estoque.")) return;
     await runAction(async () => {
       await api.excluirNota(notaId);
       await loadData(false);
@@ -1897,7 +1909,7 @@ export default function App() {
   }
 
   async function excluirNotaDoPedido(pedidoId) {
-    if (!window.confirm("Excluir a nota emitida deste pedido? Ele volta para 'Prontos' e o estoque baixado é devolvido.")) return;
+    if (!window.confirm("Excluir a nota emitida? O pedido será cancelado, sai desta tela e a mercadoria volta para o estoque.")) return;
     await runAction(async () => {
       await api.excluirNotaDoPedido(pedidoId);
       await loadData(false);

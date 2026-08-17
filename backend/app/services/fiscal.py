@@ -3,15 +3,15 @@ from sqlalchemy.orm import Session
 
 from app.models.nota_fiscal import NotaFiscalDraft
 from app.models.pedido import Pedido
-from app.models.pedido_historico import PedidoHistorico
-from app.services.estoque import estornar_baixa_do_pedido, itens_do_pedido
+from app.services.estoque import (
+    devolver_saldo_da_emissao,
+    estornar_baixa_do_pedido,
+    itens_do_pedido,
+    liberar_reserva_do_pedido,
+)
 from app.services.historico import registrar_historico
+from app.services.regras import STATUS_CANCELADO
 import httpx
-
-
-# Ao excluir a nota o pedido volta para a fila de onde saiu na emissao; "Prontos" e o destino padrao.
-STATUS_APOS_ESTORNO = "Prontos"
-STATUS_RETORNO_ESTORNO = {"Prontos", "Pronto para retirada", "Pronto para o envio"}
 
 
 def montar_payload_nfe(pedido: Pedido) -> dict:
@@ -57,48 +57,39 @@ def excluir_nota_do_pedido(db: Session, pedido: Pedido | None, origem: str) -> N
         nota = db.scalars(select(NotaFiscalDraft).where(NotaFiscalDraft.pedidoId == pedido.id)).first()
         if nota:
             db.delete(nota)
-    estornar_emissao_do_pedido(db, pedido, origem, nota.referencia if nota else "")
+    cancelar_pedido_da_nota(db, pedido, origem, nota.referencia if nota else "")
     return nota
 
 
 def reverter_baixa_da_emissao(db: Session, pedido: Pedido) -> None:
-    """Desfaz a baixa de estoque feita na emissao quando o pedido deixa "Nota emitida"."""
+    """Desfaz a baixa de estoque feita na emissao quando o pedido volta para a fila anterior."""
     if not pedido.dataEmissao:
         return
     pedido.dataEmissao = None
     estornar_baixa_do_pedido(db, pedido)
 
 
-def status_antes_da_emissao(db: Session, pedido: Pedido) -> str:
-    """Le no historico de onde o pedido saiu quando virou "Nota emitida"."""
-    registro = db.scalars(
-        select(PedidoHistorico)
-        .where(
-            PedidoHistorico.pedidoId == pedido.id,
-            PedidoHistorico.tipo == "Status",
-            PedidoHistorico.paraValor == "Nota emitida",
-        )
-        .order_by(PedidoHistorico.id.desc())
-    ).first()
-    anterior = (registro.deValor if registro else "") or ""
-    return anterior if anterior in STATUS_RETORNO_ESTORNO else STATUS_APOS_ESTORNO
-
-
-def estornar_emissao_do_pedido(db: Session, pedido: Pedido | None, origem: str, referencia: str = "") -> None:
-    """Volta o pedido de "Nota emitida" para a fila anterior e desfaz a baixa de estoque da emissao."""
+def cancelar_pedido_da_nota(db: Session, pedido: Pedido | None, origem: str, referencia: str = "") -> None:
+    """Nota emitida excluida: devolve a mercadoria ao estoque e cancela o pedido (sai das telas)."""
     if not pedido or pedido.status != "Nota emitida":
         return
     anterior = pedido.status
-    pedido.status = status_antes_da_emissao(db, pedido)
-    reverter_baixa_da_emissao(db, pedido)
+    if pedido.dataEmissao:
+        # A emissao ja zerou a reserva; aqui so o saldo volta.
+        devolver_saldo_da_emissao(db, pedido)
+        pedido.dataEmissao = None
+    else:
+        # Sem baixa registrada a reserva continua presa: libera antes de cancelar.
+        liberar_reserva_do_pedido(db, pedido)
+    pedido.status = STATUS_CANCELADO
     detalhe = f"Nota {referencia} excluida" if referencia else "Nota excluida"
     registrar_historico(
         db,
         pedido.id,
-        "Status",
+        "Cancelamento",
         anterior,
-        pedido.status,
-        observacao=f"{detalhe} em {origem}. Estoque e reserva restaurados.",
+        STATUS_CANCELADO,
+        observacao=f"{detalhe} em {origem}. Pedido cancelado e mercadoria devolvida ao estoque.",
     )
 
 
