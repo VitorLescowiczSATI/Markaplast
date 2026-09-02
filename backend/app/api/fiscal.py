@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.core.config import get_settings
 from app.models.nota_fiscal import NotaFiscalDraft
 from app.models.pedido import Pedido, hoje_brasil
+from app.models.usuario import Usuario
 from app.schemas.fiscal import NotaFiscalRead, NotaFiscalUpdate
 from app.services.estoque import baixar_reserva_do_pedido
 from app.services.fiscal import cancelar_pedido_da_nota, enviar_focus_nfe, montar_payload_nfe
@@ -83,7 +84,11 @@ def marcar_emitida(nota_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/notas/{nota_id}", status_code=status.HTTP_204_NO_CONTENT)
-def excluir_nota(nota_id: int, db: Session = Depends(get_db)):
+def excluir_nota(
+    nota_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_profiles("Fiscal")),
+):
     nota = db.get(NotaFiscalDraft, nota_id)
     if not nota:
         raise HTTPException(status_code=404, detail="Nota fiscal nao encontrada")
@@ -91,7 +96,7 @@ def excluir_nota(nota_id: int, db: Session = Depends(get_db)):
     referencia = nota.referencia
     db.delete(nota)
     # Rascunho ainda nao emitido some sozinho; nota emitida leva o pedido para cancelado.
-    cancelar_pedido_da_nota(db, pedido, "modulo fiscal", referencia)
+    cancelar_pedido_da_nota(db, pedido, "modulo fiscal", referencia, usuario=usuario.username)
     db.commit()
     return None
 

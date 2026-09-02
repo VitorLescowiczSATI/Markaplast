@@ -50,14 +50,19 @@ def montar_payload_nfe(pedido: Pedido) -> dict:
     }
 
 
-def excluir_nota_do_pedido(db: Session, pedido: Pedido | None, origem: str) -> NotaFiscalDraft | None:
+def excluir_nota_do_pedido(
+    db: Session,
+    pedido: Pedido | None,
+    origem: str,
+    usuario: str = "Sistema",
+) -> NotaFiscalDraft | None:
     """Apaga o rascunho fiscal do pedido (se existir) e devolve o pedido ao fluxo pre-emissao."""
     nota = None
     if pedido:
         nota = db.scalars(select(NotaFiscalDraft).where(NotaFiscalDraft.pedidoId == pedido.id)).first()
         if nota:
             db.delete(nota)
-    cancelar_pedido_da_nota(db, pedido, origem, nota.referencia if nota else "")
+    cancelar_pedido_da_nota(db, pedido, origem, nota.referencia if nota else "", usuario=usuario)
     return nota
 
 
@@ -69,7 +74,13 @@ def reverter_baixa_da_emissao(db: Session, pedido: Pedido) -> None:
     estornar_baixa_do_pedido(db, pedido)
 
 
-def cancelar_pedido_da_nota(db: Session, pedido: Pedido | None, origem: str, referencia: str = "") -> None:
+def cancelar_pedido_da_nota(
+    db: Session,
+    pedido: Pedido | None,
+    origem: str,
+    referencia: str = "",
+    usuario: str = "Sistema",
+) -> None:
     """Nota emitida excluida: devolve a mercadoria ao estoque e cancela o pedido (sai das telas)."""
     if not pedido or pedido.status != "Nota emitida":
         return
@@ -89,6 +100,7 @@ def cancelar_pedido_da_nota(db: Session, pedido: Pedido | None, origem: str, ref
         "Cancelamento",
         anterior,
         STATUS_CANCELADO,
+        usuario=usuario,
         observacao=f"{detalhe} em {origem}. Pedido cancelado e mercadoria devolvida ao estoque.",
     )
 

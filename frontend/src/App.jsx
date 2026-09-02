@@ -56,6 +56,7 @@ import {
 // Status que não aparecem na aba Comercial por padrão (cancelado + já faturado/concluído).
 const STATUS_OCULTOS_COMERCIAL = ["Cancelado", "Nota emitida", "Separado para entrega", "Enviado", "Finalizado"];
 const PERFIL_ADMIN = "Administrador";
+const PERFIL_PCP_LOGISTICA = "PCP + Logística";
 const PERFIS_USUARIO = [
   PERFIL_ADMIN,
   "Inteligência",
@@ -63,12 +64,20 @@ const PERFIS_USUARIO = [
   "Clientes",
   "Estoque",
   "PCP",
+  PERFIL_PCP_LOGISTICA,
   "Logística",
   "Faturamento",
   "Financeiro",
   "Fiscal",
 ];
 const MODULOS_ADMIN = ["Inteligência", "Comercial", "Clientes", "Estoque", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal", "Usuários"];
+const MODULOS_PCP_LOGISTICA = ["PCP", "Logística"];
+
+function moduloInicial(perfil) {
+  if (perfil === PERFIL_ADMIN) return "Inteligência";
+  if (perfil === PERFIL_PCP_LOGISTICA) return "PCP";
+  return perfil;
+}
 
 function payloadFromForm(form) {
   const itens = (form.itens || []).map((item) => ({
@@ -121,6 +130,7 @@ function perfilIcon(perfil) {
   if (perfil === "Clientes") return <Users {...props} />;
   if (perfil === "Estoque") return <Warehouse {...props} />;
   if (perfil === "PCP") return <Factory {...props} />;
+  if (perfil === PERFIL_PCP_LOGISTICA) return <Factory {...props} />;
   if (perfil === "Faturamento") return <FileText {...props} />;
   if (perfil === "Financeiro") return <WalletCards {...props} />;
   if (perfil === "Fiscal") return <FileText {...props} />;
@@ -367,7 +377,7 @@ function ResumoCards({ pedidos }) {
   );
 }
 
-function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido, excluirNotaDoPedido, bare = false }) {
+function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido, bare = false }) {
   const total = valorTotalPedido(pedido);
   const itens = itensPedido(pedido);
   const temDetalhePcp =
@@ -379,7 +389,7 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold">Pedido #{pedido.id}</h3>
-            {layout === "comercial" && (
+            {excluirPedido && pedido.status !== "Cancelado" && layout !== "faturamento" && (
               <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
                 <Trash2 size={16} />
               </IconButton>
@@ -496,26 +506,14 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
                 <FileText size={16} />
                 {pedido.status === "Nota emitida" ? "NF já emitida" : "Nota fiscal emitida"}
               </Button>
-              {pedido.status === "Nota emitida" ? (
-                excluirNotaDoPedido && (
-                  <Button
-                    onClick={() => excluirNotaDoPedido(pedido.id)}
-                    className="w-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                  >
-                    <Trash2 size={16} />
-                    Excluir nota emitida
-                  </Button>
-                )
-              ) : (
-                excluirPedido && (
-                  <Button
-                    onClick={() => excluirPedido(pedido.id)}
-                    className="w-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                  >
-                    <Trash2 size={16} />
-                    Excluir pedido
-                  </Button>
-                )
+              {excluirPedido && pedido.status !== "Cancelado" && (
+                <Button
+                  onClick={() => excluirPedido(pedido.id)}
+                  className="w-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                >
+                  <Trash2 size={16} />
+                  Cancelar pedido
+                </Button>
               )}
             </>
           ) : null}
@@ -1298,7 +1296,7 @@ function CargasMontadas({ cargas, statusLabel }) {
   );
 }
 
-function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido, excluirNotaDoPedido }) {
+function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
   const pedidosFaturamento = useMemo(() => filtrarPedidos(pedidos, busca, statusFiltro, "Todos", "Faturamento"), [pedidos, busca, statusFiltro]);
@@ -1373,7 +1371,6 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido, excluirNot
             layout="faturamento"
             atualizarStatus={atualizarStatus}
             excluirPedido={excluirPedido}
-            excluirNotaDoPedido={excluirNotaDoPedido}
           />
         ))}
       </div>
@@ -1523,7 +1520,7 @@ function FinanceiroLayout({ pedidos, atualizarFinanceiro, excluirPedido }) {
   );
 }
 
-function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, salvando }) {
+function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluirPedido, salvando }) {
   const [busca, setBusca] = useState("");
   const [regiaoCarga, setRegiaoCarga] = useState("");
   const [motoristaCarga, setMotoristaCarga] = useState("");
@@ -1576,6 +1573,9 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, salvand
           <span className="text-sm font-bold">#{pedido.id}</span>
           <div className="flex items-center gap-1">
             <Badge className={statusColor(pedido.status)}>{pedido.status}</Badge>
+            <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
+              <Trash2 size={15} />
+            </IconButton>
           </div>
         </div>
         <p className="truncate text-sm font-bold text-slate-900">{pedido.cliente || "Cliente não informado"}</p>
@@ -1716,7 +1716,7 @@ export default function App() {
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState("");
   const perfil = sessao?.perfil || "";
-  const moduloAtual = perfil === PERFIL_ADMIN ? moduloAtivo : perfil;
+  const moduloAtual = [PERFIL_ADMIN, PERFIL_PCP_LOGISTICA].includes(perfil) ? moduloAtivo : perfil;
 
   function limparDados() {
     setPedidos([]);
@@ -1734,12 +1734,12 @@ export default function App() {
     setError("");
     try {
       const isAdmin = perfil === PERFIL_ADMIN;
-      const carregaPedidos = isAdmin || ["Inteligência", "Comercial", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal"].includes(perfil);
+      const carregaPedidos = isAdmin || ["Inteligência", "Comercial", "PCP", PERFIL_PCP_LOGISTICA, "Logística", "Faturamento", "Financeiro", "Fiscal"].includes(perfil);
       const carregaClientes = isAdmin || ["Comercial", "Clientes"].includes(perfil);
       const carregaProdutos = isAdmin || ["Comercial", "Clientes", "Estoque"].includes(perfil);
       const [pedidosResponse, cargasResponse, clientesResponse, produtosResponse, dashboardResponse, notasResponse, metasResponse, usuariosResponse] = await Promise.all([
         carregaPedidos ? api.listPedidos() : Promise.resolve([]),
-        isAdmin || perfil === "Logística" ? api.listCargas() : Promise.resolve([]),
+        isAdmin || [PERFIL_PCP_LOGISTICA, "Logística"].includes(perfil) ? api.listCargas() : Promise.resolve([]),
         carregaClientes ? api.listClientes() : Promise.resolve([]),
         carregaProdutos ? api.listProdutos() : Promise.resolve([]),
         isAdmin || perfil === "Inteligência" ? api.getDashboard() : Promise.resolve(null),
@@ -1773,7 +1773,7 @@ export default function App() {
         const usuario = await api.me();
         if (ativo) {
           setSessao(usuario);
-          setModuloAtivo(usuario.perfil === PERFIL_ADMIN ? "Inteligência" : usuario.perfil);
+          setModuloAtivo(moduloInicial(usuario.perfil));
         }
       } catch {
         api.setAccessToken("");
@@ -1805,7 +1805,7 @@ export default function App() {
     const resposta = await api.login(username, senha);
     api.setAccessToken(resposta.accessToken);
     setSessao(resposta.usuario);
-    setModuloAtivo(resposta.usuario.perfil === PERFIL_ADMIN ? "Inteligência" : resposta.usuario.perfil);
+    setModuloAtivo(moduloInicial(resposta.usuario.perfil));
   }
 
   async function sair() {
@@ -1865,7 +1865,7 @@ export default function App() {
   }
 
   async function excluirPedido(id) {
-    if (!window.confirm("Deseja cancelar este pedido? O histórico será mantido e a reserva de estoque será liberada.")) return;
+    if (!window.confirm("Deseja cancelar este pedido? O histórico será mantido e o estoque será ajustado quando necessário.")) return;
     await runAction(async () => {
       await api.deletePedido(id);
       await loadData(false);
@@ -1904,14 +1904,6 @@ export default function App() {
     if (!window.confirm("Excluir esta nota? Se ela já foi emitida, o pedido é cancelado e a mercadoria volta para o estoque.")) return;
     await runAction(async () => {
       await api.excluirNota(notaId);
-      await loadData(false);
-    });
-  }
-
-  async function excluirNotaDoPedido(pedidoId) {
-    if (!window.confirm("Excluir a nota emitida? O pedido será cancelado, sai desta tela e a mercadoria volta para o estoque.")) return;
-    await runAction(async () => {
-      await api.excluirNotaDoPedido(pedidoId);
       await loadData(false);
     });
   }
@@ -2008,6 +2000,32 @@ export default function App() {
             </div>
           </nav>
         )}
+        {perfil === PERFIL_PCP_LOGISTICA && (
+          <nav className="mb-5 rounded-xl border border-teal-100 bg-white p-3 shadow-sm" aria-label="Áreas de PCP e logística">
+            <div className="mb-3 flex items-center gap-2 px-1">
+              <Factory size={18} className="text-teal-700" />
+              <div>
+                <p className="text-sm font-bold text-slate-800">PCP e Logística</p>
+                <p className="text-xs text-slate-500">Use o mesmo acesso para alternar entre as duas áreas.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {MODULOS_PCP_LOGISTICA.map((modulo) => (
+                <button
+                  key={modulo}
+                  type="button"
+                  onClick={() => setModuloAtivo(modulo)}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition ${
+                    moduloAtual === modulo ? "bg-teal-700 text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {perfilIcon(modulo)}
+                  {modulo}
+                </button>
+              ))}
+            </div>
+          </nav>
+        )}
         {error && (
           <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {error}
@@ -2046,7 +2064,6 @@ export default function App() {
             pedidos={pedidos}
             atualizarStatus={atualizarStatus}
             excluirPedido={excluirPedido}
-            excluirNotaDoPedido={excluirNotaDoPedido}
           />
         ) : moduloAtual === "Financeiro" ? (
           <FinanceiroLayout pedidos={pedidos} atualizarFinanceiro={atualizarFinanceiro} excluirPedido={excluirPedido} />
@@ -2058,6 +2075,7 @@ export default function App() {
             marcarNfeEmitida={marcarNfeEmitida}
             enviarNfeHomologacao={enviarNfeHomologacao}
             excluirNota={excluirNota}
+            excluirPedido={excluirPedido}
           />
         ) : moduloAtual === "Logística" ? (
           <LogisticaLayout
@@ -2065,6 +2083,7 @@ export default function App() {
             cargas={cargas}
             atualizarStatus={atualizarStatus}
             criarCarga={criarCarga}
+            excluirPedido={excluirPedido}
             salvando={salvando}
           />
         ) : (

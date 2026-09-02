@@ -10,6 +10,7 @@ PerfilUsuario = Literal[
     "Clientes",
     "Estoque",
     "PCP",
+    "PCP + Logística",
     "Logística",
     "Faturamento",
     "Financeiro",

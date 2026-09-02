@@ -8,7 +8,7 @@ from app.api import auth as auth_api
 from app.api.deps import require_profiles
 from app.db.session import Base, get_db
 from app.models.usuario import Usuario
-from app.services.auth import criar_token, hash_senha, ler_token, seed_usuarios, verificar_senha
+from app.services.auth import PERFIL_PCP_LOGISTICA, criar_token, hash_senha, ler_token, seed_usuarios, verificar_senha
 
 
 def test_hash_de_senha_e_token_assinado():
@@ -39,13 +39,19 @@ def test_login_sessao_e_bloqueio_por_perfil():
     Base.metadata.create_all(bind=engine)
     with TestingSession() as db:
         seed_usuarios(db, "Senha@123")
-        assert len(db.scalars(select(Usuario)).all()) == 10
+        assert len(db.scalars(select(Usuario)).all()) == 9
+        usuario_pcp = db.scalar(select(Usuario).where(Usuario.username == "pcp"))
+        assert usuario_pcp.perfil == PERFIL_PCP_LOGISTICA
 
     app = FastAPI()
     app.include_router(auth_api.router, prefix="/api")
 
     @app.get("/restrito", dependencies=[Depends(require_profiles("PCP"))])
     def restrito():
+        return {"ok": True}
+
+    @app.get("/logistica", dependencies=[Depends(require_profiles("Logística"))])
+    def logistica():
         return {"ok": True}
 
     def override_db():
@@ -64,8 +70,9 @@ def test_login_sessao_e_bloqueio_por_perfil():
     login_pcp = client.post("/api/auth/login", json={"username": "pcp", "senha": "Senha@123"})
     assert login_pcp.status_code == 200
     token_pcp = login_pcp.json()["accessToken"]
-    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {token_pcp}"}).json()["perfil"] == "PCP"
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {token_pcp}"}).json()["perfil"] == PERFIL_PCP_LOGISTICA
     assert client.get("/restrito", headers={"Authorization": f"Bearer {token_pcp}"}).status_code == 200
+    assert client.get("/logistica", headers={"Authorization": f"Bearer {token_pcp}"}).status_code == 200
 
     login_comercial = client.post("/api/auth/login", json={"username": "comercial", "senha": "Senha@123"})
     token_comercial = login_comercial.json()["accessToken"]
@@ -77,7 +84,7 @@ def test_login_sessao_e_bloqueio_por_perfil():
     token_admin = login_admin.json()["accessToken"]
     headers_admin = {"Authorization": f"Bearer {token_admin}"}
     assert client.get("/restrito", headers=headers_admin).status_code == 200
-    assert len(client.get("/api/auth/usuarios", headers=headers_admin).json()) == 10
+    assert len(client.get("/api/auth/usuarios", headers=headers_admin).json()) == 9
     assert client.get("/api/auth/usuarios", headers={"Authorization": f"Bearer {token_pcp}"}).status_code == 403
 
     novo = client.post(

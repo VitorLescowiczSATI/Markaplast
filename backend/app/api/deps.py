@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.usuario import Usuario
-from app.services.auth import PERFIL_ADMIN, ler_token
+from app.services.auth import PERFIL_ADMIN, PERFIL_PCP_LOGISTICA, ler_token
 
 
 bearer = HTTPBearer(auto_error=False)
@@ -34,7 +34,8 @@ def get_current_user(
 
 def require_profiles(*perfis: str):
     def verificar(usuario: Usuario = Depends(get_current_user)) -> Usuario:
-        if usuario.perfil != PERFIL_ADMIN and usuario.perfil not in perfis:
+        perfil_conjunto_autorizado = usuario.perfil == PERFIL_PCP_LOGISTICA and bool({"PCP", "Logística"} & set(perfis))
+        if usuario.perfil != PERFIL_ADMIN and usuario.perfil not in perfis and not perfil_conjunto_autorizado:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seu perfil não pode acessar este recurso")
         return usuario
 

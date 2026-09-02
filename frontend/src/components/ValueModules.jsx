@@ -826,7 +826,7 @@ export function EstoqueLayout({ produtos = [], onRefresh }) {
   );
 }
 
-export function FiscalLayout({ pedidos = [], notas = [], prepararNfe, marcarNfeEmitida, enviarNfeHomologacao, excluirNota }) {
+export function FiscalLayout({ pedidos = [], notas = [], prepararNfe, marcarNfeEmitida, enviarNfeHomologacao, excluirNota, excluirPedido }) {
   const pedidosFiscais = pedidos.filter((pedido) => ["Pronto para retirada", "Pronto para o envio", "Nota emitida"].includes(pedido.status));
   const notasPorPedido = useMemo(() => new Map(notas.map((nota) => [nota.pedidoId, nota])), [notas]);
 
@@ -876,6 +876,15 @@ export function FiscalLayout({ pedidos = [], notas = [], prepararNfe, marcarNfeE
                     )}
                   </div>
                   <div className="grid grid-cols-1 gap-2 lg:min-w-64">
+                    {excluirPedido && (
+                      <Button
+                        onClick={() => excluirPedido(pedido.id)}
+                        className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                      >
+                        <Trash2 size={16} />
+                        Cancelar pedido
+                      </Button>
+                    )}
                     <Button onClick={() => prepararNfe(pedido.id)} className="border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
                       Preparar pré-NF-e
                     </Button>

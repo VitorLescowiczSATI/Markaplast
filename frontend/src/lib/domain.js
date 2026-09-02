@@ -184,6 +184,9 @@ export function podeVerPedidoPorPerfil(perfil, status) {
   if (perfil === "PCP") return ["Novo pedido", "Pago", "A produzir", "Em produção", "Prontos"].includes(status);
   if (perfil === "Faturamento") return ["Pronto para retirada", "Pronto para o envio", "Nota emitida"].includes(status);
   if (perfil === "Logística") return ["Prontos", "Pronto para retirada", "Pronto para o envio"].includes(status);
+  if (["PCP + Logística", "PCP/Logística"].includes(perfil)) {
+    return ["Novo pedido", "Pago", "A produzir", "Em produção", "Prontos", "Pronto para retirada", "Pronto para o envio"].includes(status);
+  }
   return false;
 }
 

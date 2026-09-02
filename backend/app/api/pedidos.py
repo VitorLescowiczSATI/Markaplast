@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.deps import require_profiles
+from app.api.deps import get_current_user, require_profiles
 from app.db.session import get_db
 from app.models.pedido import Pedido, PedidoItem, hoje_brasil
 from app.models.usuario import Usuario
@@ -17,6 +17,7 @@ from app.schemas.pedido import (
 from app.services.clientes import upsert_cliente_do_pedido
 from app.services.estoque import (
     baixar_reserva_do_pedido,
+    devolver_saldo_da_emissao,
     quantidades_por_produto,
     liberar_reserva_do_pedido,
     recalcular_reservas_do_pedido,
@@ -246,7 +247,7 @@ def excluir_nota_emitida(
         raise HTTPException(status_code=409, detail=f"Pedido não tem nota emitida para excluir (status atual: {pedido.status})")
     if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
         raise HTTPException(status_code=403, detail="Seu perfil não pode alterar este pedido")
-    excluir_nota_do_pedido(db, pedido, "faturamento")
+    excluir_nota_do_pedido(db, pedido, "faturamento", usuario=usuario.username)
     db.commit()
     return None
 
@@ -255,19 +256,36 @@ def excluir_nota_emitida(
 def excluir_pedido(
     pedido_id: int,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(require_profiles("Comercial", "PCP", "Faturamento", "Fiscal")),
+    usuario: Usuario = Depends(get_current_user),
 ):
-    pedido = db.get(Pedido, pedido_id)
+    pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == pedido_id))
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
     if pedido.status == STATUS_CANCELADO:
         return None
-    if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status):
-        raise HTTPException(status_code=403, detail="Seu perfil não pode excluir este pedido")
-    if pedido.status in STATUS_FATURADO:
-        raise HTTPException(status_code=409, detail="Pedido com nota emitida: use a exclusão da nota, que cancela o pedido e devolve o estoque")
-    liberar_reserva_do_pedido(db, pedido)
     status_anterior = pedido.status
+    if pedido.status == "Nota emitida":
+        excluir_nota_do_pedido(db, pedido, "cancelamento do pedido", usuario=usuario.username)
+        db.commit()
+        return None
+    if pedido.status in STATUS_FATURADO:
+        # Compatibilidade com etapas faturadas legadas ainda existentes na base.
+        excluir_nota_do_pedido(db, pedido, "cancelamento do pedido", usuario=usuario.username)
+        if pedido.dataEmissao:
+            devolver_saldo_da_emissao(db, pedido)
+            pedido.dataEmissao = None
+        else:
+            liberar_reserva_do_pedido(db, pedido)
+    else:
+        liberar_reserva_do_pedido(db, pedido)
     pedido.status = STATUS_CANCELADO
-    registrar_historico(db, pedido.id, "Cancelamento", status_anterior, STATUS_CANCELADO, observacao="Pedido cancelado pela operacao.")
+    registrar_historico(
+        db,
+        pedido.id,
+        "Cancelamento",
+        status_anterior,
+        STATUS_CANCELADO,
+        usuario=usuario.username,
+        observacao="Pedido cancelado pelo usuário. O registro foi preservado para auditoria.",
+    )
     db.commit()

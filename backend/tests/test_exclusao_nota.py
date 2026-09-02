@@ -10,6 +10,7 @@ from app.api import pedidos as pedidos_api
 from app.db.session import Base, get_db
 from app.models.nota_fiscal import NotaFiscalDraft
 from app.models.pedido import Pedido
+from app.models.pedido_historico import PedidoHistorico
 from app.models.produto import Produto
 from app.services.auth import seed_usuarios
 
@@ -71,8 +72,7 @@ def criar_pedido_faturado(client: TestClient) -> int:
         avanco = client.patch(f"/api/pedidos/{pedido_id}/status", headers=pcp, json={"status": status_novo})
         assert avanco.status_code == 200, avanco.text
 
-    logistica = logar(client, "logistica")
-    liberado = client.patch(f"/api/pedidos/{pedido_id}/status", headers=logistica, json={"status": "Pronto para retirada"})
+    liberado = client.patch(f"/api/pedidos/{pedido_id}/status", headers=pcp, json={"status": "Pronto para retirada"})
     assert liberado.status_code == 200, liberado.text
     return pedido_id
 
@@ -99,11 +99,15 @@ def test_excluir_nota_emitida_no_fiscal_cancela_pedido_e_devolve_estoque():
     with TestingSession() as db:
         pedido = db.get(Pedido, pedido_id)
         produto = db.scalars(select(Produto)).first()
+        historico = db.scalars(
+            select(PedidoHistorico).where(PedidoHistorico.pedidoId == pedido_id).order_by(PedidoHistorico.id.desc())
+        ).first()
         assert pedido.status == "Cancelado"
         assert pedido.dataEmissao is None
         assert produto.estoqueAtual == 1000
         assert produto.estoqueReservado == 0
         assert db.scalars(select(NotaFiscalDraft)).all() == []
+        assert historico.usuario == "fiscal"
 
     # Nota já excluída não pode ser excluída de novo.
     assert client.delete(f"/api/fiscal/notas/{nota_id}", headers=fiscal).status_code == 404
@@ -174,20 +178,32 @@ def test_faturamento_exclui_pedido_ainda_nao_faturado():
         assert produto.estoqueReservado == 0
 
 
-def test_faturamento_nao_exclui_pedido_faturado_pelo_endpoint_de_pedido():
-    client, _ = montar_app()
+def test_qualquer_usuario_cancela_pedido_faturado_pelo_endpoint_de_pedido():
+    client, TestingSession = montar_app()
     pedido_id = criar_pedido_faturado(client)
 
     faturamento = logar(client, "faturamento")
     emitida = client.patch(f"/api/pedidos/{pedido_id}/status", headers=faturamento, json={"status": "Nota emitida"})
     assert emitida.status_code == 200, emitida.text
 
-    recusado = client.delete(f"/api/pedidos/{pedido_id}", headers=faturamento)
-    assert recusado.status_code == 409, recusado.text
+    cancelado = client.delete(f"/api/pedidos/{pedido_id}", headers=faturamento)
+    assert cancelado.status_code == 204, cancelado.text
+
+    with TestingSession() as db:
+        pedido = db.get(Pedido, pedido_id)
+        produto = db.scalars(select(Produto)).first()
+        historico = db.scalars(
+            select(PedidoHistorico).where(PedidoHistorico.pedidoId == pedido_id).order_by(PedidoHistorico.id.desc())
+        ).first()
+        assert pedido.status == "Cancelado"
+        assert pedido.dataEmissao is None
+        assert produto.estoqueAtual == 1000
+        assert historico.tipo == "Cancelamento"
+        assert historico.usuario == "faturamento"
 
 
-def test_faturamento_nao_exclui_pedido_fora_da_sua_etapa():
-    client, _ = montar_app()
+def test_usuario_pode_cancelar_pedido_fora_da_etapa_do_seu_perfil():
+    client, TestingSession = montar_app()
     comercial = logar(client, "comercial")
     criado = client.post(
         "/api/pedidos",
@@ -197,8 +213,17 @@ def test_faturamento_nao_exclui_pedido_fora_da_sua_etapa():
     assert criado.status_code == 201, criado.text
 
     faturamento = logar(client, "faturamento")
-    recusado = client.delete(f"/api/pedidos/{criado.json()['id']}", headers=faturamento)
-    assert recusado.status_code == 403, recusado.text
+    cancelado = client.delete(f"/api/pedidos/{criado.json()['id']}", headers=faturamento)
+    assert cancelado.status_code == 204, cancelado.text
+    assert client.delete(f"/api/pedidos/{criado.json()['id']}").status_code == 401
+
+    with TestingSession() as db:
+        pedido = db.get(Pedido, criado.json()["id"])
+        historico = db.scalars(
+            select(PedidoHistorico).where(PedidoHistorico.pedidoId == pedido.id).order_by(PedidoHistorico.id.desc())
+        ).first()
+        assert pedido.status == "Cancelado"
+        assert historico.usuario == "faturamento"
 
 
 def test_reverter_status_da_emissao_devolve_estoque():

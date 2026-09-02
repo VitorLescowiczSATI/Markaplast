@@ -28,7 +28,9 @@ def test_permissoes_por_perfil():
     assert pode_ver_pedido_por_perfil("Fiscal", "Nota emitida") is True
     assert pode_ver_pedido_por_perfil("Fiscal", "Em produção") is False
     assert pode_ver_pedido_por_perfil("Inteligência", "Em produção") is True
-    # nome antigo do perfil ainda aceito por 1 release
+    assert pode_ver_pedido_por_perfil("PCP + Logística", "A produzir") is True
+    assert pode_ver_pedido_por_perfil("PCP + Logística", "Pronto para o envio") is True
+    # nome antigo do perfil ainda aceito durante a migração
     assert pode_ver_pedido_por_perfil("PCP/Logística", "A produzir") is True
 
 

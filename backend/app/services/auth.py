@@ -13,14 +13,14 @@ from app.models.usuario import Usuario
 
 PBKDF2_ITERATIONS = 210_000
 PERFIL_ADMIN = "Administrador"
+PERFIL_PCP_LOGISTICA = "PCP + Logística"
 PERFIS_INICIAIS = {
     "admin": ("Administrador", PERFIL_ADMIN),
     "inteligencia": ("Inteligência", "Inteligência"),
     "comercial": ("Comercial", "Comercial"),
     "clientes": ("Clientes", "Clientes"),
     "estoque": ("Estoque", "Estoque"),
-    "pcp": ("PCP", "PCP"),
-    "logistica": ("Logística", "Logística"),
+    "pcp": ("PCP e Logística", PERFIL_PCP_LOGISTICA),
     "faturamento": ("Faturamento", "Faturamento"),
     "financeiro": ("Financeiro", "Financeiro"),
     "fiscal": ("Fiscal", "Fiscal"),
@@ -102,6 +102,13 @@ def seed_usuarios(db: Session, senha_inicial: str) -> None:
                 ativo=True,
             )
         )
+        alterou = True
+
+    # O acesso-padrão separado de logística foi substituído pelo login conjunto "pcp".
+    # Preserva o registro antigo para auditoria, mas evita dois logins ativos para a mesma pessoa.
+    logistica_legado = existentes.get("logistica")
+    if logistica_legado and logistica_legado.nome == "Logística" and logistica_legado.perfil == "Logística" and logistica_legado.ativo:
+        logistica_legado.ativo = False
         alterou = True
     if alterou:
         db.commit()

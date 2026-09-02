@@ -70,12 +70,27 @@ def pode_ver_pedido_por_perfil(perfil: str, status: str) -> bool:
         return True
     if perfil == "Financeiro":
         return status == "Nota emitida"
-    if perfil in {"PCP", "PCP/Logística"}:  # aceita o nome antigo do perfil por 1 release
+    if perfil == "PCP":
         return status in {"Novo pedido", "Pago", "A produzir", "Em produção", "Prontos", "Vai produzir", "Pronto para faturar"}
     if perfil == "Faturamento":
         return status in {"Pronto para retirada", "Pronto para o envio", "Nota emitida", "Pronto para faturar"}
     if perfil == "Logística":
         return status in {"Prontos", "Pronto para retirada", "Pronto para o envio", "Separado para entrega", "Enviado", "Finalizado"}
+    if perfil in {"PCP + Logística", "PCP/Logística"}:
+        return status in {
+            "Novo pedido",
+            "Pago",
+            "A produzir",
+            "Em produção",
+            "Prontos",
+            "Pronto para retirada",
+            "Pronto para o envio",
+            "Vai produzir",
+            "Pronto para faturar",
+            "Separado para entrega",
+            "Enviado",
+            "Finalizado",
+        }
     if perfil == "Fiscal":
         return status in {"Pronto para retirada", "Pronto para o envio", "Nota emitida"}
     return False

@@ -42,6 +42,7 @@ describe("regras de pedidos", () => {
     expect(filtrarPedidos(pedidos, "", "Todos", "Arthur", "Comercial")).toHaveLength(1);
     expect(filtrarPedidos(pedidos, "Industrial", "Todos", "Todos", "Comercial")).toHaveLength(1);
     expect(filtrarPedidos(pedidos, "injetora", "Todos", "Todos", "Comercial")).toHaveLength(1);
+    expect(filtrarPedidos([{ ...pedidos[0], status: "Pronto para o envio" }], "", "Todos", "Todos", "PCP + Logística")).toHaveLength(1);
   });
 
   it("aponta campos obrigatórios faltando no pedido", () => {
