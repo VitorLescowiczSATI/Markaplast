@@ -104,6 +104,37 @@ export function percentualMeta(realizado, meta) {
   return Math.round((Number(realizado || 0) / alvo) * 100);
 }
 
+export function competenciaPedido(pedido) {
+  const data = String(pedido?.data || "");
+  return /^\d{4}-\d{2}-\d{2}$/.test(data) ? data.slice(0, 7) : "";
+}
+
+// Indicadores comerciais usam a data do pedido como competência da venda.
+// Cancelados permanecem visíveis no quadro por status, mas não compõem o valor vendido.
+export function indicadoresComerciaisPorMes(pedidos = [], competencia = "") {
+  const pedidosDoMes = pedidos.filter((pedido) => competenciaPedido(pedido) === competencia);
+  const contagemPorStatus = new Map();
+  const vendasPorVendedor = new Map();
+
+  pedidosDoMes.forEach((pedido) => {
+    const status = pedido.status || "Não informado";
+    contagemPorStatus.set(status, (contagemPorStatus.get(status) || 0) + 1);
+
+    if (status === "Cancelado") return;
+    const vendedor = pedido.vendedor || "Não informado";
+    vendasPorVendedor.set(vendedor, (vendasPorVendedor.get(vendedor) || 0) + valorTotalPedido(pedido));
+  });
+
+  const porStatus = Array.from(contagemPorStatus, ([label, valor]) => ({ label, valor })).sort((a, b) =>
+    a.label.localeCompare(b.label, "pt-BR")
+  );
+  const porVendedor = Array.from(vendasPorVendedor, ([label, valor]) => ({ label, valor })).sort(
+    (a, b) => b.valor - a.valor || a.label.localeCompare(b.label, "pt-BR")
+  );
+
+  return { porStatus, porVendedor };
+}
+
 // Normaliza um valor legado (texto livre) contra a lista fixa de opções (cor/tampa),
 // ignorando caixa e um prefixo "Tampa ". Retorna a string canônica ou "" se não casar.
 export function normalizarOpcao(valor, opcoes = []) {

@@ -4,6 +4,7 @@ import {
   calcularResumo,
   camposFaltandoPedido,
   filtrarPedidos,
+  indicadoresComerciaisPorMes,
   normalizarOpcao,
   percentualMeta,
   realizadoMetas,
@@ -99,6 +100,25 @@ describe("regras de pedidos", () => {
     ];
     const r = realizadoMetas(pedidos, hoje);
     expect(r.empresa.mensal).toBe(700); // 400 (emissão junho) + 300 (legado junho)
+  });
+
+  it("separa os indicadores comerciais por mês do pedido", () => {
+    const pedidos = [
+      { data: "2026-08-31", status: "Cancelado", vendedor: "Martini", valor: 585.57077, quantidade: 1000 },
+      { data: "2026-09-01", status: "Novo pedido", vendedor: "Arthur", valor: 11.28, quantidade: 100 },
+      { data: "2026-09-02", status: "Em produção", vendedor: "Arthur", valor: 5, quantidade: 10 },
+    ];
+
+    const agosto = indicadoresComerciaisPorMes(pedidos, "2026-08");
+    expect(agosto.porStatus).toEqual([{ label: "Cancelado", valor: 1 }]);
+    expect(agosto.porVendedor).toEqual([]);
+
+    const setembro = indicadoresComerciaisPorMes(pedidos, "2026-09");
+    expect(setembro.porStatus).toEqual([
+      { label: "Em produção", valor: 1 },
+      { label: "Novo pedido", valor: 1 },
+    ]);
+    expect(setembro.porVendedor).toEqual([{ label: "Arthur", valor: 1178 }]);
   });
 
   it("normaliza cor/tampa legadas contra a lista fixa", () => {

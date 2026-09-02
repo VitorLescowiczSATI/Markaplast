@@ -4,7 +4,17 @@ import { BarChart3, CheckCircle2, FileText, PackagePlus, Pencil, Search, Tags, T
 import { Badge, Button, Card, EmptyState, Field, Input, SelectBox, StatCard, TextArea } from "./ui.jsx";
 import { api } from "../lib/api.js";
 import { vendedores } from "../lib/constants.js";
-import { currency, itensPedido, percentualMeta, quantidadeTotalPedido, realizadoMetas, statusColor, valorTotalPedido } from "../lib/domain.js";
+import {
+  competenciaPedido,
+  currency,
+  indicadoresComerciaisPorMes,
+  itensPedido,
+  percentualMeta,
+  quantidadeTotalPedido,
+  realizadoMetas,
+  statusColor,
+  valorTotalPedido,
+} from "../lib/domain.js";
 
 const emptyCliente = {
   nome: "",
@@ -59,6 +69,17 @@ const PERIODOS_META = [
   { key: "trimestral", label: "Trimestral" },
 ];
 
+function competenciaAtual() {
+  const hoje = new Date();
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function rotuloCompetencia(competencia) {
+  const [ano, mes] = competencia.split("-").map(Number);
+  if (!ano || !mes) return competencia;
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(ano, mes - 1, 1));
+}
+
 function MetaBar({ label, realizado, meta }) {
   const pct = percentualMeta(realizado, meta);
   const largura = Math.min(100, pct);
@@ -81,9 +102,21 @@ function MetaBar({ label, realizado, meta }) {
 
 export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefresh }) {
   const resumo = dashboard?.resumo || {};
-  const statusMax = Math.max(1, ...(dashboard?.porStatus || []).map((item) => Number(item.valor || 0)));
-  const vendedorMax = Math.max(1, ...(dashboard?.porVendedor || []).map((item) => Number(item.valor || 0)));
   const realizado = useMemo(() => realizadoMetas(pedidos), [pedidos]);
+  const [competenciaIndicadores, setCompetenciaIndicadores] = useState(competenciaAtual);
+  const competenciasDisponiveis = useMemo(
+    () =>
+      Array.from(new Set([competenciaAtual(), ...pedidos.map(competenciaPedido).filter(Boolean)])).sort((a, b) =>
+        b.localeCompare(a)
+      ),
+    [pedidos]
+  );
+  const indicadoresComerciais = useMemo(
+    () => indicadoresComerciaisPorMes(pedidos, competenciaIndicadores),
+    [pedidos, competenciaIndicadores]
+  );
+  const statusMax = Math.max(1, ...indicadoresComerciais.porStatus.map((item) => Number(item.valor || 0)));
+  const vendedorMax = Math.max(1, ...indicadoresComerciais.porVendedor.map((item) => Number(item.valor || 0)));
   const [config, setConfig] = useState({ escopo: "empresa", vendedor: "", periodo: "mensal", valor: "" });
   const [salvandoMeta, setSalvandoMeta] = useState(false);
 
@@ -161,20 +194,35 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="p-5">
-          <div className="mb-5 flex items-center gap-2">
-            <BarChart3 size={20} className="text-teal-700" />
-            <h2 className="text-xl font-bold">Indicadores comerciais</h2>
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-center gap-2 pb-1">
+              <BarChart3 size={20} className="text-teal-700" />
+              <h2 className="text-xl font-bold">Indicadores comerciais</h2>
+            </div>
+            <div className="w-full sm:w-52">
+              <Field label="Mês dos indicadores">
+                <SelectBox value={competenciaIndicadores} onChange={setCompetenciaIndicadores}>
+                  {competenciasDisponiveis.map((competencia) => (
+                    <option key={competencia} value={competencia} className="capitalize">
+                      {rotuloCompetencia(competencia)}
+                    </option>
+                  ))}
+                </SelectBox>
+              </Field>
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="space-y-3">
               <h3 className="font-bold">Por status</h3>
-              {(dashboard?.porStatus || []).map((item) => (
+              {indicadoresComerciais.porStatus.length === 0 && <EmptyState>Nenhum pedido neste mês.</EmptyState>}
+              {indicadoresComerciais.porStatus.map((item) => (
                 <HorizontalBar key={item.label} label={item.label} value={item.valor} max={statusMax} />
               ))}
             </div>
             <div className="space-y-3">
               <h3 className="font-bold">Por vendedor</h3>
-              {(dashboard?.porVendedor || []).slice(0, 8).map((item) => (
+              {indicadoresComerciais.porVendedor.length === 0 && <EmptyState>Nenhuma venda válida neste mês.</EmptyState>}
+              {indicadoresComerciais.porVendedor.slice(0, 8).map((item) => (
                 <HorizontalBar key={item.label} label={item.label} value={item.valor} max={vendedorMax} detail={currency(item.valor)} />
               ))}
             </div>
