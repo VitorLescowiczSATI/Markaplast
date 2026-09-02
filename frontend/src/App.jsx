@@ -1235,7 +1235,7 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
   );
 }
 
-function CargasMontadas({ cargas, statusLabel }) {
+function CargasMontadas({ cargas, statusLabel, excluirPedido }) {
   return (
     <Card className="p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -1284,7 +1284,14 @@ function CargasMontadas({ cargas, statusLabel }) {
                         {pedido.cidade} - {quantidadeTotalPedido(pedido)} un
                       </p>
                     </div>
-                    <Badge className={statusColor(statusDaCarga || pedido.status)}>{statusDaCarga || pedido.status}</Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge className={statusColor(statusDaCarga || pedido.status)}>{statusDaCarga || pedido.status}</Badge>
+                      {excluirPedido && pedido.status !== "Cancelado" && (
+                        <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
+                          <Trash2 size={15} />
+                        </IconButton>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1674,7 +1681,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
           </div>
         </Card>
 
-        <CargasMontadas cargas={cargas} statusLabel="Pronto para o envio" />
+        <CargasMontadas cargas={cargas} statusLabel="Pronto para o envio" excluirPedido={excluirPedido} />
       </section>
 
       <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">

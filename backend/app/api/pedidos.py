@@ -264,6 +264,11 @@ def excluir_pedido(
     if pedido.status == STATUS_CANCELADO:
         return None
     status_anterior = pedido.status
+    cargas_anteriores = list(pedido.cargas)
+    pedido.cargas.clear()
+    for carga in cargas_anteriores:
+        if not carga.pedidos:
+            db.delete(carga)
     if pedido.status == "Nota emitida":
         excluir_nota_do_pedido(db, pedido, "cancelamento do pedido", usuario=usuario.username)
         db.commit()

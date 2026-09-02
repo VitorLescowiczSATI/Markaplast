@@ -5,9 +5,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api import auth as auth_api
+from app.api import cargas as cargas_api
 from app.api import fiscal as fiscal_api
 from app.api import pedidos as pedidos_api
 from app.db.session import Base, get_db
+from app.models.carga import Carga
 from app.models.nota_fiscal import NotaFiscalDraft
 from app.models.pedido import Pedido
 from app.models.pedido_historico import PedidoHistorico
@@ -30,6 +32,7 @@ def montar_app():
 
     app = FastAPI()
     app.include_router(auth_api.router, prefix="/api")
+    app.include_router(cargas_api.router, prefix="/api")
     app.include_router(pedidos_api.router, prefix="/api")
     app.include_router(fiscal_api.router, prefix="/api")
 
@@ -224,6 +227,49 @@ def test_usuario_pode_cancelar_pedido_fora_da_etapa_do_seu_perfil():
         ).first()
         assert pedido.status == "Cancelado"
         assert historico.usuario == "faturamento"
+
+
+def test_cancelar_pedido_montado_remove_da_carga_e_preserva_pedido():
+    client, TestingSession = montar_app()
+    comercial = logar(client, "comercial")
+    criado = client.post(
+        "/api/pedidos",
+        headers=comercial,
+        json={
+            "cliente": "Cliente com carga",
+            "produto": "5L",
+            "quantidade": 10,
+            "valor": 3,
+            "vendedor": "Arthur",
+            "tipoFrete": "CIF",
+        },
+    )
+    assert criado.status_code == 201, criado.text
+    pedido_id = criado.json()["id"]
+
+    pcp = logar(client, "pcp")
+    for status_novo in ["A produzir", "Em produção", "Prontos"]:
+        avanco = client.patch(f"/api/pedidos/{pedido_id}/status", headers=pcp, json={"status": status_novo})
+        assert avanco.status_code == 200, avanco.text
+
+    carga = client.post(
+        "/api/cargas",
+        headers=pcp,
+        json={"regiao": "Joinville", "motorista": "Eduardo", "placa": "ABC-1234", "pedidoIds": [pedido_id]},
+    )
+    assert carga.status_code == 201, carga.text
+    assert carga.json()["pedidos"][0]["status"] == "Pronto para o envio"
+
+    cancelado = client.delete(f"/api/pedidos/{pedido_id}", headers=pcp)
+    assert cancelado.status_code == 204, cancelado.text
+    assert client.get("/api/cargas", headers=pcp).json() == []
+
+    with TestingSession() as db:
+        pedido = db.get(Pedido, pedido_id)
+        assert pedido is not None
+        assert pedido.status == "Cancelado"
+        assert pedido.cargas == []
+        assert db.scalars(select(Carga)).all() == []
 
 
 def test_reverter_status_da_emissao_devolve_estoque():
