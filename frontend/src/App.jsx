@@ -1235,7 +1235,7 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
   );
 }
 
-function CargasMontadas({ cargas, statusLabel, excluirPedido }) {
+function CargasMontadas({ cargas, statusLabel, excluirPedido, excluirCarga }) {
   return (
     <Card className="p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -1257,7 +1257,14 @@ function CargasMontadas({ cargas, statusLabel, excluirPedido }) {
                   <h4 className="text-lg font-bold">{carga.regiao}</h4>
                   <p className="text-sm text-slate-500">Criada em {new Date(`${carga.data}T00:00:00`).toLocaleDateString("pt-BR")}</p>
                 </div>
-                <Badge className="border-teal-200 bg-teal-50 text-teal-800">{carga.pedidos.length} pedidos</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className="border-teal-200 bg-teal-50 text-teal-800">{carga.pedidos.length} pedidos</Badge>
+                  {excluirCarga && (
+                    <IconButton label={`Excluir carga ${carga.regiao}`} onClick={() => excluirCarga(carga.id)}>
+                      <Trash2 size={16} />
+                    </IconButton>
+                  )}
+                </div>
               </div>
               <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                 <div className="rounded-lg bg-slate-50 p-3">
@@ -1527,7 +1534,7 @@ function FinanceiroLayout({ pedidos, atualizarFinanceiro, excluirPedido }) {
   );
 }
 
-function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluirPedido, salvando }) {
+function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluirPedido, excluirCarga, salvando }) {
   const [busca, setBusca] = useState("");
   const [regiaoCarga, setRegiaoCarga] = useState("");
   const [motoristaCarga, setMotoristaCarga] = useState("");
@@ -1681,7 +1688,12 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
           </div>
         </Card>
 
-        <CargasMontadas cargas={cargas} statusLabel="Pronto para o envio" excluirPedido={excluirPedido} />
+        <CargasMontadas
+          cargas={cargas}
+          statusLabel="Pronto para o envio"
+          excluirPedido={excluirPedido}
+          excluirCarga={excluirCarga}
+        />
       </section>
 
       <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
@@ -1882,6 +1894,14 @@ export default function App() {
   async function criarCarga(payload) {
     await runAction(async () => {
       await api.createCarga(payload);
+      await loadData(false);
+    });
+  }
+
+  async function excluirCarga(id) {
+    if (!window.confirm("Deseja excluir esta carga? Os pedidos voltarão para a etapa Prontos.")) return;
+    await runAction(async () => {
+      await api.deleteCarga(id);
       await loadData(false);
     });
   }
@@ -2091,6 +2111,7 @@ export default function App() {
             atualizarStatus={atualizarStatus}
             criarCarga={criarCarga}
             excluirPedido={excluirPedido}
+            excluirCarga={excluirCarga}
             salvando={salvando}
           />
         ) : (

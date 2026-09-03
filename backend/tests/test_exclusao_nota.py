@@ -272,6 +272,57 @@ def test_cancelar_pedido_montado_remove_da_carga_e_preserva_pedido():
         assert db.scalars(select(Carga)).all() == []
 
 
+def test_excluir_carga_montada_devolve_pedido_para_prontos():
+    client, TestingSession = montar_app()
+    comercial = logar(client, "comercial")
+    criado = client.post(
+        "/api/pedidos",
+        headers=comercial,
+        json={
+            "cliente": "Cliente da carga",
+            "produto": "5L",
+            "quantidade": 10,
+            "valor": 3,
+            "vendedor": "Arthur",
+            "tipoFrete": "CIF",
+        },
+    )
+    assert criado.status_code == 201, criado.text
+    pedido_id = criado.json()["id"]
+
+    pcp = logar(client, "pcp")
+    for status_novo in ["A produzir", "Em produção", "Prontos"]:
+        avanco = client.patch(f"/api/pedidos/{pedido_id}/status", headers=pcp, json={"status": status_novo})
+        assert avanco.status_code == 200, avanco.text
+
+    montada = client.post(
+        "/api/cargas",
+        headers=pcp,
+        json={"regiao": "Joinville", "motorista": "Eduardo", "placa": "ABC-1234", "pedidoIds": [pedido_id]},
+    )
+    assert montada.status_code == 201, montada.text
+    carga_id = montada.json()["id"]
+
+    excluida = client.delete(f"/api/cargas/{carga_id}", headers=pcp)
+    assert excluida.status_code == 204, excluida.text
+    assert client.get("/api/cargas", headers=pcp).json() == []
+    assert client.delete(f"/api/cargas/{carga_id}", headers=pcp).status_code == 404
+
+    with TestingSession() as db:
+        pedido = db.get(Pedido, pedido_id)
+        produto = db.scalars(select(Produto)).first()
+        historico = db.scalars(
+            select(PedidoHistorico).where(PedidoHistorico.pedidoId == pedido_id).order_by(PedidoHistorico.id.desc())
+        ).first()
+        assert pedido is not None
+        assert pedido.status == "Prontos"
+        assert pedido.cargas == []
+        assert produto.estoqueReservado == 10
+        assert historico.deValor == "Pronto para o envio"
+        assert historico.paraValor == "Prontos"
+        assert historico.usuario == "pcp"
+
+
 def test_reverter_status_da_emissao_devolve_estoque():
     client, TestingSession = montar_app()
     pedido_id = criar_pedido_faturado(client)

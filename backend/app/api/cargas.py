@@ -6,6 +6,7 @@ from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.models.carga import Carga
 from app.models.pedido import Pedido
+from app.models.usuario import Usuario
 from app.schemas.carga import CargaCreate, CargaRead
 from app.services.historico import registrar_historico
 from app.services.regras import pode_transicionar_status
@@ -50,3 +51,34 @@ def criar_carga(payload: CargaCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(carga)
     return carga
+
+
+@router.delete("/{carga_id}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_carga(
+    carga_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_profiles("Logística")),
+):
+    carga = db.scalar(select(Carga).options(selectinload(Carga.pedidos)).where(Carga.id == carga_id))
+    if not carga:
+        raise HTTPException(status_code=404, detail="Carga não encontrada")
+
+    for pedido in list(carga.pedidos):
+        # O pedido volta para a fila logística somente se ainda estiver na etapa gerada por esta carga.
+        if pedido.status == carga.statusDestino:
+            status_anterior = pedido.status
+            pedido.status = "Prontos"
+            registrar_historico(
+                db,
+                pedido.id,
+                "Status",
+                status_anterior,
+                pedido.status,
+                observacao=f"Pedido devolvido para Prontos após exclusão da carga {carga.regiao}.",
+                usuario=usuario.username,
+            )
+
+    carga.pedidos.clear()
+    db.delete(carga)
+    db.commit()
+    return None

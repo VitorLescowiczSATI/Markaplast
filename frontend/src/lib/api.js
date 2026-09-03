@@ -58,6 +58,7 @@ export const api = {
   deletePedido: (id) => request(`/api/pedidos/${id}`, { method: "DELETE" }),
   listCargas: () => request("/api/cargas"),
   createCarga: (payload) => request("/api/cargas", { method: "POST", body: JSON.stringify(payload) }),
+  deleteCarga: (id) => request(`/api/cargas/${id}`, { method: "DELETE" }),
   listClientes: () => request("/api/clientes"),
   createCliente: (payload) => request("/api/clientes", { method: "POST", body: JSON.stringify(payload) }),
   updateCliente: (id, payload) => request(`/api/clientes/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
