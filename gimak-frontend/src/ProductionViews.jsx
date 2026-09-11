@@ -39,8 +39,8 @@ function useLiveData(fetcher) {
   return { ...state, refresh };
 }
 
-function Connection({ live, dark = false }) {
-  return <div className={`pv-connection ${live.error ? "is-stale" : ""} ${dark ? "dark" : ""}`} role="status">
+function Connection({ live }) {
+  return <div className={`pv-connection ${live.error ? "is-stale" : ""}`} role="status">
     <span className="pv-live-dot" />
     {live.error ? `Sem atualização${live.receivedAt ? ` desde ${clockLabel(live.receivedAt)}` : ""}. Verifique a conexão.` : live.receivedAt ? `Atualizado às ${clockLabel(live.receivedAt)} · a cada 30 s` : "Conectando…"}
     <button onClick={live.refresh} aria-label="Atualizar indicadores"><RefreshCw size={15} /></button>
@@ -185,7 +185,7 @@ export function FactoryTV({ user, onExit }) {
   const recent = rotation(data?.ultimosEventos || [], page, 3);
   return <main className="pv-tv">
     <header className="pv-tv-header"><div className="pv-tv-brand"><span><Factory size={32} /></span><div><strong>GIMAK</strong><small>PRODUÇÃO EM TEMPO REAL</small></div></div><div className="pv-tv-clock"><strong>{clockLabel(serverNow)}</strong><span>{new Date(serverNow).toLocaleDateString("pt-BR", { timeZone: ZONE, weekday: "long", day: "2-digit", month: "long" })}</span></div><div className="pv-tv-tools"><button onClick={fullscreen}><Expand size={18} /> Tela cheia</button><button onClick={exit}><ArrowLeft size={18} /> {user.perfil === "TV" ? "Sair" : "Voltar"}</button></div></header>
-    <div className="pv-tv-status"><Connection live={live} dark /><span>Somente leitura · cards alternam a cada 15 s</span>{screenMessage && <span role="status">{screenMessage}</span>}</div>
+    <div className="pv-tv-status"><Connection live={live} /><span>Somente leitura · cards alternam a cada 15 s</span>{screenMessage && <span role="status">{screenMessage}</span>}</div>
     {!data && <div className="pv-tv-empty">{live.error ? "Aguardando conexão com a fábrica…" : "Carregando painel da fábrica…"}</div>}
     {data && <>
       <section className="pv-metrics">
