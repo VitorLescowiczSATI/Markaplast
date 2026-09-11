@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
@@ -6,7 +6,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import get_settings
-from app.gimak.auth import PERFIL_ADMIN, PERFIL_FABRICA, PERFIL_PCP
+from app.gimak.analytics import build_indicators, build_tv_panel
+from app.gimak.auth import PERFIL_ADMIN, PERFIL_FABRICA, PERFIL_PCP, PERFIL_TV
 from app.gimak.db import get_gimak_db
 from app.gimak.deps import get_gimak_current_user, require_gimak_roles
 from app.gimak.models import GimakApontamento, GimakProjeto, GimakTarefa, GimakUsuario
@@ -57,7 +58,10 @@ def login(payload: LoginRequest, db: Session = Depends(get_gimak_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário ou senha inválidos")
     settings = get_settings()
     return LoginResponse(
-        accessToken=criar_token(user, settings.gimak_auth_secret, settings.gimak_auth_token_minutes),
+        accessToken=criar_token(
+            user, settings.gimak_auth_secret,
+            30 * 24 * 60 if user.perfil == PERFIL_TV else settings.gimak_auth_token_minutes,
+        ),
         usuario=user,
     )
 
@@ -67,10 +71,28 @@ def me(user: GimakUsuario = Depends(get_gimak_current_user)):
     return user
 
 
+@router.get("/indicadores")
+def indicators(
+    inicio: date | None = None,
+    fim: date | None = None,
+    db: Session = Depends(get_gimak_db),
+    _admin: GimakUsuario = Depends(require_gimak_roles(PERFIL_ADMIN)),
+):
+    return build_indicators(db, inicio, fim)
+
+
+@router.get("/painel-tv")
+def tv_panel(
+    db: Session = Depends(get_gimak_db),
+    _user: GimakUsuario = Depends(get_gimak_current_user),
+):
+    return build_tv_panel(db)
+
+
 @router.get("/usuarios", response_model=list[UsuarioRead])
 def list_users(
     db: Session = Depends(get_gimak_db),
-    _user: GimakUsuario = Depends(get_gimak_current_user),
+    _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP, PERFIL_FABRICA)),
 ):
     return db.scalars(select(GimakUsuario).order_by(GimakUsuario.nome)).all()
 
@@ -139,7 +161,7 @@ def reset_password(
 @router.get("/projetos", response_model=list[ProjetoRead])
 def list_projects(
     db: Session = Depends(get_gimak_db),
-    _user: GimakUsuario = Depends(get_gimak_current_user),
+    _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP, PERFIL_FABRICA)),
 ):
     return db.scalars(select(GimakProjeto).where(GimakProjeto.ativo.is_(True)).order_by(GimakProjeto.id.desc())).all()
 
@@ -160,7 +182,7 @@ def create_project(
 @router.get("/tarefas", response_model=list[TarefaRead])
 def list_tasks(
     db: Session = Depends(get_gimak_db),
-    _user: GimakUsuario = Depends(get_gimak_current_user),
+    _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP, PERFIL_FABRICA)),
 ):
     statement = select(GimakTarefa).options(selectinload(GimakTarefa.historico)).order_by(
         GimakTarefa.dataPlanejada.desc(), GimakTarefa.horario, GimakTarefa.id.desc()
@@ -213,7 +235,9 @@ def update_task_status(
         raise HTTPException(status_code=422, detail="Informe o motivo dessa situação")
 
     previous = task.status
-    if previous == "doing" and payload.status == "doing":
+    # Repetir "iniciar" ou "concluir" não traz informação nova e mexeria no cronômetro
+    # e na data de conclusão. Já "não realizada" pode ser reenviada para corrigir o motivo.
+    if previous == payload.status and payload.status in {"doing", "done"}:
         return task
     now = datetime.now(timezone.utc)
     if previous == "doing" and task.startedAt:

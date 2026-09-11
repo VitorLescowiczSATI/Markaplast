@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-GimakPerfil = Literal["Administrador", "PCP", "Fábrica"]
+GimakPerfil = Literal["Administrador", "PCP", "Fábrica", "TV"]
 GimakStatus = Literal["todo", "doing", "paused", "blocked", "done"]
 
 

@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 PERFIL_ADMIN = "Administrador"
 PERFIL_PCP = "PCP"
 PERFIL_FABRICA = "Fábrica"
+PERFIL_TV = "TV"
 
 
 def seed_gimak_admin(db: Session, initial_password: str) -> None:

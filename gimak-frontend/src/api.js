@@ -42,6 +42,8 @@ export const api = {
   setAccessToken,
   login: (username, senha) => request("/auth/login", json("POST", { username, senha }), false),
   me: () => request("/auth/me"),
+  getIndicators: (inicio, fim, options = {}) => request(`/indicadores?${new URLSearchParams({ inicio, fim })}`, options),
+  getTVPanel: (options = {}) => request("/painel-tv", options),
   listUsers: () => request("/usuarios"),
   createUser: (payload) => request("/usuarios", json("POST", payload)),
   updateUser: (id, payload) => request(`/usuarios/${id}`, json("PATCH", payload)),

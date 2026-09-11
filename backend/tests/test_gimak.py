@@ -90,6 +90,32 @@ def test_gimak_auth_projects_tasks_and_time_entries_are_isolated():
     assert paused.json()["motivo"] == "Aguardando material"
     assert len(paused.json()["historico"]) == 2
 
+    blocked = client.patch(
+        f"/api/gimak/tarefas/{task_id}/status",
+        headers=headers,
+        json={"status": "blocked", "motivo": "Cliente suspendeu"},
+    )
+    assert blocked.status_code == 200
+    assert blocked.json()["motivo"] == "Cliente suspendeu"
+
+    corrigido = client.patch(
+        f"/api/gimak/tarefas/{task_id}/status",
+        headers=headers,
+        json={"status": "blocked", "motivo": "Faltou matéria-prima"},
+    )
+    assert corrigido.status_code == 200
+    assert corrigido.json()["motivo"] == "Faltou matéria-prima"
+    assert len(corrigido.json()["historico"]) == 4
+
+    concluido = client.patch(
+        f"/api/gimak/tarefas/{task_id}/status", headers=headers, json={"status": "done"}
+    )
+    repetido = client.patch(
+        f"/api/gimak/tarefas/{task_id}/status", headers=headers, json={"status": "done"}
+    )
+    assert repetido.json()["finishedAt"] == concluido.json()["finishedAt"]
+    assert len(repetido.json()["historico"]) == len(concluido.json()["historico"])
+
     created_operator = client.post(
         "/api/gimak/usuarios",
         headers=headers,

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BriefcaseBusiness,
+  BarChart3,
   CheckCircle2,
   Clock3,
   Expand,
   Factory,
   LogOut,
+  Monitor,
   PauseCircle,
   PlayCircle,
   Plus,
@@ -18,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { api } from "./api";
+import { AdminIndicators, FactoryTV } from "./ProductionViews";
 
 const STATUS_LABELS = {
   todo: "Aguardando início",
@@ -137,6 +140,8 @@ function Header({ page, setPage, user, onLogout, onNewProject, onNewTask, canMan
   const tabs = [
     ["board", "Painel da fábrica", Factory],
     ["projects", "Projetos", BriefcaseBusiness],
+    ["tv", "Modo TV", Monitor],
+    ...(user.perfil === "Administrador" ? [["indicators", "Indicadores", BarChart3]] : []),
     ...(user.perfil === "Administrador" ? [["users", "Usuários", Users]] : []),
   ];
   return (
@@ -281,7 +286,7 @@ function ProjectModal({ project, tasks, now, onClose }) {
 export default function App() {
   const [user, setUser] = useState(null);
   const [booting, setBooting] = useState(api.hasToken());
-  const [page, setPage] = useState("board");
+  const [page, setPage] = useState(() => window.location.hash === "#tv" ? "tv" : "board");
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
@@ -309,8 +314,26 @@ export default function App() {
 
   useEffect(() => {
     if (!api.hasToken()) { setBooting(false); return; }
-    api.me().then((current) => { setUser(current); return load(); }).catch(() => api.setAccessToken("")).finally(() => setBooting(false));
+    api.me().then(setUser).catch(() => api.setAccessToken("")).finally(() => setBooting(false));
   }, [load]);
+
+  useEffect(() => {
+    const followHash = () => setPage(window.location.hash === "#tv" ? "tv" : "board");
+    window.addEventListener("hashchange", followHash);
+    return () => window.removeEventListener("hashchange", followHash);
+  }, []);
+
+  function navigate(nextPage) {
+    window.history.replaceState(null, "", nextPage === "tv" ? "#tv" : window.location.pathname + window.location.search);
+    setPage(nextPage);
+    setModal(null);
+  }
+
+  function logout() {
+    api.setAccessToken("");
+    setUser(null);
+    setTasks([]); setProjects([]); setUsers([]); setModal(null);
+  }
 
   useEffect(() => {
     const expired = () => { setUser(null); setModal(null); };
@@ -324,10 +347,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) return undefined;
+    if (!user || user.perfil === "TV" || ["tv", "indicators"].includes(page)) return undefined;
+    load();
     const polling = window.setInterval(() => load(true), 30000);
     return () => window.clearInterval(polling);
-  }, [user, load]);
+  }, [user, page, load]);
 
   const action = useCallback(async (work, success) => {
     try { await work(); await load(true); setModal(null); notify(success); return true; }
@@ -335,11 +359,13 @@ export default function App() {
   }, [load, notify]);
 
   if (booting) return <div className="boot"><Factory size={32} /><span>Carregando Gimak PCP…</span></div>;
-  if (!user) return <Login onLogin={(logged) => { setUser(logged); load(); }} />;
+  if (!user) return <Login onLogin={(logged) => { setUser(logged); if (logged.perfil === "TV") navigate("tv"); }} />;
+  if (user.perfil === "TV" || page === "tv") return <FactoryTV user={user} onExit={() => user.perfil === "TV" ? logout() : navigate("board")} />;
   const canManage = user.perfil === "Administrador" || user.perfil === "PCP";
 
   return <div className="app-shell">
-    <Header page={page} setPage={setPage} user={user} canManage={canManage} onLogout={() => { api.setAccessToken(""); setUser(null); }} onNewProject={() => setModal({ type: "new-project" })} onNewTask={() => setModal({ type: "new-task" })} />
+    <Header page={page} setPage={navigate} user={user} canManage={canManage} onLogout={logout} onNewProject={() => { navigate("projects"); setModal({ type: "new-project" }); }} onNewTask={() => { navigate("board"); setModal({ type: "new-task" }); }} />
+    {page === "indicators" && user.perfil === "Administrador" && <AdminIndicators />}
     {page === "board" && <Board tasks={tasks} projects={projects} users={users} now={now} onOpen={(task) => setModal({ type: "task", data: task })} onRefresh={() => load()} refreshing={refreshing} />}
     {page === "projects" && <Projects projects={projects} tasks={tasks} now={now} canManage={canManage} onOpen={(project) => setModal({ type: "project", data: project })} onNew={() => setModal({ type: "new-project" })} />}
     {page === "users" && user.perfil === "Administrador" && <UsersPage users={users} onCreate={(payload) => action(() => api.createUser(payload), "Usuário criado") } onToggle={(item) => action(() => api.updateUser(item.id, { ativo: !item.ativo }), item.ativo ? "Usuário desativado" : "Usuário ativado")} onReset={(item) => { const password = window.prompt(`Nova senha para ${item.nome} (mínimo 8 caracteres):`); if (password) action(() => api.resetPassword(item.id, password), "Senha atualizada"); }} />}
