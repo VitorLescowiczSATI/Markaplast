@@ -28,7 +28,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: CORS_ORIGINS
-        value: https://giras-web.onrender.com,https://sistemainterno.markaplast.com.br
+        value: https://giras-web.onrender.com,https://sistemainterno.markaplast.com.br,https://gimak-pcp-web.onrender.com
       - key: FISCAL_EMIT_ENABLED
         value: false
       - key: FOCUS_NFE_BASE_URL
@@ -39,11 +39,33 @@ services:
         sync: false
       - key: AUTH_TOKEN_MINUTES
         value: 720
+      - key: GIMAK_DATABASE_NAME
+        value: gimak_pcp
+      - key: GIMAK_AUTH_SECRET
+        generateValue: true
+      - key: GIMAK_INITIAL_ADMIN_PASSWORD
+        sync: false
+      - key: GIMAK_AUTH_TOKEN_MINUTES
+        value: 720
 
   - type: web
     name: giras-web
     runtime: static
     rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://giras-api.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    name: gimak-pcp-web
+    runtime: static
+    rootDir: gimak-frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     envVars:

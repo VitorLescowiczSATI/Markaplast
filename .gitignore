@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 .pytest_deps/
 dev.db
+gimak_dev.db
 
 node_modules/
 dist/

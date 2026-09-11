@@ -1,6 +1,8 @@
-# Giras Markaplast
+# Giras Markaplast + Gimak PCP
 
 Sistema inicial para controle de pedidos, produção, faturamento, financeiro e logística da Markaplast.
+
+O mesmo deploy também hospeda o Gimak PCP como uma aplicação isolada em dados, login e interface, reutilizando a capacidade já contratada da API e do PostgreSQL.
 
 ## Stack
 
@@ -34,6 +36,8 @@ Depois acesse:
 - Frontend: http://localhost:5173
 - API: http://localhost:8000
 - Health check: http://localhost:8000/health
+- Gimak PCP: http://localhost:5174
+- Health check Gimak: http://localhost:8000/api/gimak/health
 
 ## Rodar local sem Docker
 
@@ -57,6 +61,14 @@ copy .env.example .env
 npm run dev
 ```
 
+Frontend Gimak:
+
+```bash
+cd gimak-frontend
+npm install
+npm run dev
+```
+
 ## Deploy no Render
 
 1. Crie um repositório no GitHub com estes arquivos.
@@ -65,9 +77,22 @@ npm run dev
    - `giras-db`: PostgreSQL.
    - `giras-api`: backend FastAPI.
    - `giras-web`: frontend estático.
+   - `gimak-pcp-web`: frontend estático e gratuito do PCP Gimak.
 4. Depois do primeiro deploy, confirme se as URLs batem com as variáveis:
    - `VITE_API_URL` no `giras-web` deve apontar para a URL pública do `giras-api`.
    - `CORS_ORIGINS` no `giras-api` deve apontar para a URL pública do `giras-web`.
+   - `GIMAK_INITIAL_ADMIN_PASSWORD` deve receber uma senha temporária segura antes do primeiro deploy com a Gimak.
+
+### Isolamento da Gimak sem nova instância
+
+- A API da Gimak fica sob `/api/gimak` no mesmo processo do `giras-api`.
+- O frontend usa a chave local de sessão `gimak.accessToken`, distinta da Markaplast.
+- `GIMAK_AUTH_SECRET` assina tokens próprios e é gerado pelo Blueprint.
+- No primeiro boot, a API cria o banco lógico `gimak_pcp` na mesma instância PostgreSQL e cria somente as tabelas da Gimak nesse banco.
+- É possível informar `GIMAK_DATABASE_URL` futuramente para mover a Gimak a outra instância sem alterar o frontend ou as rotas.
+- Uma falha ao inicializar a Gimak é registrada, mas não impede a API da Markaplast de iniciar.
+
+O perfil `Administrador` da Gimak acessa o painel, os projetos e a gestão de usuários. O perfil `PCP` cria projetos e tarefas; o perfil `Fábrica` consulta tarefas e registra início, pausa, conclusão ou não realização.
 
 Para usar domínio existente com Cloudflare, siga o guia em `docs/DEPLOY_RENDER_CLOUDFLARE.md`.
 

@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     auth_secret: str = "development-only-change-me"
     auth_initial_password: str = ""
     auth_token_minutes: int = 720
+    gimak_database_url: str = ""
+    gimak_database_name: str = "gimak_pcp"
+    gimak_auth_secret: str = "gimak-development-only-change-me"
+    gimak_initial_admin_password: str = ""
+    gimak_auth_token_minutes: int = 720
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
 
     model_config = SettingsConfigDict(

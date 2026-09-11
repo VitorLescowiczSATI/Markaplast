@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -9,9 +11,14 @@ from app.db.session import Base, SessionLocal, engine
 from app import models  # noqa: F401
 from app.services.seed import seed_produtos
 from app.services.auth import seed_usuarios
+from app.gimak.api import router as gimak_router
+from app.gimak.auth import seed_gimak_admin
+from app.gimak.db import GimakSessionLocal, initialize_gimak_database
+from app.gimak import models as gimak_models  # noqa: F401
 
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.app_name)
 
@@ -36,6 +43,16 @@ def startup():
         seed_usuarios(db, settings.auth_initial_password)
     finally:
         db.close()
+    try:
+        if settings.environment == "production" and settings.gimak_auth_secret == "gimak-development-only-change-me":
+            raise RuntimeError("GIMAK_AUTH_SECRET precisa ser configurada em produção")
+        initialize_gimak_database()
+        with GimakSessionLocal() as gimak_db:
+            seed_gimak_admin(gimak_db, settings.gimak_initial_admin_password)
+    except Exception:
+        # A Gimak compartilha o processo, mas uma falha no segundo banco não deve
+        # impedir a Markaplast de iniciar.
+        logger.exception("Não foi possível inicializar o banco lógico da Gimak")
 
 
 @app.get("/health")
@@ -69,3 +86,4 @@ app.include_router(integracoes.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(fiscal.router, prefix="/api")
 app.include_router(historico.router, prefix="/api")
+app.include_router(gimak_router, prefix="/api")
