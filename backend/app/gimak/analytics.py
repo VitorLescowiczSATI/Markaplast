@@ -99,7 +99,8 @@ def _project_payloads(projects, tasks, now):
         grouped[task.projetoId].append(task)
     result = []
     for project in projects.values():
-        if not project.ativo:
+        # Projeto concluído ou desativado sai dos painéis de produção.
+        if not project.ativo or project.concluidoEm is not None:
             continue
         project_tasks = grouped[project.id]
         completed = sum(t.status == "done" for t in project_tasks)

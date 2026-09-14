@@ -32,6 +32,9 @@ class GimakProjeto(GimakBase):
     cliente: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
     equipamento: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    concluidoEm: Mapped[datetime | None] = mapped_column(
+        "concluido_em", DateTime(timezone=True), nullable=True, index=True
+    )
     createdAt: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), server_default=func.now())
     updatedAt: Mapped[datetime] = mapped_column(
         "updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -89,3 +92,31 @@ class GimakApontamento(GimakBase):
     createdAt: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), default=utc_now, nullable=False)
 
     tarefa: Mapped[GimakTarefa] = relationship(back_populates="historico")
+
+
+class GimakAtendimento(GimakBase):
+    """Assistência técnica ou instalação: trabalho feito fora da empresa, no cliente."""
+
+    __tablename__ = "atendimentos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tipo: Mapped[str] = mapped_column(String(30), nullable=False, default="Assistência técnica", index=True)
+    cliente: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    local: Mapped[str] = mapped_column(String(240), nullable=False, default="")
+    tecnico: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    data: Mapped[date] = mapped_column(Date, nullable=False, default=date.today, index=True)
+    horario: Mapped[str] = mapped_column(String(5), nullable=False, default="08:00")
+    descricao: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="agendado", index=True)
+    relatorio: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    concluidoEm: Mapped[datetime | None] = mapped_column("concluido_em", DateTime(timezone=True), nullable=True)
+    concluidoPorId: Mapped[int | None] = mapped_column(
+        "concluido_por_id", ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    createdById: Mapped[int | None] = mapped_column(
+        "created_by_id", ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    createdAt: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), server_default=func.now())
+    updatedAt: Mapped[datetime] = mapped_column(
+        "updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

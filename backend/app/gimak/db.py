@@ -1,6 +1,6 @@
 import re
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -53,9 +53,33 @@ def ensure_gimak_database_exists() -> None:
             connection.execute(text(f'CREATE DATABASE "{database_name}"'))
 
 
+# create_all cria tabela nova, mas nunca altera tabela que já existe. Colunas
+# acrescentadas depois do primeiro deploy entram por aqui, como o
+# ensure_runtime_migrations faz no banco da Markaplast.
+# O tipo muda por dialeto de propósito: em Postgres a coluna precisa guardar o
+# fuso, senão a data volta ingênua e a tela mostra a hora errada.
+COLUNAS_ACRESCENTADAS = (
+    ("projetos", "concluido_em", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+)
+
+
+def ensure_gimak_columns() -> None:
+    inspector = inspect(gimak_engine)
+    postgres = gimak_engine.dialect.name == "postgresql"
+    for table, column, pg_type, sqlite_type in COLUNAS_ACRESCENTADAS:
+        if not inspector.has_table(table):
+            continue
+        if column in {item["name"] for item in inspector.get_columns(table)}:
+            continue
+        tipo = pg_type if postgres else sqlite_type
+        with gimak_engine.begin() as connection:
+            connection.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {tipo}'))
+
+
 def initialize_gimak_database() -> None:
     ensure_gimak_database_exists()
     GimakBase.metadata.create_all(bind=gimak_engine)
+    ensure_gimak_columns()
 
 
 def get_gimak_db():
