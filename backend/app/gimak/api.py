@@ -118,6 +118,7 @@ def create_user(
         username=username,
         senhaHash=hash_senha(payload.senha),
         perfil=payload.perfil,
+        cargo=payload.cargo,
         ativo=True,
     )
     db.add(user)
@@ -129,6 +130,24 @@ def create_user(
     db.refresh(user)
     return user
 
+
+def _rename_responsible(db: Session, antigo: str, novo: str, user_id: int) -> None:
+    """Tarefa e atendimento guardam o nome, não o id. Corrigir o nome sem levar o
+    histórico junto deixaria os apontamentos antigos orfãos e fora do ranking.
+
+    Se outro usuário tiver o mesmo nome, não dá para saber de quem é cada registro,
+    então o histórico fica como está.
+    """
+    homonimo = db.scalar(
+        select(GimakUsuario).where(
+            func.lower(GimakUsuario.nome) == antigo.lower(), GimakUsuario.id != user_id
+        )
+    )
+    if homonimo:
+        return
+    for modelo, campo in ((GimakTarefa, GimakTarefa.responsavel), (GimakAtendimento, GimakAtendimento.tecnico)):
+        for registro in db.scalars(select(modelo).where(campo == antigo)).all():
+            setattr(registro, campo.key, novo)
 
 @router.patch("/usuarios/{user_id}", response_model=UsuarioRead)
 def update_user(
@@ -143,9 +162,12 @@ def update_user(
     data = payload.model_dump(exclude_unset=True)
     if user.id == admin.id and (data.get("ativo") is False or data.get("perfil", PERFIL_ADMIN) != PERFIL_ADMIN):
         raise HTTPException(status_code=400, detail="O administrador não pode remover o próprio acesso")
+    nome_antigo = user.nome
     for key, value in data.items():
         if value is not None:
             setattr(user, key, value.strip() if isinstance(value, str) else value)
+    if user.nome != nome_antigo:
+        _rename_responsible(db, nome_antigo, user.nome, user.id)
     db.commit()
     db.refresh(user)
     return user

@@ -209,3 +209,116 @@ def test_ensure_columns_acrescenta_coluna_em_tabela_antiga(monkeypatch):
     assert "concluido_em" in {c["name"] for c in inspect(engine).get_columns("projetos")}
     gimak_db.ensure_gimak_columns()  # idempotente
     engine.dispose()
+
+
+def test_administrador_edita_nome_cargo_e_perfil_do_usuario(client):
+    headers = token(client)
+    criado = client.post(
+        "/api/gimak/usuarios",
+        headers=headers,
+        json={"nome": "Tonico Ferreria", "username": "tonico", "senha": "Senha@1234", "perfil": "Fábrica"},
+    ).json()
+    assert criado["cargo"] == ""
+
+    corrigido = client.patch(
+        f"/api/gimak/usuarios/{criado['id']}",
+        headers=headers,
+        json={"nome": "Tonico Ferreira", "cargo": "Montador"},
+    )
+    assert corrigido.status_code == 200
+    assert corrigido.json()["nome"] == "Tonico Ferreira"
+    assert corrigido.json()["cargo"] == "Montador"
+    assert corrigido.json()["perfil"] == "Fábrica"
+
+    promovido = client.patch(
+        f"/api/gimak/usuarios/{criado['id']}", headers=headers, json={"perfil": "PCP"}
+    ).json()
+    assert promovido["perfil"] == "PCP"
+    assert promovido["cargo"] == "Montador"
+
+    limpo = client.patch(
+        f"/api/gimak/usuarios/{criado['id']}", headers=headers, json={"cargo": ""}
+    ).json()
+    assert limpo["cargo"] == ""
+
+    fabrica = novo_usuario(client, headers, "Diego Martins", "diego", "Fábrica")
+    assert client.patch(
+        f"/api/gimak/usuarios/{criado['id']}", headers=fabrica, json={"nome": "Outro"}
+    ).status_code == 403
+
+
+def test_ensure_columns_acrescenta_cargo_em_usuarios_antigos(monkeypatch):
+    from app.gimak import db as gimak_db
+
+    engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE usuarios (id INTEGER PRIMARY KEY, nome TEXT)"))
+        connection.execute(text("INSERT INTO usuarios (id, nome) VALUES (1, 'Antigo')"))
+    monkeypatch.setattr(gimak_db, "gimak_engine", engine)
+
+    gimak_db.ensure_gimak_columns()
+    colunas = {c["name"] for c in inspect(engine).get_columns("usuarios")}
+    assert "cargo" in colunas
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT cargo FROM usuarios WHERE id = 1")).scalar() == ""
+    engine.dispose()
+
+
+def test_corrigir_o_nome_leva_tarefa_e_atendimento_junto(client):
+    headers = token(client)
+    pessoa = client.post(
+        "/api/gimak/usuarios",
+        headers=headers,
+        json={"nome": "Juliana Prad", "username": "juliana", "senha": "Senha@1234", "perfil": "Fábrica"},
+    ).json()
+    hoje = date.today().isoformat()
+    tarefa = client.post(
+        "/api/gimak/tarefas",
+        headers=headers,
+        json={"titulo": "Corte de chapas", "responsavel": "Juliana Prad", "dataPlanejada": hoje, "horario": "08:00"},
+    ).json()
+    servico = client.post(
+        "/api/gimak/atendimentos",
+        headers=headers,
+        json={"cliente": "Vale", "tecnico": "Juliana Prad", "data": hoje, "horario": "09:00"},
+    ).json()
+    alheia = client.post(
+        "/api/gimak/tarefas",
+        headers=headers,
+        json={"titulo": "Solda", "responsavel": "Diego Martins", "dataPlanejada": hoje, "horario": "10:00"},
+    ).json()
+
+    client.patch(f"/api/gimak/usuarios/{pessoa['id']}", headers=headers, json={"nome": "Juliana Prado"})
+
+    tarefas = {item["id"]: item["responsavel"] for item in client.get("/api/gimak/tarefas", headers=headers).json()}
+    assert tarefas[tarefa["id"]] == "Juliana Prado"
+    assert tarefas[alheia["id"]] == "Diego Martins"
+    servicos = {item["id"]: item["tecnico"] for item in client.get("/api/gimak/atendimentos", headers=headers).json()}
+    assert servicos[servico["id"]] == "Juliana Prado"
+
+
+def test_homonimo_trava_o_rename_em_cascata(client):
+    headers = token(client)
+    primeira = client.post(
+        "/api/gimak/usuarios",
+        headers=headers,
+        json={"nome": "Ana Souza", "username": "ana1", "senha": "Senha@1234", "perfil": "Fábrica"},
+    ).json()
+    client.post(
+        "/api/gimak/usuarios",
+        headers=headers,
+        json={"nome": "Ana Souza", "username": "ana2", "senha": "Senha@1234", "perfil": "Fábrica"},
+    )
+    hoje = date.today().isoformat()
+    tarefa = client.post(
+        "/api/gimak/tarefas",
+        headers=headers,
+        json={"titulo": "Pintura", "responsavel": "Ana Souza", "dataPlanejada": hoje, "horario": "08:00"},
+    ).json()
+
+    client.patch(f"/api/gimak/usuarios/{primeira['id']}", headers=headers, json={"nome": "Ana Souza Lima"})
+
+    tarefas = {item["id"]: item["responsavel"] for item in client.get("/api/gimak/tarefas", headers=headers).json()}
+    assert tarefas[tarefa["id"]] == "Ana Souza"

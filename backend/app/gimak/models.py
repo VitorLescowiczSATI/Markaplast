@@ -18,6 +18,7 @@ class GimakUsuario(GimakBase):
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
     senhaHash: Mapped[str] = mapped_column("senha_hash", String(255), nullable=False)
     perfil: Mapped[str] = mapped_column(String(40), nullable=False, default="Fábrica", index=True)
+    cargo: Mapped[str] = mapped_column(String(80), nullable=False, default="")
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     createdAt: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), server_default=func.now())
     updatedAt: Mapped[datetime] = mapped_column(

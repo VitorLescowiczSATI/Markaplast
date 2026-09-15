@@ -21,6 +21,7 @@ class UsuarioRead(BaseModel):
     nome: str
     username: str
     perfil: str
+    cargo: str = ""
     ativo: bool
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,8 +37,9 @@ class UsuarioCreate(BaseModel):
     username: str = Field(min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9._-]+$")
     senha: str = Field(min_length=8, max_length=200)
     perfil: GimakPerfil = "Fábrica"
+    cargo: str = Field(default="", max_length=80)
 
-    @field_validator("nome", "username", mode="before")
+    @field_validator("nome", "username", "cargo", mode="before")
     @classmethod
     def clean_text(cls, value: str) -> str:
         return value.strip()
@@ -46,6 +48,7 @@ class UsuarioCreate(BaseModel):
 class UsuarioUpdate(BaseModel):
     nome: str | None = Field(default=None, min_length=2, max_length=120)
     perfil: GimakPerfil | None = None
+    cargo: str | None = Field(default=None, max_length=80)
     ativo: bool | None = None
 
 

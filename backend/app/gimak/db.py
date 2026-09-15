@@ -60,6 +60,7 @@ def ensure_gimak_database_exists() -> None:
 # fuso, senão a data volta ingênua e a tela mostra a hora errada.
 COLUNAS_ACRESCENTADAS = (
     ("projetos", "concluido_em", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+    ("usuarios", "cargo", "VARCHAR(80) NOT NULL DEFAULT ''", "VARCHAR(80) NOT NULL DEFAULT ''"),
 )
 
 

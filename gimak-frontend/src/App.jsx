@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BriefcaseBusiness,
   BarChart3,
+  CalendarDays,
   CheckCircle2,
   Clock3,
   Expand,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { api } from "./api";
+import { Calendar } from "./Calendar";
 import { AdminIndicators, FactoryTV } from "./ProductionViews";
 
 const STATUS_LABELS = {
@@ -149,6 +151,7 @@ function Header({ page, setPage, user, onLogout, onNewProject, onNewTask, canMan
   }, []);
   const tabs = [
     ["board", "Painel da fábrica", Factory],
+    ["calendar", "Calendário", CalendarDays],
     ["projects", "Projetos", BriefcaseBusiness],
     ["services", "Assistências", Wrench],
     ["tv", "Modo TV", Monitor],
@@ -257,18 +260,34 @@ function Projects({ projects, tasks, now, onOpen, onNew, canManage }) {
   );
 }
 
-function UsersPage({ users, onCreate, onToggle, onReset }) {
-  const [form, setForm] = useState({ nome: "", username: "", senha: "", perfil: "Fábrica" });
+const PERFIS = ["Fábrica", "PCP", "Administrador", "TV"];
+
+function UserEditModal({ user, onClose, onSave }) {
+  const [form, setForm] = useState({ nome: user.nome, cargo: user.cargo || "", perfil: user.perfil });
+  const mudou = form.nome !== user.nome || form.cargo !== (user.cargo || "") || form.perfil !== user.perfil;
+  return <Modal onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave(user, form); }}>
+    <div className="modal-head"><div><span className="op">@{user.username}</span><h2>Editar usuário</h2></div><button type="button" className="close" onClick={onClose}><X /></button></div>
+    <label>Nome completo<input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required minLength={2} autoFocus /></label>
+    <label>Cargo ou função<input value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} placeholder="Ex.: Montador, Assistente técnico" /></label>
+    <label>Perfil<select value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>{PERFIS.map((item) => <option key={item}>{item}</option>)}</select></label>
+    <p className="field-note">O nome aparece na lista de responsável das tarefas. O usuário <b>@{user.username}</b> não muda, é com ele que a pessoa entra no sistema.</p>
+    <div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary" disabled={!mudou}>Salvar alterações</button></div>
+  </form></Modal>;
+}
+
+function UsersPage({ users, onCreate, onToggle, onReset, onEdit }) {
+  const vazio = { nome: "", username: "", senha: "", perfil: "Fábrica", cargo: "" };
+  const [form, setForm] = useState(vazio);
   async function submit(event) {
     event.preventDefault();
-    if (await onCreate(form)) setForm({ nome: "", username: "", senha: "", perfil: "Fábrica" });
+    if (await onCreate(form)) setForm(vazio);
   }
   return (
     <main className="page users-page">
       <section className="intro"><div><p className="eyebrow">ADMINISTRAÇÃO</p><h1>Usuários da Gimak</h1><p>Crie acessos próprios para o PCP e para os colaboradores da fábrica.</p></div></section>
       <div className="users-layout">
-        <form className="panel user-form" onSubmit={submit}><div className="panel-title"><UserRoundCog size={20} /><div><h2>Novo acesso</h2><p>O usuário receberá apenas permissões da Gimak.</p></div></div><label>Nome completo<input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required /></label><label>Usuário<input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required /></label><label>Senha inicial<input type="password" minLength="8" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} required /></label><label>Perfil<select value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}><option>Fábrica</option><option>PCP</option><option>Administrador</option></select></label><button className="primary wide"><Plus size={17} /> Criar usuário</button></form>
-        <section className="panel user-list"><div className="panel-title"><Users size={20} /><div><h2>Acessos cadastrados</h2><p>{users.filter((item) => item.ativo).length} usuários ativos</p></div></div>{users.map((item) => <article className="user-row" key={item.id}><span className="avatar large">{initials(item.nome)}</span><span className="user-info"><b>{item.nome}</b><small>@{item.username} · {item.perfil}</small></span><span className={`status-pill ${item.ativo ? "active" : ""}`}>{item.ativo ? "Ativo" : "Inativo"}</span><button className="link-button" onClick={() => onReset(item)}>Redefinir senha</button><button className="link-button" onClick={() => onToggle(item)}>{item.ativo ? "Desativar" : "Ativar"}</button></article>)}</section>
+        <form className="panel user-form" onSubmit={submit}><div className="panel-title"><UserRoundCog size={20} /><div><h2>Novo acesso</h2><p>O usuário receberá apenas permissões da Gimak.</p></div></div><label>Nome completo<input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required /></label><label>Usuário<input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required /></label><label>Cargo ou função<input value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} placeholder="Opcional" /></label><label>Senha inicial<input type="password" minLength="8" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} required /></label><label>Perfil<select value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>{PERFIS.map((item) => <option key={item}>{item}</option>)}</select></label><button className="primary wide"><Plus size={17} /> Criar usuário</button></form>
+        <section className="panel user-list"><div className="panel-title"><Users size={20} /><div><h2>Acessos cadastrados</h2><p>{users.filter((item) => item.ativo).length} usuários ativos</p></div></div>{users.map((item) => <article className="user-row" key={item.id}><span className="avatar large">{initials(item.nome)}</span><span className="user-info"><b>{item.nome}</b><small>@{item.username} · {item.cargo ? `${item.cargo} · ` : ""}{item.perfil}</small></span><span className={`status-pill ${item.ativo ? "active" : ""}`}>{item.ativo ? "Ativo" : "Inativo"}</span><button className="link-button" onClick={() => onEdit(item)}>Editar</button><button className="link-button" onClick={() => onReset(item)}>Redefinir senha</button><button className="link-button" onClick={() => onToggle(item)}>{item.ativo ? "Desativar" : "Ativar"}</button></article>)}</section>
       </div>
     </main>
   );
@@ -553,8 +572,10 @@ export default function App() {
     {page === "indicators" && user.perfil === "Administrador" && <AdminIndicators />}
     {page === "board" && <Board tasks={tasks} projects={projects} users={users} now={now} onOpen={(task) => setModal({ type: "task", data: task })} onRefresh={() => load()} refreshing={refreshing} />}
     {page === "projects" && <Projects projects={projects} tasks={tasks} now={now} canManage={canManage} onOpen={(project) => setModal({ type: "project", data: project })} onNew={() => setModal({ type: "new-project" })} />}
+    {page === "calendar" && <Calendar tasks={tasks} services={services} users={users} onOpenTask={(task) => setModal({ type: "task", data: task })} onOpenService={(service) => setModal({ type: "service", data: service })} />}
     {page === "services" && <Services services={services} users={users} now={now} canManage={canManage} onOpen={(service) => setModal({ type: "service", data: service })} onNew={() => setModal({ type: "new-service" })} />}
-    {page === "users" && user.perfil === "Administrador" && <UsersPage users={users} onCreate={(payload) => action(() => api.createUser(payload), "Usuário criado") } onToggle={(item) => action(() => api.updateUser(item.id, { ativo: !item.ativo }), item.ativo ? "Usuário desativado" : "Usuário ativado")} onReset={(item) => { const password = window.prompt(`Nova senha para ${item.nome} (mínimo 8 caracteres):`); if (password) action(() => api.resetPassword(item.id, password), "Senha atualizada"); }} />}
+    {page === "users" && user.perfil === "Administrador" && <UsersPage users={users} onCreate={(payload) => action(() => api.createUser(payload), "Usuário criado") } onToggle={(item) => action(() => api.updateUser(item.id, { ativo: !item.ativo }), item.ativo ? "Usuário desativado" : "Usuário ativado")} onReset={(item) => { const password = window.prompt(`Nova senha para ${item.nome} (mínimo 8 caracteres):`); if (password) action(() => api.resetPassword(item.id, password), "Senha atualizada"); }} onEdit={(item) => setModal({ type: "edit-user", data: item })} />}
+    {modal?.type === "edit-user" && <UserEditModal user={users.find((item) => item.id === modal.data.id) || modal.data} onClose={() => setModal(null)} onSave={(item, payload) => action(() => api.updateUser(item.id, payload), "Usuário atualizado")} />}
     {modal?.type === "task" && <TaskModal task={tasks.find((item) => item.id === modal.data.id) || modal.data} projects={projects} users={users} now={now} canManage={canManage} canDelete={isAdmin} onClose={() => setModal(null)} onStatus={(id, status, reason) => action(() => api.updateTaskStatus(id, status, reason), `Situação atualizada: ${STATUS_LABELS[status]}`)} onAssign={(id, projectId) => action(() => api.updateTask(id, { projetoId: projectId ? Number(projectId) : null }), "Projeto vinculado")} onDelete={(item) => action(() => api.deleteTask(item.id), "Atividade excluída")} />}
     {modal?.type === "new-task" && <TaskForm projects={projects} users={users} onClose={() => setModal(null)} onSave={(payload) => action(() => api.createTask(payload), "Nova tarefa criada")} />}
     {modal?.type === "new-project" && <ProjectForm onClose={() => setModal(null)} onSave={(payload) => action(() => api.createProject(payload), "Projeto criado")} />}
