@@ -52,7 +52,7 @@ export const api = {
   listPedidos: () => request("/api/pedidos"),
   createPedido: (payload) => request("/api/pedidos", { method: "POST", body: JSON.stringify(payload) }),
   updatePedido: (id, payload) => request(`/api/pedidos/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
-  updateStatus: (id, status) => request(`/api/pedidos/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  updateStatus: (id, status, numeroNota) => request(`/api/pedidos/${id}/status`, { method: "PATCH", body: JSON.stringify({ status, numeroNota }) }),
   updateFinanceiro: (id, statusFinanceiro) =>
     request(`/api/pedidos/${id}/financeiro`, { method: "PATCH", body: JSON.stringify({ statusFinanceiro }) }),
   deletePedido: (id) => request(`/api/pedidos/${id}`, { method: "DELETE" }),

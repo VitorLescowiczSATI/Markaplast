@@ -20,6 +20,7 @@ class Pedido(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     data: Mapped[date] = mapped_column(Date, default=hoje_brasil, nullable=False)
     dataEmissao: Mapped[date | None] = mapped_column("data_emissao", Date, nullable=True)
+    numeroNota: Mapped[str] = mapped_column("numero_nota", String(40), default="", nullable=False)
     cliente: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
     cnpj: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     cep: Mapped[str] = mapped_column(String(16), default="", nullable=False)

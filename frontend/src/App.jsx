@@ -25,6 +25,7 @@ import {
 
 import { Badge, Button, Card, EmptyState, Field, IconButton, Input, SelectBox, StatCard, TextArea } from "./components/ui.jsx";
 import { ClientesLayout, EstoqueLayout, FiscalLayout, InteligenciaLayout } from "./components/ValueModules.jsx";
+import { EditarQuantidades, HistoricoVendedores } from "./components/FluxoPedidos.jsx";
 import { api } from "./lib/api.js";
 import {
   cores,
@@ -44,6 +45,7 @@ import {
   camposFaltandoPedido,
   currency,
   filtrarPedidos,
+  filtrarCargasFaturamento,
   financeiroColor,
   itensPedido,
   normalizarOpcao,
@@ -414,6 +416,7 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
               {pedido.cep ? ` - CEP ${pedido.cep}` : ""} {pedido.uf ? `- ${pedido.uf}` : ""}
             </p>
           )}
+          {pedido.numeroNota && <p className="text-sm font-semibold">Nota fiscal: {pedido.numeroNota}</p>}
           <div className="space-y-1 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
             {itens.map((item, indice) => (
               <div key={item.id || `${item.produto}-${item.cor}-${indice}`} className="flex flex-wrap items-start justify-between gap-2">
@@ -426,7 +429,9 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
                   <strong className="block">{item.quantidade} un</strong>
                   {layout === "faturamento" && (
                     <span className="block whitespace-nowrap text-xs font-semibold text-teal-700">
-                      {currency(valorUnitarioItem(item))}/un
+                      Frasco: {currency(item.valor)}/un · {currency(Number(item.valor || 0) * item.quantidade)}<br />
+                      Tampa: {currency(item.valorTampa)}/un · {currency(Number(item.valorTampa || 0) * item.quantidade)}<br />
+                      Total do item: {currency(valorUnitarioItem(item) * item.quantidade)}
                     </span>
                   )}
                 </span>
@@ -1141,6 +1146,7 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
               </div>
             )}
 
+            <EditarQuantidades pedido={pedido} atualizarPedido={atualizarPedido} />
             <Button onClick={() => setAberto((valor) => !valor)} className="w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
               {aberto ? "Fechar detalhes PCP" : temDetalhePcp ? "Editar detalhes PCP" : "Adicionar detalhes PCP"}
             </Button>
@@ -1235,21 +1241,36 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
   );
 }
 
-function CargasMontadas({ cargas, statusLabel, excluirPedido, excluirCarga }) {
+function CargasMontadas({ cargas, excluirPedido, excluirCarga, atualizarPedido }) {
+  const [statusFiltro, setStatusFiltro] = useState("Pendentes");
+  const cargasVisiveis = filtrarCargasFaturamento(cargas, statusFiltro);
   return (
     <Card className="p-5">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-xl font-bold">Cargas montadas</h3>
           <p className="text-sm text-slate-500">Agrupamento de pedidos por região.</p>
         </div>
-        <Badge className="border-green-200 bg-green-50 text-green-800">{cargas.length} cargas</Badge>
+        <div className="flex items-center gap-2">
+          <SelectBox
+            aria-label="Filtrar por etapa de faturamento"
+            className="w-56"
+            value={statusFiltro}
+            onChange={setStatusFiltro}
+          >
+            <option value="Pendentes">Pendentes de faturamento</option>
+            <option value="Nota emitida">Nota emitida</option>
+          </SelectBox>
+          <Badge className="border-green-200 bg-green-50 text-green-800">{cargasVisiveis.length} cargas</Badge>
+        </div>
       </div>
       <div className="space-y-4">
-        {cargas.length === 0 && <EmptyState>Nenhuma carga montada.</EmptyState>}
-        {cargas.map((carga) => {
+        {cargasVisiveis.length === 0 && (
+          <EmptyState>{statusFiltro === "Nota emitida" ? "Nenhuma carga com nota emitida." : "Nenhuma carga montada."}</EmptyState>
+        )}
+        {cargasVisiveis.map((carga) => {
           const valorCarga = carga.pedidos.reduce((acc, pedido) => acc + valorTotalPedido(pedido), 0);
-          const statusDaCarga = statusLabel || carga.statusDestino;
+          const statusDaCarga = carga.statusDestino;
           return (
             <article key={carga.id} className="rounded-lg border border-slate-200 bg-white p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -1276,29 +1297,33 @@ function CargasMontadas({ cargas, statusLabel, excluirPedido, excluirCarga }) {
                   <p className="font-bold">{carga.placa || "Não informado"}</p>
                 </div>
                 <div className="rounded-lg bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Valor da carga</p>
+                  <p className="text-xs text-slate-500">Valor dos pedidos exibidos</p>
                   <p className="font-bold">{currency(valorCarga)}</p>
                 </div>
               </div>
               <div className="space-y-2">
                 {carga.pedidos.map((pedido) => (
-                  <div key={pedido.id} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="font-semibold">
-                        Pedido #{pedido.id} - {pedido.cliente}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        {pedido.cidade} - {quantidadeTotalPedido(pedido)} un
-                      </p>
+                  <div key={pedido.id} className="rounded-lg border border-slate-200 p-3">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="font-semibold">
+                          Pedido #{pedido.id} - {pedido.cliente}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          {pedido.cidade} - {quantidadeTotalPedido(pedido)} un
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {pedido.numeroNota && <span className="text-sm text-slate-600">NF {pedido.numeroNota}</span>}
+                        <Badge className={statusColor(pedido.status || statusDaCarga)}>{pedido.status || statusDaCarga}</Badge>
+                        {excluirPedido && pedido.status !== "Cancelado" && (
+                          <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
+                            <Trash2 size={15} />
+                          </IconButton>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Badge className={statusColor(statusDaCarga || pedido.status)}>{statusDaCarga || pedido.status}</Badge>
-                      {excluirPedido && pedido.status !== "Cancelado" && (
-                        <IconButton label="Cancelar pedido" onClick={() => excluirPedido(pedido.id)}>
-                          <Trash2 size={15} />
-                        </IconButton>
-                      )}
-                    </div>
+                    <EditarQuantidades pedido={pedido} atualizarPedido={atualizarPedido} />
                   </div>
                 ))}
               </div>
@@ -1313,7 +1338,7 @@ function CargasMontadas({ cargas, statusLabel, excluirPedido, excluirCarga }) {
 function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
-  const pedidosFaturamento = useMemo(() => filtrarPedidos(pedidos, busca, statusFiltro, "Todos", "Faturamento"), [pedidos, busca, statusFiltro]);
+  const pedidosFaturamento = useMemo(() => filtrarPedidos(pedidos.filter((p) => statusFiltro === "Nota emitida" || p.status !== "Nota emitida"), busca, statusFiltro, "Todos", "Faturamento"), [pedidos, busca, statusFiltro]);
   const pedidosProntos = pedidos.filter((pedido) => ["Pronto para retirada", "Pronto para o envio"].includes(pedido.status));
   const notasEmitidas = pedidos.filter((pedido) => pedido.status === "Nota emitida");
   const valorParaFaturar = pedidosProntos.reduce((acc, pedido) => acc + valorTotalPedido(pedido), 0);
@@ -1334,8 +1359,8 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-[260px_220px]">
             <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pedido, cliente ou produto" />
-            <SelectBox value={statusFiltro} onChange={setStatusFiltro}>
-              <option value="Todos">Todos</option>
+            <SelectBox aria-label="Filtrar por etapa de faturamento" value={statusFiltro} onChange={setStatusFiltro}>
+              <option value="Todos">Pendentes de faturamento</option>
               <option value="Pronto para retirada">Pronto para retirada</option>
               <option value="Pronto para o envio">Pronto para o envio</option>
               <option value="Nota emitida">Nota emitida</option>
@@ -1344,6 +1369,7 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
         </div>
       </Card>
 
+      <HistoricoVendedores pedidos={notasEmitidas} />
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {tiposEntrega.map((tipoEntrega) => {
           const items = pedidosFaturamento.filter((pedido) => pedido.tipoEntrega === tipoEntrega);
@@ -1377,7 +1403,7 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
       </section>
 
       <div className="space-y-4">
-        {pedidosFaturamento.length === 0 && <EmptyState>Nenhum pedido aguardando faturamento.</EmptyState>}
+        {pedidosFaturamento.length === 0 && <EmptyState>{statusFiltro === "Nota emitida" ? "Nenhuma nota emitida encontrada." : "Nenhum pedido aguardando faturamento."}</EmptyState>}
         {pedidosFaturamento.map((pedido) => (
           <PedidoCard
             key={pedido.id}
@@ -1534,7 +1560,7 @@ function FinanceiroLayout({ pedidos, atualizarFinanceiro, excluirPedido }) {
   );
 }
 
-function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluirPedido, excluirCarga, salvando }) {
+function LogisticaLayout({ pedidos, cargas, atualizarStatus, atualizarPedido, criarCarga, excluirPedido, excluirCarga, salvando }) {
   const [busca, setBusca] = useState("");
   const [regiaoCarga, setRegiaoCarga] = useState("");
   const [motoristaCarga, setMotoristaCarga] = useState("");
@@ -1600,6 +1626,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
           Frete: <strong>{pedido.tipoFrete || "não informado"}</strong>
           {pedido.tipoEntrega ? ` - ${pedido.tipoEntrega}` : ""}
         </p>
+        <EditarQuantidades pedido={pedido} atualizarPedido={atualizarPedido} />
         {isProntos &&
           (isCIF ? (
             <button
@@ -1690,7 +1717,7 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
 
         <CargasMontadas
           cargas={cargas}
-          statusLabel="Pronto para o envio"
+          atualizarPedido={atualizarPedido}
           excluirPedido={excluirPedido}
           excluirCarga={excluirCarga}
         />
@@ -1721,6 +1748,8 @@ function LogisticaLayout({ pedidos, cargas, atualizarStatus, criarCarga, excluir
 
 export default function App() {
   const [sessao, setSessao] = useState(null);
+  const [pedidoEmitindo, setPedidoEmitindo] = useState(null);
+  const [numeroNota, setNumeroNota] = useState("");
   const [moduloAtivo, setModuloAtivo] = useState("Inteligência");
   const [authLoading, setAuthLoading] = useState(true);
   const [pedidos, setPedidos] = useState([]);
@@ -1739,6 +1768,8 @@ export default function App() {
 
   function limparDados() {
     setPedidos([]);
+    setPedidoEmitindo(null);
+    setNumeroNota("");
     setCargas([]);
     setClientes([]);
     setProdutosCatalogo([]);
@@ -1863,10 +1894,26 @@ export default function App() {
   }
 
   async function atualizarStatus(id, status) {
+    if (status === "Nota emitida") {
+      setNumeroNota("");
+      setError("");
+      setPedidoEmitindo(id);
+      return;
+    }
     await runAction(async () => {
       await api.updateStatus(id, status);
       await loadData(false);
     });
+  }
+
+  async function confirmarEmissao(event) {
+    event.preventDefault();
+    if (!numeroNota.trim()) return;
+    const salvo = await runAction(async () => {
+      await api.updateStatus(pedidoEmitindo, "Nota emitida", numeroNota.trim());
+      await loadData(false);
+    });
+    if (salvo) setPedidoEmitindo(null);
   }
 
   async function atualizarPedido(id, payload) {
@@ -2000,6 +2047,19 @@ export default function App() {
         </div>
       </header>
 
+        {pedidoEmitindo !== null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+            <form onSubmit={confirmarEmissao} role="dialog" aria-modal="true" aria-labelledby="titulo-emissao" className="w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-xl">
+              <h2 id="titulo-emissao" className="text-xl font-bold">Nota emitida — pedido #{pedidoEmitindo}</h2>
+              <Field label="Número da nota fiscal"><Input autoFocus required maxLength={40} value={numeroNota} onChange={(e) => setNumeroNota(e.target.value)} /></Field>
+              {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+              <div className="flex justify-end gap-3">
+                <Button type="button" disabled={salvando} onClick={() => setPedidoEmitindo(null)}>Cancelar</Button>
+                <Button type="submit" disabled={salvando || !numeroNota.trim()} className="bg-teal-700 text-white">Confirmar emissão</Button>
+              </div>
+            </form>
+          </div>
+        )}
       <main className="mx-auto max-w-7xl p-4 md:p-6">
         {perfil === PERFIL_ADMIN && (
           <nav className="mb-5 rounded-xl border border-teal-100 bg-white p-3 shadow-sm" aria-label="Áreas administrativas">
@@ -2109,6 +2169,7 @@ export default function App() {
             pedidos={pedidos}
             cargas={cargas}
             atualizarStatus={atualizarStatus}
+            atualizarPedido={atualizarPedido}
             criarCarga={criarCarga}
             excluirPedido={excluirPedido}
             excluirCarga={excluirCarga}

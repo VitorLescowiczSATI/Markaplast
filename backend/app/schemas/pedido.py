@@ -91,6 +91,7 @@ class PedidoUpdate(BaseModel):
 
 class PedidoStatusUpdate(BaseModel):
     status: str
+    numeroNota: str | None = Field(default=None, max_length=40)
 
 
 class PedidoFinanceiroUpdate(BaseModel):
@@ -101,6 +102,7 @@ class PedidoRead(PedidoBase):
     id: int
     data: date
     dataEmissao: date | None = None
+    numeroNota: str = ""
     status: str
     statusFinanceiro: str
     createdAt: datetime

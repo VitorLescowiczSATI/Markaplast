@@ -16,6 +16,7 @@ def test_ensure_runtime_migrations_adds_pcp_columns_to_existing_pedidos_table():
 
     columns = {column["name"] for column in inspect(engine).get_columns("pedidos")}
     assert {
+        "numero_nota",
         "cep",
         "logradouro",
         "numero",

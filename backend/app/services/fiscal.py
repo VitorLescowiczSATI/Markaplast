@@ -71,6 +71,7 @@ def reverter_baixa_da_emissao(db: Session, pedido: Pedido) -> None:
     if not pedido.dataEmissao:
         return
     pedido.dataEmissao = None
+    pedido.numeroNota = ""
     estornar_baixa_do_pedido(db, pedido)
 
 

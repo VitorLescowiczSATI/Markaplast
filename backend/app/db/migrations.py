@@ -13,6 +13,7 @@ PEDIDOS_COLUMNS = {
     "pcp_quantidade_produzida": "INTEGER NOT NULL DEFAULT 0",
     "pcp_observacoes": "TEXT NOT NULL DEFAULT ''",
     "data_emissao": "DATE",
+    "numero_nota": "VARCHAR(40) NOT NULL DEFAULT ''",
 }
 
 

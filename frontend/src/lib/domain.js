@@ -183,9 +183,9 @@ export function podeVerPedidoPorPerfil(perfil, status) {
   if (perfil === "Financeiro") return status === "Nota emitida";
   if (perfil === "PCP") return ["Novo pedido", "Pago", "A produzir", "Em produção", "Prontos"].includes(status);
   if (perfil === "Faturamento") return ["Pronto para retirada", "Pronto para o envio", "Nota emitida"].includes(status);
-  if (perfil === "Logística") return ["Prontos", "Pronto para retirada", "Pronto para o envio"].includes(status);
+  if (perfil === "Logística") return ["Nota emitida", "Prontos", "Pronto para retirada", "Pronto para o envio"].includes(status);
   if (["PCP + Logística", "PCP/Logística"].includes(perfil)) {
-    return ["Novo pedido", "Pago", "A produzir", "Em produção", "Prontos", "Pronto para retirada", "Pronto para o envio"].includes(status);
+    return ["Nota emitida", "Novo pedido", "Pago", "A produzir", "Em produção", "Prontos", "Pronto para retirada", "Pronto para o envio"].includes(status);
   }
   return false;
 }
@@ -219,4 +219,14 @@ export function filtrarPedidos(pedidos, busca, statusFiltro, vendedorFiltro, per
     const matchFinanceiro = financeiroFiltro === "Todos" || p.statusFinanceiro === financeiroFiltro;
     return matchBusca && matchStatus && matchVendedor && matchPerfil && matchFinanceiro;
   });
+}
+
+// Keep pending orders from partially billed loads in the operational view.
+export function filtrarCargasFaturamento(cargas, filtro = "Pendentes") {
+  return cargas.map((carga) => ({
+    ...carga,
+    pedidos: carga.pedidos.filter((pedido) => filtro === "Nota emitida"
+      ? pedido.status === "Nota emitida"
+      : !["Nota emitida", "Cancelado", "Finalizado", "Enviado", "Separado para entrega"].includes(pedido.status)),
+  })).filter((carga) => carga.pedidos.length > 0);
 }

@@ -21,6 +21,11 @@ O mesmo deploy também hospeda o Gimak PCP como uma aplicação isolada em dados
 - Reserva automática de estoque de todos os itens quando um pedido é criado.
 - Baixa de estoque quando o pedido é finalizado.
 - Histórico de alterações por pedido.
+- Edição de quantidade do pedido pelo PCP e pela Logística, com reserva de estoque recalculada e registro de quem alterou.
+- Número da nota pedido na hora de marcar "Nota emitida", guardado no pedido e devolvido ao estornar.
+- Faturamento e cargas montadas escondem por padrão o que já foi faturado, com filtro "Nota emitida" para consultar.
+- Faturamento por vendedor: clique no nome e veja cliente, número da nota e valor de cada venda.
+- Valor de frasco e tampa separados no faturamento, além do total do pedido.
 - Dashboard de gestão com status, vendedores, produtos, estoque crítico e alertas.
 - Pré-NF-e com payload fiscal preparado para provedor externo.
 - Integração fiscal opcional com Focus NFe em homologação, bloqueada por padrão até configurar token.

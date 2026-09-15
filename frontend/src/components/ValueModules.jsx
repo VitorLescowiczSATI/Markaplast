@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BarChart3, CheckCircle2, FileText, PackagePlus, Pencil, Search, Tags, Target, Trash2, Users, X } from "lucide-react";
 
 import { Badge, Button, Card, EmptyState, Field, Input, SelectBox, StatCard, TextArea } from "./ui.jsx";
+import { HistoricoVendedores } from "./FluxoPedidos.jsx";
 import { api } from "../lib/api.js";
 import { vendedores } from "../lib/constants.js";
 import {
@@ -223,7 +224,14 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
               <h3 className="font-bold">Por vendedor</h3>
               {indicadoresComerciais.porVendedor.length === 0 && <EmptyState>Nenhuma venda válida neste mês.</EmptyState>}
               {indicadoresComerciais.porVendedor.slice(0, 8).map((item) => (
-                <HorizontalBar key={item.label} label={item.label} value={item.valor} max={vendedorMax} detail={currency(item.valor)} />
+                <div key={item.label}>
+                  <HorizontalBar label={item.label} value={item.valor} max={vendedorMax} detail={currency(item.valor)} />
+                  <HistoricoVendedores
+                    compacto
+                    vendedor={item.label}
+                    pedidos={pedidos.filter((pedido) => competenciaPedido(pedido) === competenciaIndicadores)}
+                  />
+                </div>
               ))}
             </div>
           </div>

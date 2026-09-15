@@ -145,7 +145,7 @@ def test_faturamento_exclui_nota_emitida_cancela_pedido_e_apaga_rascunho():
     assert preparada.status_code == 201, preparada.text
 
     faturamento = logar(client, "faturamento")
-    emitida = client.patch(f"/api/pedidos/{pedido_id}/status", headers=faturamento, json={"status": "Nota emitida"})
+    emitida = client.patch(f"/api/pedidos/{pedido_id}/status", headers=faturamento, json={"status": "Nota emitida", "numeroNota": "000123"})
     assert emitida.status_code == 200, emitida.text
 
     excluida = client.delete(f"/api/pedidos/{pedido_id}/nota", headers=faturamento)
@@ -186,7 +186,7 @@ def test_qualquer_usuario_cancela_pedido_faturado_pelo_endpoint_de_pedido():
     pedido_id = criar_pedido_faturado(client)
 
     faturamento = logar(client, "faturamento")
-    emitida = client.patch(f"/api/pedidos/{pedido_id}/status", headers=faturamento, json={"status": "Nota emitida"})
+    emitida = client.patch(f"/api/pedidos/{pedido_id}/status", headers=faturamento, json={"status": "Nota emitida", "numeroNota": "000123"})
     assert emitida.status_code == 200, emitida.text
 
     cancelado = client.delete(f"/api/pedidos/{pedido_id}", headers=faturamento)
@@ -328,7 +328,7 @@ def test_reverter_status_da_emissao_devolve_estoque():
     pedido_id = criar_pedido_faturado(client)
 
     faturamento = logar(client, "faturamento")
-    emitida = client.patch(f"/api/pedidos/{pedido_id}/status", headers=faturamento, json={"status": "Nota emitida"})
+    emitida = client.patch(f"/api/pedidos/{pedido_id}/status", headers=faturamento, json={"status": "Nota emitida", "numeroNota": "000123"})
     assert emitida.status_code == 200, emitida.text
 
     revertida = client.patch(f"/api/pedidos/{pedido_id}/status", headers=faturamento, json={"status": "Pronto para retirada"})

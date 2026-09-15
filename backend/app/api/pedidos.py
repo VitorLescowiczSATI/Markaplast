@@ -128,7 +128,7 @@ def atualizar_pedido(
     pedido_id: int,
     payload: PedidoUpdate,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(require_profiles("PCP")),
+    usuario: Usuario = Depends(require_profiles("PCP", "Logística")),
 ):
     pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == pedido_id))
     if not pedido:
@@ -137,6 +137,8 @@ def atualizar_pedido(
         raise HTTPException(status_code=403, detail="Seu perfil não pode alterar este pedido")
 
     dados = payload.model_dump(exclude_unset=True)
+    if dados.get("status") == "Nota emitida" and pedido.status != "Nota emitida":
+        raise HTTPException(status_code=400, detail="Informe o número da nota pelo fluxo de emissão.")
     quantidades_anteriores = quantidades_por_produto(pedido)
     status_anterior = pedido.status
 
@@ -175,7 +177,16 @@ def atualizar_pedido(
             reverter_baixa_da_emissao(db, pedido)
         elif pedido.status == STATUS_CANCELADO and status_anterior in STATUS_COM_RESERVA:
             liberar_reserva_do_pedido(db, pedido)
-    registrar_historico(db, pedido.id, "Edicao", observacao="Pedido atualizado.")
+    quantidades_atuais = quantidades_por_produto(pedido)
+    for produto in quantidades_anteriores.keys() | quantidades_atuais.keys():
+        anterior = quantidades_anteriores.get(produto, 0)
+        atual = quantidades_atuais.get(produto, 0)
+        if anterior != atual:
+            registrar_historico(
+                db, pedido.id, "Quantidade", str(anterior), str(atual),
+                usuario=usuario.username, observacao=f"Quantidade alterada: {produto}.",
+            )
+    registrar_historico(db, pedido.id, "Edicao", usuario=usuario.username, observacao="Pedido atualizado.")
     db.commit()
     db.refresh(pedido)
     return pedido
@@ -198,6 +209,12 @@ def atualizar_status(
     status_anterior = pedido.status
     if payload.status == status_anterior:
         return pedido
+    if payload.status == "Nota emitida":
+        numero_nota = (payload.numeroNota or "").strip()
+        if not numero_nota:
+            raise HTTPException(status_code=400, detail="Informe o número da nota fiscal.")
+        pedido.numeroNota = numero_nota
+        registrar_historico(db, pedido.id, "Número da nota", para_valor=numero_nota, usuario=usuario.username)
     pedido.status = payload.status
     registrar_historico(db, pedido.id, "Status", status_anterior, payload.status)
     if payload.status == "Nota emitida" and not pedido.dataEmissao:

@@ -69,6 +69,8 @@ def marcar_emitida(nota_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Nota fiscal nao encontrada")
     pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == nota.pedidoId))
     nota.status = "Emitida manualmente"
+    if pedido and nota.numero:
+        pedido.numeroNota = nota.numero
     if pedido and pedido.status != "Nota emitida":
         if not pode_transicionar_status(pedido.status, "Nota emitida"):
             raise HTTPException(status_code=400, detail=f"Pedido em etapa invalida para emissao: {pedido.status}")
