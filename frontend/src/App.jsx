@@ -46,6 +46,7 @@ import {
   currency,
   filtrarPedidos,
   filtrarCargasFaturamento,
+  FILTRO_CARGAS_OCULTAR,
   financeiroColor,
   itensPedido,
   normalizarOpcao,
@@ -1242,31 +1243,45 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
 }
 
 function CargasMontadas({ cargas, excluirPedido, excluirCarga, atualizarPedido }) {
-  const [statusFiltro, setStatusFiltro] = useState("Pendentes");
+  const [statusFiltro, setStatusFiltro] = useState(FILTRO_CARGAS_OCULTAR);
+  const oculto = statusFiltro === FILTRO_CARGAS_OCULTAR;
   const cargasVisiveis = filtrarCargasFaturamento(cargas, statusFiltro);
+  const totalCargas = oculto ? cargas.length : cargasVisiveis.length;
+  const rotuloCargas = totalCargas === 1 ? "1 carga" : `${totalCargas} cargas`;
   return (
     <Card className="p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-xl font-bold">Cargas montadas</h3>
-          <p className="text-sm text-slate-500">Agrupamento de pedidos por região.</p>
+          <p className="text-sm text-slate-500">A carga confirmada sai da lista. Use o filtro para consultar.</p>
         </div>
         <div className="flex items-center gap-2">
           <SelectBox
-            aria-label="Filtrar por etapa de faturamento"
+            aria-label="Filtrar cargas montadas"
             className="w-56"
             value={statusFiltro}
             onChange={setStatusFiltro}
           >
+            <option value={FILTRO_CARGAS_OCULTAR}>Ocultar montadas</option>
             <option value="Pendentes">Pendentes de faturamento</option>
             <option value="Nota emitida">Nota emitida</option>
           </SelectBox>
-          <Badge className="border-green-200 bg-green-50 text-green-800">{cargasVisiveis.length} cargas</Badge>
+          <Badge className="border-green-200 bg-green-50 text-green-800">
+            {oculto && totalCargas > 0 ? `${rotuloCargas} ${totalCargas === 1 ? "oculta" : "ocultas"}` : rotuloCargas}
+          </Badge>
         </div>
       </div>
       <div className="space-y-4">
         {cargasVisiveis.length === 0 && (
-          <EmptyState>{statusFiltro === "Nota emitida" ? "Nenhuma carga com nota emitida." : "Nenhuma carga montada."}</EmptyState>
+          <EmptyState>
+            {oculto
+              ? cargas.length === 0
+                ? "Nenhuma carga montada."
+                : "Cargas montadas ocultas. Escolha um filtro para ver."
+              : statusFiltro === "Nota emitida"
+                ? "Nenhuma carga com nota emitida."
+                : "Nenhuma carga pendente de faturamento."}
+          </EmptyState>
         )}
         {cargasVisiveis.map((carga) => {
           const valorCarga = carga.pedidos.reduce((acc, pedido) => acc + valorTotalPedido(pedido), 0);

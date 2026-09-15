@@ -23,7 +23,8 @@ O mesmo deploy também hospeda o Gimak PCP como uma aplicação isolada em dados
 - Histórico de alterações por pedido.
 - Edição de quantidade do pedido pelo PCP e pela Logística, com reserva de estoque recalculada e registro de quem alterou.
 - Número da nota pedido na hora de marcar "Nota emitida", guardado no pedido e devolvido ao estornar.
-- Faturamento e cargas montadas escondem por padrão o que já foi faturado, com filtro "Nota emitida" para consultar.
+- Faturamento esconde por padrão o que já foi faturado, com filtro "Nota emitida" para consultar.
+- Na Logística a carga sai da lista assim que é confirmada e montada; os filtros "Pendentes de faturamento" e "Nota emitida" trazem de volta.
 - Faturamento por vendedor: clique no nome e veja cliente, número da nota e valor de cada venda.
 - Valor de frasco e tampa separados no faturamento, além do total do pedido.
 - Dashboard de gestão com status, vendedores, produtos, estoque crítico e alertas.

@@ -221,12 +221,18 @@ export function filtrarPedidos(pedidos, busca, statusFiltro, vendedorFiltro, per
   });
 }
 
-// Keep pending orders from partially billed loads in the operational view.
-export function filtrarCargasFaturamento(cargas, filtro = "Pendentes") {
+// A carga montada sai da vista assim que e confirmada: so aparece por filtro.
+export const FILTRO_CARGAS_OCULTAR = "Ocultar";
+
+const STATUS_CARGA_FORA_DA_LOGISTICA = ["Nota emitida", "Cancelado", "Finalizado", "Enviado", "Separado para entrega"];
+
+// Mantém o pedido pendente de carga parcialmente faturada visível no filtro operacional.
+export function filtrarCargasFaturamento(cargas, filtro = FILTRO_CARGAS_OCULTAR) {
+  if (filtro === FILTRO_CARGAS_OCULTAR) return [];
   return cargas.map((carga) => ({
     ...carga,
     pedidos: carga.pedidos.filter((pedido) => filtro === "Nota emitida"
       ? pedido.status === "Nota emitida"
-      : !["Nota emitida", "Cancelado", "Finalizado", "Enviado", "Separado para entrega"].includes(pedido.status)),
+      : !STATUS_CARGA_FORA_DA_LOGISTICA.includes(pedido.status)),
   })).filter((carga) => carga.pedidos.length > 0);
 }
