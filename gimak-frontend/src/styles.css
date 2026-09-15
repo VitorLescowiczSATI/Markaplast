@@ -124,6 +124,32 @@ textarea { resize: vertical; min-height: 84px; }.login-card .primary { margin-to
 .report-label { display: block; margin: 0 0 12px; }
 .report-label textarea { margin-top: 0; min-height: 120px; }
 
+
+/* Historico do apontamento e pendentes dentro do projeto. */
+.history { list-style: none; margin: 0 0 4px; padding: 0; }
+.history li { position: relative; display: grid; grid-template-columns: 26px 1fr; gap: 11px; padding: 0 0 14px; }
+.history li > i { width: 11px; height: 11px; margin: 4px 0 0 7px; border-radius: 50%; background: #9ca9b9; }
+.history li.doing > i { background: var(--blue); }
+.history li.paused > i { background: #e2a51c; }
+.history li.blocked > i { background: var(--red); }
+.history li.done > i { background: var(--green); }
+.history li::before { content: ""; position: absolute; top: 19px; bottom: 0; left: 12px; width: 1px; background: var(--line); }
+.history li:last-child { padding-bottom: 0; }
+.history li:last-child::before { display: none; }
+.history b { display: block; font-size: .82rem; }
+.history small { display: block; margin-top: 3px; color: var(--muted); font-size: .71rem; }
+.history p { margin: 7px 0 0; padding: 8px 10px; background: #fff7e2; border-radius: 6px; color: #5b4a17; font-size: .74rem; line-height: 1.45; }
+.history-empty { margin: 0 0 4px; padding: 14px; color: var(--muted); background: var(--bg); border-radius: 8px; font-size: .77rem; }
+.timeline h3, .project-modal h3 { display: flex; align-items: center; gap: 9px; margin: 22px 0 4px; font-size: .95rem; }
+.project-modal h3 .count { min-width: 24px; padding: 3px 7px; text-align: center; border-radius: 12px; background: #edf0f2; color: var(--muted); font-style: normal; font-size: .7rem; font-weight: 800; }
+.timeline article.clickable { cursor: pointer; border-radius: 8px; transition: .12s; }
+.timeline article.clickable:hover { background: #f7f9fb; box-shadow: 0 0 0 8px #f7f9fb; }
+.timeline.pending article > i { background: #8a94a3; font-size: .62rem; }
+.timeline.pending article > i.doing { background: var(--blue); }
+.timeline.pending article > i.paused { background: #e2a51c; }
+.timeline.pending article > i.blocked { background: var(--red); }
+.timeline.pending article p { margin-top: 7px; padding: 7px 9px; background: #fff1f1; border-radius: 6px; color: #8d2929; font-size: .73rem; }
+
 @media (max-width: 1180px) {
   .board { grid-template-columns: repeat(2, 1fr); }.intro { align-items: flex-start; flex-direction: column; }.stats { width: 100%; }.stats div { flex: 1; }.project-grid, .service-grid { grid-template-columns: repeat(2, 1fr); }
 }

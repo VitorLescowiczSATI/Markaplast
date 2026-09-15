@@ -54,6 +54,13 @@ function weekStart() {
   return localIsoDate(now);
 }
 
+function weekEnd() {
+  const now = new Date();
+  const weekday = now.getDay() || 7;
+  now.setDate(now.getDate() + (7 - weekday));
+  return localIsoDate(now);
+}
+
 function elapsedSeconds(task, now = Date.now()) {
   const saved = Number(task.elapsedSeconds || 0);
   if (task.status !== "doing" || !task.startedAt) return saved;
@@ -187,7 +194,8 @@ function Board({ tasks, projects, users, now, onOpen, onRefresh, refreshing }) {
   const [period, setPeriod] = useState("today");
   const filtered = useMemo(() => tasks.filter((task) => {
     const personMatches = person === "all" || task.responsavel === person;
-    const dateMatches = period === "today" ? task.dataPlanejada === localIsoDate() : task.dataPlanejada >= weekStart() && task.dataPlanejada <= localIsoDate();
+    // A semana vai de segunda a domingo. Parar em hoje escondia o que estava planejado para amanhã.
+    const dateMatches = period === "today" ? task.dataPlanejada === localIsoDate() : task.dataPlanejada >= weekStart() && task.dataPlanejada <= weekEnd();
     return personMatches && dateMatches;
   }), [tasks, person, period]);
   const stats = {
@@ -266,7 +274,44 @@ function UsersPage({ users, onCreate, onToggle, onReset }) {
   );
 }
 
-function TaskModal({ task, projects, now, canManage, canDelete, onClose, onStatus, onAssign, onDelete }) {
+const HISTORY_LABELS = {
+  todo: "Voltou para a fila",
+  doing: "Iniciada",
+  paused: "Pausada",
+  blocked: "Marcada como não realizada",
+  done: "Concluída",
+};
+
+function historyLabel(entry) {
+  if (entry.statusNovo === "doing" && entry.statusAnterior === "paused") return "Retomada";
+  return HISTORY_LABELS[entry.statusNovo] || "Situação atualizada";
+}
+
+function TaskHistory({ historico = [], users = [] }) {
+  if (!historico.length) {
+    return <p className="history-empty">Nenhum apontamento ainda. O registro começa quando alguém inicia a atividade.</p>;
+  }
+  return (
+    <ol className="history">
+      {historico.map((entry) => {
+        const author = users.find((item) => item.id === entry.usuarioId);
+        const moment = new Date(entry.createdAt);
+        return (
+          <li key={entry.id} className={entry.statusNovo}>
+            <i />
+            <div>
+              <b>{historyLabel(entry)}</b>
+              <small>{author ? author.nome : "Usuário removido"} · {moment.toLocaleDateString("pt-BR")} às {moment.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</small>
+              {entry.motivo && <p>{entry.motivo}</p>}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function TaskModal({ task, projects, users, now, canManage, canDelete, onClose, onStatus, onAssign, onDelete }) {
   const [pending, setPending] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reason, setReason] = useState("");
@@ -275,7 +320,7 @@ function TaskModal({ task, projects, now, canManage, canDelete, onClose, onStatu
     if (["paused", "blocked"].includes(status)) setPending(status);
     else onStatus(task.id, status, "");
   }
-  return <Modal onClose={onClose}><div className="modal-head"><div><span className="op">{task.ordem}</span><h2>{task.titulo}</h2></div><button className="close" onClick={onClose}><X /></button></div><div className="task-summary"><span><small>Responsável</small><b>{task.responsavel}</b></span><span><small>Prazo</small><b>{new Date(`${task.dataPlanejada}T12:00:00`).toLocaleDateString("pt-BR")} às {task.horario}</b></span><span><small>Situação</small><b>{STATUS_LABELS[task.status]}</b></span></div><div className="dialog-timer"><span>Tempo da atividade</span><strong>{formatDuration(elapsedSeconds(task, now))}</strong></div><section className="observation"><small>OBSERVAÇÕES DA TAREFA</small><p>{task.observacao || "Nenhuma observação cadastrada."}</p></section>{canManage && <div className="project-shortcut"><label>Projeto vinculado<select value={projectId} onChange={(e) => setProjectId(e.target.value)}><option value="">Sem projeto</option>{projects.filter((item) => !item.concluidoEm || item.id === task.projetoId).map((item) => <option key={item.id} value={item.id}>{item.equipamento} — {item.cliente}</option>)}</select></label><button onClick={() => onAssign(task.id, projectId)}>Vincular</button></div>}<p className="action-title">Atualizar situação</p><div className="status-actions"><button className="start" onClick={() => choose("doing")}><PlayCircle /> {task.status === "paused" ? "Retomar" : "Iniciar"}</button><button className="pause" onClick={() => choose("paused")}><PauseCircle /> Pausar</button><button className="not-done" onClick={() => choose("blocked")}><XCircle /> Não realizado</button><button className="complete" onClick={() => choose("done")}><CheckCircle2 /> Concluir</button></div>{pending && <div className="reason-panel"><label>{pending === "paused" ? "Por que a atividade foi pausada?" : "Por que não foi realizada?"}<textarea value={reason} onChange={(e) => setReason(e.target.value)} autoFocus /></label><button className="primary wide" disabled={!reason.trim()} onClick={() => onStatus(task.id, pending, reason)}>Confirmar situação</button></div>}{canDelete && (confirmDelete
+  return <Modal onClose={onClose}><div className="modal-head"><div><span className="op">{task.ordem}</span><h2>{task.titulo}</h2></div><button className="close" onClick={onClose}><X /></button></div><div className="task-summary"><span><small>Responsável</small><b>{task.responsavel}</b></span><span><small>Prazo</small><b>{new Date(`${task.dataPlanejada}T12:00:00`).toLocaleDateString("pt-BR")} às {task.horario}</b></span><span><small>Situação</small><b>{STATUS_LABELS[task.status]}</b></span></div><div className="dialog-timer"><span>Tempo da atividade</span><strong>{formatDuration(elapsedSeconds(task, now))}</strong></div><section className="observation"><small>OBSERVAÇÕES DA TAREFA</small><p>{task.observacao || "Nenhuma observação cadastrada."}</p></section><p className="action-title">Histórico da atividade</p><TaskHistory historico={task.historico} users={users} />{canManage && <div className="project-shortcut"><label>Projeto vinculado<select value={projectId} onChange={(e) => setProjectId(e.target.value)}><option value="">Sem projeto</option>{projects.filter((item) => !item.concluidoEm || item.id === task.projetoId).map((item) => <option key={item.id} value={item.id}>{item.equipamento} — {item.cliente}</option>)}</select></label><button onClick={() => onAssign(task.id, projectId)}>Vincular</button></div>}<p className="action-title">Atualizar situação</p><div className="status-actions"><button className="start" onClick={() => choose("doing")}><PlayCircle /> {task.status === "paused" ? "Retomar" : "Iniciar"}</button><button className="pause" onClick={() => choose("paused")}><PauseCircle /> Pausar</button><button className="not-done" onClick={() => choose("blocked")}><XCircle /> Não realizado</button><button className="complete" onClick={() => choose("done")}><CheckCircle2 /> Concluir</button></div>{pending && <div className="reason-panel"><label>{pending === "paused" ? "Por que a atividade foi pausada?" : "Por que não foi realizada?"}<textarea value={reason} onChange={(e) => setReason(e.target.value)} autoFocus /></label><button className="primary wide" disabled={!reason.trim()} onClick={() => onStatus(task.id, pending, reason)}>Confirmar situação</button></div>}{canDelete && (confirmDelete
     ? <div className="danger-panel"><b>Excluir esta atividade?</b><p>O apontamento e o tempo registrado somem junto. Não dá para desfazer.</p><div><button className="secondary" onClick={() => setConfirmDelete(false)}>Cancelar</button><button className="danger" onClick={() => onDelete(task)}><Trash2 size={16} /> Excluir definitivamente</button></div></div>
     : <button className="link-danger" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> Excluir atividade</button>)}<div className="modal-actions"><button className="secondary" onClick={onClose}>Fechar</button></div></Modal>;
 }
@@ -293,13 +338,29 @@ function ProjectForm({ onClose, onSave }) {
   return <Modal onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave({ cliente, equipamento }); }}><div className="modal-head"><div><span className="op">NOVO PROJETO</span><h2>Cadastrar projeto</h2></div><button type="button" className="close" onClick={onClose}><X /></button></div><label>Cliente<input value={cliente} onChange={(e) => setCliente(e.target.value)} required autoFocus /></label><label>Equipamento<input value={equipamento} onChange={(e) => setEquipamento(e.target.value)} required placeholder="Ex.: Envolvedora GK2100" /></label><div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Criar projeto</button></div></form></Modal>;
 }
 
-function ProjectModal({ project, tasks, now, canManage, onClose, onToggleDone }) {
+function ProjectModal({ project, tasks, now, canManage, onClose, onToggleDone, onOpenTask }) {
   const projectTasks = tasks.filter((task) => task.projetoId === project.id);
   const done = projectTasks.filter((task) => task.status === "done").sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt));
+  const pending = projectTasks.filter((task) => task.status !== "done").sort((a, b) => a.dataPlanejada.localeCompare(b.dataPlanejada) || a.horario.localeCompare(b.horario));
   const percent = projectTasks.length ? Math.round(done.length / projectTasks.length * 100) : 0;
-  return <Modal onClose={onClose} className="project-modal"><div className="modal-head"><div><span className="op">PROJETO {String(project.id).padStart(4, "0")}</span><h2>{project.equipamento}</h2><p>{project.cliente}</p></div><button className="close" onClick={onClose}><X /></button></div><div className="project-progress"><span><b>{done.length} concluídas</b><b>{formatDuration(done.reduce((sum, task) => sum + elapsedSeconds(task, now), 0))} trabalhadas</b></span><span className="progress"><i style={{ width: `${percent}%` }} /></span></div><h3>Atividades realizadas</h3><div className="timeline">{done.map((task, index) => <article key={task.id}><i>{index + 1}</i><span><b>{task.titulo}</b><small>{task.responsavel} · {new Date(task.finishedAt).toLocaleString("pt-BR")}</small>{task.observacao && <p>{task.observacao}</p>}</span><strong>{formatDuration(elapsedSeconds(task, now))}</strong></article>)}{!done.length && <p className="empty">Ainda não há atividades concluídas.</p>}</div>{project.concluidoEm && <p className="project-closed-note"><CheckCircle2 size={15} /> Projeto encerrado em {new Date(project.concluidoEm).toLocaleString("pt-BR")}. Ele sai da lista de andamento e fica no filtro de concluídos.</p>}<div className="modal-actions">{canManage && (project.concluidoEm
-    ? <button className="secondary" onClick={() => onToggleDone(project, false)}>Reabrir projeto</button>
-    : <button className="conclude-project" onClick={() => onToggleDone(project, true)}><CheckCircle2 size={16} /> Concluir projeto</button>)}<button className="secondary" onClick={onClose}>Fechar</button></div></Modal>;
+  return <Modal onClose={onClose} className="project-modal">
+    <div className="modal-head"><div><span className="op">PROJETO {String(project.id).padStart(4, "0")}</span><h2>{project.equipamento}</h2><p>{project.cliente}</p></div><button className="close" onClick={onClose}><X /></button></div>
+    <div className="project-progress"><span><b>{done.length} de {projectTasks.length} concluídas</b><b>{formatDuration(done.reduce((sum, task) => sum + elapsedSeconds(task, now), 0))} trabalhadas</b></span><span className="progress"><i style={{ width: `${percent}%` }} /></span></div>
+    <h3>Ainda pendentes <i className="count">{pending.length}</i></h3>
+    <div className="timeline pending">
+      {pending.map((task) => <article key={task.id} className="clickable" onClick={() => onOpenTask(task)}><i className={task.status}>{task.status === "blocked" ? "!" : task.status === "paused" ? "II" : "•"}</i><span><b>{task.titulo}</b><small>{task.responsavel} · {STATUS_LABELS[task.status]} · prazo {new Date(`${task.dataPlanejada}T12:00:00`).toLocaleDateString("pt-BR")} às {task.horario}</small>{task.motivo && <p>{task.motivo}</p>}</span><strong>{formatDuration(elapsedSeconds(task, now))}</strong></article>)}
+      {!pending.length && <p className="empty">Nenhuma atividade pendente neste projeto.</p>}
+    </div>
+    <h3>Atividades realizadas <i className="count">{done.length}</i></h3>
+    <div className="timeline">
+      {done.map((task, index) => <article key={task.id} className="clickable" onClick={() => onOpenTask(task)}><i>{index + 1}</i><span><b>{task.titulo}</b><small>{task.responsavel} · {new Date(task.finishedAt).toLocaleString("pt-BR")}</small>{task.observacao && <p>{task.observacao}</p>}</span><strong>{formatDuration(elapsedSeconds(task, now))}</strong></article>)}
+      {!done.length && <p className="empty">Ainda não há atividades concluídas.</p>}
+    </div>
+    {project.concluidoEm && <p className="project-closed-note"><CheckCircle2 size={15} /> Projeto encerrado em {new Date(project.concluidoEm).toLocaleString("pt-BR")}. Ele sai da lista de andamento e fica no filtro de concluídos.</p>}
+    <div className="modal-actions">{canManage && (project.concluidoEm
+      ? <button className="secondary" onClick={() => onToggleDone(project, false)}>Reabrir projeto</button>
+      : <button className="conclude-project" onClick={() => onToggleDone(project, true)}><CheckCircle2 size={16} /> Concluir projeto</button>)}<button className="secondary" onClick={onClose}>Fechar</button></div>
+  </Modal>;
 }
 
 const SERVICE_TYPES = ["Assistência técnica", "Instalação"];
@@ -494,10 +555,10 @@ export default function App() {
     {page === "projects" && <Projects projects={projects} tasks={tasks} now={now} canManage={canManage} onOpen={(project) => setModal({ type: "project", data: project })} onNew={() => setModal({ type: "new-project" })} />}
     {page === "services" && <Services services={services} users={users} now={now} canManage={canManage} onOpen={(service) => setModal({ type: "service", data: service })} onNew={() => setModal({ type: "new-service" })} />}
     {page === "users" && user.perfil === "Administrador" && <UsersPage users={users} onCreate={(payload) => action(() => api.createUser(payload), "Usuário criado") } onToggle={(item) => action(() => api.updateUser(item.id, { ativo: !item.ativo }), item.ativo ? "Usuário desativado" : "Usuário ativado")} onReset={(item) => { const password = window.prompt(`Nova senha para ${item.nome} (mínimo 8 caracteres):`); if (password) action(() => api.resetPassword(item.id, password), "Senha atualizada"); }} />}
-    {modal?.type === "task" && <TaskModal task={tasks.find((item) => item.id === modal.data.id) || modal.data} projects={projects} now={now} canManage={canManage} canDelete={isAdmin} onClose={() => setModal(null)} onStatus={(id, status, reason) => action(() => api.updateTaskStatus(id, status, reason), `Situação atualizada: ${STATUS_LABELS[status]}`)} onAssign={(id, projectId) => action(() => api.updateTask(id, { projetoId: projectId ? Number(projectId) : null }), "Projeto vinculado")} onDelete={(item) => action(() => api.deleteTask(item.id), "Atividade excluída")} />}
+    {modal?.type === "task" && <TaskModal task={tasks.find((item) => item.id === modal.data.id) || modal.data} projects={projects} users={users} now={now} canManage={canManage} canDelete={isAdmin} onClose={() => setModal(null)} onStatus={(id, status, reason) => action(() => api.updateTaskStatus(id, status, reason), `Situação atualizada: ${STATUS_LABELS[status]}`)} onAssign={(id, projectId) => action(() => api.updateTask(id, { projetoId: projectId ? Number(projectId) : null }), "Projeto vinculado")} onDelete={(item) => action(() => api.deleteTask(item.id), "Atividade excluída")} />}
     {modal?.type === "new-task" && <TaskForm projects={projects} users={users} onClose={() => setModal(null)} onSave={(payload) => action(() => api.createTask(payload), "Nova tarefa criada")} />}
     {modal?.type === "new-project" && <ProjectForm onClose={() => setModal(null)} onSave={(payload) => action(() => api.createProject(payload), "Projeto criado")} />}
-    {modal?.type === "project" && <ProjectModal project={projects.find((item) => item.id === modal.data.id) || modal.data} tasks={tasks} now={now} canManage={canManage} onClose={() => setModal(null)} onToggleDone={(item, concluido) => action(() => api.updateProject(item.id, { concluido }), concluido ? "Projeto concluído" : "Projeto reaberto")} />}
+    {modal?.type === "project" && <ProjectModal project={projects.find((item) => item.id === modal.data.id) || modal.data} tasks={tasks} now={now} canManage={canManage} onClose={() => setModal(null)} onToggleDone={(item, concluido) => action(() => api.updateProject(item.id, { concluido }), concluido ? "Projeto concluído" : "Projeto reaberto")} onOpenTask={(task) => setModal({ type: "task", data: task })} />}
     {modal?.type === "service" && <ServiceModal service={services.find((item) => item.id === modal.data.id) || modal.data} users={users} canManage={canManage} canDelete={isAdmin} onClose={() => setModal(null)} onFinish={(item, relatorio) => action(() => api.finishService(item.id, relatorio), "Atendimento concluído")} onReopen={(item) => action(() => api.reopenService(item.id), "Atendimento reaberto")} onDelete={(item) => action(() => api.deleteService(item.id), "Atendimento excluído")} />}
     {modal?.type === "new-service" && <ServiceForm users={users} onClose={() => setModal(null)} onSave={(payload) => action(() => api.createService(payload), "Atendimento agendado")} />}
     {toast && <div className="toast">{toast}</div>}
