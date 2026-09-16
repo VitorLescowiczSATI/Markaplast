@@ -19,12 +19,25 @@ export const SERVICE_TYPES = ["Assistência técnica", "Instalação"];
 
 const SERVICE_STATES = {
   agendado: "Agendado",
-  em_rota: "A caminho do cliente",
+  em_rota: "Em atendimento",
   concluido: "Concluído",
 };
 
+/** Hora de sair. Registros do formato antigo caem no horário que existia antes. */
+export function serviceTime(service) {
+  return service.horarioSaida || service.horario || "08:00";
+}
+
 export function serviceDeadline(service) {
-  return new Date(`${service.data}T${service.horario}:00`);
+  return new Date(`${service.data}T${serviceTime(service)}:00`);
+}
+
+/** "16/09" quando é de um dia, "16/09 a 18/09" quando passa a noite fora. */
+function tripDates(service) {
+  const ida = dateLabel(service.data);
+  return service.dataVolta && service.dataVolta !== service.data
+    ? `${ida} a ${dateLabel(service.dataVolta)}`
+    : ida;
 }
 
 function initials(name = "") {
@@ -39,13 +52,16 @@ function momentLabel(value) {
   return new Date(value).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-/** Horário planejado de saída e de volta, quando o administrador preencheu. */
+/** Ida e volta planejadas, quando o administrador preencheu. */
 function PlannedTrip({ service, compact = false }) {
-  if (!service.horarioSaida && !service.horarioRetorno) return null;
+  const volta = service.dataVolta && service.dataVolta !== service.data;
+  if (!service.horarioSaida && !service.horarioRetorno && !volta) return null;
   return (
     <span className={`trip${compact ? " compact" : ""}`}>
       {service.horarioSaida && <span><LogOut size={12} /> Sai {service.horarioSaida}</span>}
-      {service.horarioRetorno && <span><Truck size={12} /> Volta {service.horarioRetorno}</span>}
+      {(service.horarioRetorno || volta) && (
+        <span><Truck size={12} /> Volta {volta ? dateLabel(service.dataVolta) : ""} {service.horarioRetorno}</span>
+      )}
     </span>
   );
 }
@@ -150,7 +166,7 @@ export function ServicesPage({ services, issues, now, canManage, canDelete, onOp
                     <span className={`service-type ${service.tipo === "Instalação" ? "install" : ""}`}>{service.tipo}</span>
                     <span className="service-state">
                       {service.status === "concluido" ? <><CheckCircle2 size={13} /> Concluído</>
-                        : service.status === "em_rota" ? <><Truck size={13} /> A caminho</>
+                        : service.status === "em_rota" ? <><Truck size={13} /> Em atendimento</>
                         : overdue ? <><Clock3 size={13} /> Vencido</>
                         : <><Clock3 size={13} /> Agendado</>}
                     </span>
@@ -160,7 +176,7 @@ export function ServicesPage({ services, issues, now, canManage, canDelete, onOp
                   <PlannedTrip service={service} compact />
                   <span className="service-meta">
                     <span><i className="avatar">{initials(service.tecnico)}</i>{service.tecnico}</span>
-                    <span className="service-when">{dateLabel(service.data)} às {service.horario}</span>
+                    <span className="service-when">{tripDates(service)}</span>
                   </span>
                   {pendentes > 0 && <span className="service-pending"><ClipboardList size={13} /> {pendentes} {pendentes === 1 ? "pendência aberta" : "pendências abertas"}</span>}
                   {service.status === "concluido"
@@ -219,13 +235,13 @@ export function ServiceForm({ service, users, onClose, onSave }) {
     local: service?.local || "",
     tecnico: service?.tecnico || "",
     data: service?.data || new Date().toISOString().slice(0, 10),
-    horario: service?.horario || "08:00",
+    dataVolta: service?.dataVolta || "",
     horarioSaida: service?.horarioSaida || "",
     horarioRetorno: service?.horarioRetorno || "",
     descricao: service?.descricao || "",
   }));
   function field(key, value) { setForm((current) => ({ ...current, [key]: value })); }
-  return <Modal onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave(form, service); }}>
+  return <Modal onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave({ ...form, dataVolta: form.dataVolta || null }, service); }}>
     <div className="modal-head">
       <div><span className="op">{editando ? "EDITAR" : "NOVO ATENDIMENTO"}</span><h2>Assistência ou instalação</h2></div>
       <button type="button" className="close" onClick={onClose}><X /></button>
@@ -237,14 +253,14 @@ export function ServiceForm({ service, users, onClose, onSave }) {
     <label>Cliente<input value={form.cliente} onChange={(e) => field("cliente", e.target.value)} required autoFocus placeholder="Ex.: Ambev Jaguariúna" /></label>
     <label>Endereço ou local<input value={form.local} onChange={(e) => field("local", e.target.value)} placeholder="Opcional" /></label>
     <div className="form-grid">
-      <label>Data<input type="date" value={form.data} onChange={(e) => field("data", e.target.value)} required /></label>
-      <label>Hora do atendimento<input type="time" value={form.horario} onChange={(e) => field("horario", e.target.value)} required /></label>
+      <label>Data de ida<input type="date" value={form.data} onChange={(e) => field("data", e.target.value)} required /></label>
+      <label>Sai da empresa<input type="time" value={form.horarioSaida} onChange={(e) => field("horarioSaida", e.target.value)} /></label>
     </div>
     <div className="form-grid">
-      <label>Sai da empresa<input type="time" value={form.horarioSaida} onChange={(e) => field("horarioSaida", e.target.value)} /></label>
+      <label>Data de volta<input type="date" value={form.dataVolta} min={form.data} onChange={(e) => field("dataVolta", e.target.value)} /></label>
       <label>Volta prevista<input type="time" value={form.horarioRetorno} onChange={(e) => field("horarioRetorno", e.target.value)} /></label>
     </div>
-    <p className="field-note">Saída e volta são opcionais. Servem para o técnico saber a que horas precisa deixar a empresa e para você planejar o resto do dia dele.</p>
+    <p className="field-note">Preencha a data de volta só quando a assistência passar de um dia. Os horários são opcionais e servem para o técnico saber quando sair e para você planejar o resto do dia dele.</p>
     <label>O que será feito<textarea value={form.descricao} onChange={(e) => field("descricao", e.target.value)} /></label>
     <div className="modal-actions">
       <button type="button" className="secondary" onClick={onClose}>Cancelar</button>
@@ -274,7 +290,7 @@ export function ServiceModal({ service, users, canManage, canDelete, onClose, on
 
     <div className="task-summary">
       <span><small>Técnico</small><b>{service.tecnico}</b></span>
-      <span><small>Data e hora</small><b>{dateLabel(service.data)} às {service.horario}</b></span>
+      <span><small>{service.dataVolta && service.dataVolta !== service.data ? "Ida e volta" : "Data"}</small><b>{tripDates(service)}</b></span>
       <span><small>Situação</small><b>{SERVICE_STATES[service.status]}</b></span>
     </div>
 

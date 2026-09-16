@@ -35,9 +35,9 @@
 .trip-plan small { color: #6b7d92; font-size: .7rem; }
 
 .service-pending { display: flex; align-items: center; gap: 6px; margin-top: 12px; padding: 7px 10px; color: #8a4f0d; background: #fdf1e1; border-radius: 7px; font-size: .71rem; font-weight: 700; }
-.service-card.em_rota { border-left-color: #7a4a10; }
-.service-card.em_rota .service-state { color: #8a4f0d; }
-.service-trip-note { display: flex; align-items: center; gap: 8px; margin-top: 13px; padding: 11px 13px; color: #7a4a10; background: #fdf1e1; border-radius: 8px; font-size: .78rem; }
+.service-card.em_rota { border-left-color: var(--green); }
+.service-card.em_rota .service-state { color: var(--green); font-weight: 800; }
+.service-trip-note { display: flex; align-items: center; gap: 8px; margin-top: 13px; padding: 11px 13px; color: #176d47; background: #e9f6ef; border-radius: 8px; font-size: .78rem; }
 .leave-button { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; margin-top: 15px; padding: 13px; color: white; background: #386a9f; border: 0; border-radius: 9px; font-size: .88rem; font-weight: 700; }
 .leave-button:hover { background: #2f5c8c; }
 

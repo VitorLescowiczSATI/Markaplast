@@ -351,6 +351,11 @@ def delete_task(
     db.commit()
 
 
+def _hora_de_saida():
+    """Ordena pela hora de sair. Registros antigos, sem ela, caem no horário antigo."""
+    return func.coalesce(func.nullif(GimakAtendimento.horarioSaida, ""), GimakAtendimento.horario)
+
+
 def _get_service(db: Session, service_id: int) -> GimakAtendimento:
     service = db.scalar(
         select(GimakAtendimento)
@@ -369,7 +374,7 @@ def list_services(
     _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP, PERFIL_FABRICA)),
 ):
     statement = select(GimakAtendimento).options(selectinload(GimakAtendimento.pendencias)).order_by(
-        GimakAtendimento.data.desc(), GimakAtendimento.horario, GimakAtendimento.id.desc()
+        GimakAtendimento.data.desc(), _hora_de_saida(), GimakAtendimento.id.desc()
     )
     if situacao == "agendados":
         # "Em rota" ainda é um atendimento em aberto: ele continua na lista de agendados.
@@ -385,6 +390,8 @@ def create_service(
     db: Session = Depends(get_gimak_db),
     user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP)),
 ):
+    if payload.dataVolta and payload.dataVolta < payload.data:
+        raise HTTPException(status_code=422, detail="A data de volta não pode ser antes da ida")
     service = GimakAtendimento(**payload.model_dump(), createdById=user.id)
     db.add(service)
     db.commit()
@@ -399,8 +406,11 @@ def update_service(
     _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP)),
 ):
     service = _get_service(db, service_id)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
         setattr(service, key, value.strip() if isinstance(value, str) else value)
+    if service.dataVolta and service.dataVolta < service.data:
+        raise HTTPException(status_code=422, detail="A data de volta não pode ser antes da ida")
     db.commit()
     return _get_service(db, service.id)
 

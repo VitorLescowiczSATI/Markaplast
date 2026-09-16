@@ -1,6 +1,6 @@
 """Saída do técnico, horários planejados e as pendências que sobram do atendimento."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -220,3 +220,54 @@ def test_ensure_columns_acrescenta_horarios_em_atendimento_antigo(monkeypatch):
         linha = connection.execute(text("SELECT horario_saida, saida_em FROM atendimentos WHERE id = 1")).one()
     assert linha == ("", None)
     engine.dispose()
+
+
+def test_assistencia_de_mais_de_um_dia_tem_data_de_ida_e_de_volta(client):
+    headers = token(client)
+    ida = date.today()
+    volta = ida + timedelta(days=2)
+    servico = novo_atendimento(
+        client, headers, data=ida.isoformat(), dataVolta=volta.isoformat(),
+        horarioSaida="06:00", horarioRetorno="19:00",
+    )
+    assert servico["data"] == ida.isoformat()
+    assert servico["dataVolta"] == volta.isoformat()
+
+    de_um_dia = novo_atendimento(client, headers)
+    assert de_um_dia["dataVolta"] is None
+
+    invertido = client.post(
+        "/api/gimak/atendimentos",
+        headers=headers,
+        json={
+            "cliente": "Vale", "tecnico": "Carlos Souza",
+            "data": ida.isoformat(), "dataVolta": (ida - timedelta(days=1)).isoformat(),
+        },
+    )
+    assert invertido.status_code == 422
+
+    editado = client.patch(
+        f"/api/gimak/atendimentos/{de_um_dia['id']}",
+        headers=headers,
+        json={"dataVolta": volta.isoformat()},
+    )
+    assert editado.status_code == 200
+    assert editado.json()["dataVolta"] == volta.isoformat()
+
+    assert client.patch(
+        f"/api/gimak/atendimentos/{de_um_dia['id']}",
+        headers=headers,
+        json={"dataVolta": (ida - timedelta(days=3)).isoformat()},
+    ).status_code == 422
+
+
+def test_ordem_segue_a_hora_de_sair_e_cai_no_horario_antigo(client):
+    headers = token(client)
+    hoje = date.today().isoformat()
+    tarde = novo_atendimento(client, headers, cliente="Sai as 15h", horario="07:00", horarioSaida="15:00")
+    cedo = novo_atendimento(client, headers, cliente="Sai as 06h", horario="23:00", horarioSaida="06:00")
+    antigo = novo_atendimento(client, headers, cliente="Sem hora de sair", horario="09:00")
+
+    ordem = [item["cliente"] for item in client.get("/api/gimak/atendimentos", headers=headers).json()]
+    assert ordem == ["Sai as 06h", "Sem hora de sair", "Sai as 15h"], ordem
+    assert tarde["data"] == cedo["data"] == antigo["data"] == hoje

@@ -105,7 +105,11 @@ class GimakAtendimento(GimakBase):
     cliente: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
     local: Mapped[str] = mapped_column(String(240), nullable=False, default="")
     tecnico: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    # Data de ida. dataVolta só existe quando a visita passa de um dia.
     data: Mapped[date] = mapped_column(Date, nullable=False, default=date.today, index=True)
+    dataVolta: Mapped[date | None] = mapped_column("data_volta", Date, nullable=True)
+    # horario é herança do formato antigo: continua no banco para os registros que já
+    # existiam, mas quem manda hoje é horarioSaida.
     horario: Mapped[str] = mapped_column(String(5), nullable=False, default="08:00")
     # Horários planejados pelo administrador. O que de fato aconteceu fica em saidaEm e concluidoEm.
     horarioSaida: Mapped[str] = mapped_column("horario_saida", String(5), nullable=False, default="")

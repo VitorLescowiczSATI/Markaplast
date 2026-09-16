@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, UsersRound, Wrench } from "lucide-react";
 
+import { serviceTime } from "./Services";
 import "./calendar.css";
 
 const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -53,12 +54,23 @@ export function Calendar({ tasks, services, users, onOpenTask, onOpenService }) 
       person: task.responsavel, status: task.status,
       title: task.titulo, detail: STATUS_LABELS[task.status] || task.status,
     }));
-    const fromServices = showServices ? services.map((service) => ({
-      key: `s-${service.id}`, kind: "service", data: service,
-      date: service.data, time: service.horario,
-      person: service.tecnico, status: service.status === "concluido" ? "done" : "doing",
-      title: service.cliente, detail: service.tipo,
-    })) : [];
+    // Uma visita de mais de um dia ocupa o técnico em todos eles. Aparecer só no dia
+    // da saída faria a pessoa parecer livre no resto da viagem.
+    const fromServices = showServices ? services.flatMap((service) => {
+      const dias = [service.data];
+      if (service.dataVolta && service.dataVolta > service.data) {
+        for (let dia = addDays(new Date(`${service.data}T12:00:00`), 1); isoDate(dia) <= service.dataVolta; dia = addDays(dia, 1)) {
+          dias.push(isoDate(dia));
+        }
+      }
+      return dias.map((date, indice) => ({
+        key: `s-${service.id}-${date}`, kind: "service", data: service,
+        date, time: serviceTime(service),
+        person: service.tecnico, status: service.status === "concluido" ? "done" : "doing",
+        title: dias.length > 1 ? `${service.cliente} (${indice + 1}/${dias.length})` : service.cliente,
+        detail: service.tipo,
+      }));
+    }) : [];
     return [...fromTasks, ...fromServices]
       .filter((item) => person === "all" || item.person === person)
       .sort((a, b) => a.time.localeCompare(b.time) || a.title.localeCompare(b.title));

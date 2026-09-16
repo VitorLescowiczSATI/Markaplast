@@ -65,6 +65,7 @@ COLUNAS_ACRESCENTADAS = (
     ("atendimentos", "horario_retorno", "VARCHAR(5) NOT NULL DEFAULT ''", "VARCHAR(5) NOT NULL DEFAULT ''"),
     ("atendimentos", "saida_em", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
     ("atendimentos", "saida_por_id", "INTEGER", "INTEGER"),
+    ("atendimentos", "data_volta", "DATE", "DATE"),
 )
 
 

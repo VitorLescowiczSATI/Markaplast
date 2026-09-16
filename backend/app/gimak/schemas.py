@@ -143,6 +143,7 @@ class AtendimentoCreate(BaseModel):
     local: str = Field(default="", max_length=240)
     tecnico: str = Field(min_length=2, max_length=120)
     data: date
+    dataVolta: date | None = None
     horario: str = Field(default="08:00", pattern=HORARIO)
     horarioSaida: str = Field(default="", pattern=HORARIO_OPCIONAL)
     horarioRetorno: str = Field(default="", pattern=HORARIO_OPCIONAL)
@@ -160,6 +161,7 @@ class AtendimentoUpdate(BaseModel):
     local: str | None = Field(default=None, max_length=240)
     tecnico: str | None = Field(default=None, min_length=2, max_length=120)
     data: date | None = None
+    dataVolta: date | None = None
     horario: str | None = Field(default=None, pattern=HORARIO)
     horarioSaida: str | None = Field(default=None, pattern=HORARIO_OPCIONAL)
     horarioRetorno: str | None = Field(default=None, pattern=HORARIO_OPCIONAL)
@@ -182,6 +184,7 @@ class AtendimentoRead(BaseModel):
     local: str
     tecnico: str
     data: date
+    dataVolta: date | None = None
     horario: str
     horarioSaida: str = ""
     horarioRetorno: str = ""
