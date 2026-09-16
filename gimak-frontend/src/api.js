@@ -62,5 +62,12 @@ export const api = {
   updateService: (id, payload) => request(`/atendimentos/${id}`, json("PATCH", payload)),
   finishService: (id, relatorio) => request(`/atendimentos/${id}/concluir`, json("POST", { relatorio })),
   reopenService: (id) => request(`/atendimentos/${id}/reabrir`, json("POST", {})),
+  leaveForService: (id) => request(`/atendimentos/${id}/sair`, json("POST", {})),
   deleteService: (id) => request(`/atendimentos/${id}`, { method: "DELETE" }),
+  listIssues: (situacao = "todas") => request(`/pendencias?situacao=${situacao}`),
+  createIssue: (serviceId, descricao) => request(`/atendimentos/${serviceId}/pendencias`, json("POST", { descricao })),
+  updateIssue: (id, payload) => request(`/pendencias/${id}`, json("PATCH", payload)),
+  resolveIssue: (id, resolucao) => request(`/pendencias/${id}/resolver`, json("POST", { resolucao })),
+  reopenIssue: (id) => request(`/pendencias/${id}/reabrir`, json("POST", {})),
+  deleteIssue: (id) => request(`/pendencias/${id}`, { method: "DELETE" }),
 };

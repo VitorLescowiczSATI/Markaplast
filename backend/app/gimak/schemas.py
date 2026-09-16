@@ -9,6 +9,9 @@ GimakStatus = Literal["todo", "doing", "paused", "blocked", "done"]
 GimakTipoAtendimento = Literal["Assistência técnica", "Instalação"]
 GimakSituacaoProjeto = Literal["andamento", "concluidos", "todos"]
 GimakSituacaoAtendimento = Literal["agendados", "concluidos", "todos"]
+GimakSituacaoPendencia = Literal["abertas", "resolvidas", "todas"]
+HORARIO = r"^([01]\d|2[0-3]):[0-5]\d$"
+HORARIO_OPCIONAL = r"^$|^([01]\d|2[0-3]):[0-5]\d$"
 
 
 class LoginRequest(BaseModel):
@@ -140,7 +143,9 @@ class AtendimentoCreate(BaseModel):
     local: str = Field(default="", max_length=240)
     tecnico: str = Field(min_length=2, max_length=120)
     data: date
-    horario: str = Field(default="08:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    horario: str = Field(default="08:00", pattern=HORARIO)
+    horarioSaida: str = Field(default="", pattern=HORARIO_OPCIONAL)
+    horarioRetorno: str = Field(default="", pattern=HORARIO_OPCIONAL)
     descricao: str = Field(default="", max_length=4000)
 
     @field_validator("cliente", "local", "tecnico", "descricao", mode="before")
@@ -155,7 +160,9 @@ class AtendimentoUpdate(BaseModel):
     local: str | None = Field(default=None, max_length=240)
     tecnico: str | None = Field(default=None, min_length=2, max_length=120)
     data: date | None = None
-    horario: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    horario: str | None = Field(default=None, pattern=HORARIO)
+    horarioSaida: str | None = Field(default=None, pattern=HORARIO_OPCIONAL)
+    horarioRetorno: str | None = Field(default=None, pattern=HORARIO_OPCIONAL)
     descricao: str | None = Field(default=None, max_length=4000)
 
 
@@ -176,10 +183,54 @@ class AtendimentoRead(BaseModel):
     tecnico: str
     data: date
     horario: str
+    horarioSaida: str = ""
+    horarioRetorno: str = ""
     descricao: str
     status: str
     relatorio: str
+    saidaEm: datetime | None = None
+    saidaPorId: int | None = None
     concluidoEm: datetime | None
     concluidoPorId: int | None
     createdAt: datetime
+    pendencias: list["PendenciaRead"] = Field(default_factory=list)
     model_config = ConfigDict(from_attributes=True)
+
+
+class PendenciaCreate(BaseModel):
+    descricao: str = Field(min_length=3, max_length=4000)
+
+    @field_validator("descricao", mode="before")
+    @classmethod
+    def clean_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class PendenciaUpdate(BaseModel):
+    descricao: str | None = Field(default=None, min_length=3, max_length=4000)
+
+
+class PendenciaResolucao(BaseModel):
+    resolucao: str = Field(default="", max_length=4000)
+
+
+class PendenciaRead(BaseModel):
+    id: int
+    atendimentoId: int
+    descricao: str
+    status: str
+    resolucao: str
+    criadoPorId: int | None
+    resolvidoPorId: int | None
+    resolvidoEm: datetime | None
+    createdAt: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PendenciaComAtendimento(PendenciaRead):
+    """A tela de pendências precisa saber de qual visita ela veio."""
+
+    cliente: str
+    tecnico: str
+    tipo: str
+    dataAtendimento: date

@@ -102,29 +102,6 @@ textarea { resize: vertical; min-height: 84px; }.login-card .primary { margin-to
 .danger { display: inline-flex; align-items: center; gap: 7px; padding: 10px 15px; color: white; background: var(--red); border: 0; border-radius: 8px; font-weight: 700; }
 .danger:hover { background: #ad3333; }
 
-.filters .primary { margin-left: auto; }
-.service-grid { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 16px; }
-.service-card { padding: 18px; text-align: left; color: var(--ink); background: white; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 11px; box-shadow: var(--shadow); transition: .15s; }
-.service-card:hover { transform: translateY(-2px); border-color: #bfc8d2; }
-.service-card.overdue { border-left-color: var(--red); }
-.service-card.concluido { border-left-color: var(--green); background: #fbfcfd; }
-.service-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.service-type { padding: 4px 8px; color: #2b5f96; background: #e8f0f8; border-radius: 12px; font-size: .65rem; font-weight: 800; }
-.service-type.install { color: #7a4a10; background: #fdf1e1; }
-.service-state { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: .68rem; font-weight: 700; }
-.service-card.overdue .service-state { color: var(--red); }
-.service-card.concluido .service-state { color: var(--green); }
-.service-card h2 { margin: 13px 0 5px; font-size: 1.05rem; }
-.service-place { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: .78rem; }
-.service-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 15px; padding-top: 13px; border-top: 1px solid #edf0f2; color: var(--muted); font-size: .75rem; }
-.service-meta > span { display: flex; align-items: center; }
-.service-when { font: 600 .74rem "Roboto Mono", monospace; white-space: nowrap; }
-.service-report { position: relative; display: block; margin-top: 13px; padding: 10px 12px; background: #f5f7f9; border-radius: 8px; color: #3d4856; font-size: .75rem; line-height: 1.5; max-height: 82px; overflow: hidden; }
-.service-report::after { content: ""; position: absolute; inset: auto 0 0; height: 24px; background: linear-gradient(transparent, #f5f7f9); }
-.service-report small { display: block; margin-bottom: 5px; color: var(--muted); font-size: .62rem; font-weight: 800; letter-spacing: .06em; }
-.service-done-note { display: flex; align-items: center; gap: 8px; margin-top: 13px; padding: 11px 13px; color: #176d47; background: #e9f6ef; border-radius: 8px; font-size: .78rem; }
-.report-label { display: block; margin: 0 0 12px; }
-.report-label textarea { margin-top: 0; min-height: 120px; }
 
 
 /* Historico do apontamento e pendentes dentro do projeto. */

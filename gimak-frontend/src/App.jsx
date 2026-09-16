@@ -25,6 +25,8 @@ import {
 
 import { api } from "./api";
 import { Calendar } from "./Calendar";
+import { Modal } from "./Modal";
+import { ServiceForm, ServiceModal, ServicesPage } from "./Services";
 import { AdminIndicators, FactoryTV } from "./ProductionViews";
 
 const STATUS_LABELS = {
@@ -85,21 +87,6 @@ function initials(name = "") {
     .map((part) => part[0])
     .join("")
     .toUpperCase();
-}
-
-function Modal({ children, className = "", onClose }) {
-  useEffect(() => {
-    const close = (event) => event.key === "Escape" && onClose();
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [onClose]);
-  return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className={`modal ${className}`} role="dialog" aria-modal="true">
-        {children}
-      </section>
-    </div>
-  );
 }
 
 function Login({ onLogin }) {
@@ -382,107 +369,6 @@ function ProjectModal({ project, tasks, now, canManage, onClose, onToggleDone, o
   </Modal>;
 }
 
-const SERVICE_TYPES = ["Assistência técnica", "Instalação"];
-
-function serviceDeadline(service) {
-  return new Date(`${service.data}T${service.horario}:00`);
-}
-
-function Services({ services, users, now, canManage, onOpen, onNew }) {
-  const [filter, setFilter] = useState("agendados");
-  const scheduled = services.filter((item) => item.status === "agendado");
-  const finished = services.filter((item) => item.status === "concluido");
-  const late = scheduled.filter((item) => serviceDeadline(item).getTime() < now);
-  const visible = filter === "agendados" ? scheduled : filter === "concluidos" ? finished : services;
-  return (
-    <main className="page">
-      <section className="intro">
-        <div><p className="eyebrow">ATENDIMENTO EXTERNO</p><h1>Assistências e instalações</h1><p>Visitas a cliente: quem vai, quando, e o relatório do que foi feito na volta.</p></div>
-        <div className="stats">
-          <div><b>{scheduled.length}</b><span>Agendados</span></div>
-          <div><b>{late.length}</b><span>Data vencida</span></div>
-          <div><b>{finished.length}</b><span>Concluídos</span></div>
-        </div>
-      </section>
-      <div className="filters">
-        <div className="segmented">
-          {[["agendados", "Agendados"], ["concluidos", "Concluídos"], ["todos", "Todos"]].map(([key, label]) => (
-            <button key={key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>
-          ))}
-        </div>
-        {canManage && <button className="primary" onClick={onNew}><Plus size={17} /> Novo atendimento</button>}
-      </div>
-      <section className="service-grid">
-        {visible.map((service) => {
-          const overdue = service.status === "agendado" && serviceDeadline(service).getTime() < now;
-          return (
-            <button className={`service-card ${service.status}${overdue ? " overdue" : ""}`} key={service.id} onClick={() => onOpen(service)}>
-              <span className="service-top">
-                <span className={`service-type ${service.tipo === "Instalação" ? "install" : ""}`}>{service.tipo}</span>
-                <span className="service-state">{service.status === "concluido" ? <><CheckCircle2 size={13} /> Concluído</> : overdue ? <><XCircle size={13} /> Vencido</> : <><Clock3 size={13} /> Agendado</>}</span>
-              </span>
-              <h2>{service.cliente}</h2>
-              {service.local && <p className="service-place"><MapPin size={13} /> {service.local}</p>}
-              <span className="service-meta">
-                <span><i className="avatar">{initials(service.tecnico)}</i>{service.tecnico}</span>
-                <span className="service-when">{serviceDeadline(service).toLocaleDateString("pt-BR")} às {service.horario}</span>
-              </span>
-              {service.status === "concluido"
-                ? <span className="service-report"><small>RELATÓRIO</small>{service.relatorio}</span>
-                : <strong className="open-project">Abrir atendimento ›</strong>}
-            </button>
-          );
-        })}
-        {!visible.length && <div className="blank-state"><Wrench size={30} /><h2>Nenhum atendimento {filter === "concluidos" ? "concluído" : filter === "agendados" ? "agendado" : "cadastrado"}</h2><p>{canManage ? "Cadastre uma assistência técnica ou instalação para o técnico acompanhar." : "Os atendimentos agendados pelo PCP aparecem aqui."}</p></div>}
-      </section>
-    </main>
-  );
-}
-
-function ServiceForm({ users, onClose, onSave }) {
-  const [form, setForm] = useState({ tipo: SERVICE_TYPES[0], cliente: "", local: "", tecnico: "", data: localIsoDate(), horario: "08:00", descricao: "" });
-  function field(key, value) { setForm((current) => ({ ...current, [key]: value })); }
-  return <Modal onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
-    <div className="modal-head"><div><span className="op">NOVO ATENDIMENTO</span><h2>Assistência ou instalação</h2></div><button type="button" className="close" onClick={onClose}><X /></button></div>
-    <div className="form-grid">
-      <label>Tipo<select value={form.tipo} onChange={(e) => field("tipo", e.target.value)}>{SERVICE_TYPES.map((item) => <option key={item}>{item}</option>)}</select></label>
-      <label>Técnico<select value={form.tecnico} onChange={(e) => field("tecnico", e.target.value)} required><option value="">Selecione</option>{users.filter((item) => item.ativo && item.perfil !== "TV").map((item) => <option key={item.id} value={item.nome}>{item.nome}</option>)}</select></label>
-    </div>
-    <label>Cliente<input value={form.cliente} onChange={(e) => field("cliente", e.target.value)} required autoFocus placeholder="Ex.: Ambev Jaguariúna" /></label>
-    <label>Endereço ou local<input value={form.local} onChange={(e) => field("local", e.target.value)} placeholder="Opcional" /></label>
-    <div className="form-grid">
-      <label>Data<input type="date" value={form.data} onChange={(e) => field("data", e.target.value)} required /></label>
-      <label>Horário<input type="time" value={form.horario} onChange={(e) => field("horario", e.target.value)} required /></label>
-    </div>
-    <label>O que será feito<textarea value={form.descricao} onChange={(e) => field("descricao", e.target.value)} /></label>
-    <div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Agendar atendimento</button></div>
-  </form></Modal>;
-}
-
-function ServiceModal({ service, users, canManage, canDelete, onClose, onFinish, onReopen, onDelete }) {
-  const [report, setReport] = useState(service.relatorio || "");
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const finished = service.status === "concluido";
-  const author = users.find((item) => item.id === service.concluidoPorId);
-  return <Modal onClose={onClose}>
-    <div className="modal-head"><div><span className="op">{service.tipo.toUpperCase()}</span><h2>{service.cliente}</h2>{service.local && <p>{service.local}</p>}</div><button className="close" onClick={onClose}><X /></button></div>
-    <div className="task-summary">
-      <span><small>Técnico</small><b>{service.tecnico}</b></span>
-      <span><small>Data e hora</small><b>{serviceDeadline(service).toLocaleDateString("pt-BR")} às {service.horario}</b></span>
-      <span><small>Situação</small><b>{finished ? "Concluído" : "Agendado"}</b></span>
-    </div>
-    <section className="observation"><small>O QUE SERÁ FEITO</small><p>{service.descricao || "Nenhuma instrução cadastrada."}</p></section>
-    {finished && <div className="service-done-note"><CheckCircle2 size={15} /> Concluído em {new Date(service.concluidoEm).toLocaleString("pt-BR")}{author ? ` por ${author.nome}` : ""}.</div>}
-    <p className="action-title">{finished ? "Relatório do atendimento" : "Voltou do cliente? Registre o relatório"}</p>
-    <label className="report-label"><textarea value={report} onChange={(e) => setReport(e.target.value)} placeholder="Descreva o que foi feito, peças trocadas, pendências e orientações deixadas." /></label>
-    <button className="primary wide" disabled={report.trim().length < 3} onClick={() => onFinish(service, report)}>{finished ? "Salvar correção do relatório" : "Concluir atendimento"}</button>
-    {canDelete && (confirmDelete
-      ? <div className="danger-panel"><b>Excluir este atendimento?</b><p>O relatório some junto. Não dá para desfazer.</p><div><button className="secondary" onClick={() => setConfirmDelete(false)}>Cancelar</button><button className="danger" onClick={() => onDelete(service)}><Trash2 size={16} /> Excluir definitivamente</button></div></div>
-      : <button className="link-danger" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> Excluir atendimento</button>)}
-    <div className="modal-actions">{canManage && finished && <button className="secondary" onClick={() => onReopen(service)}>Reabrir atendimento</button>}<button className="secondary" onClick={onClose}>Fechar</button></div>
-  </Modal>;
-}
-
 export default function App() {
   const [user, setUser] = useState(null);
   const [booting, setBooting] = useState(api.hasToken());
@@ -490,6 +376,7 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [services, setServices] = useState([]);
+  const [issues, setIssues] = useState([]);
   const [users, setUsers] = useState([]);
   const [modal, setModal] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -504,10 +391,11 @@ export default function App() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
     try {
-      const [taskData, projectData, serviceData, userData] = await Promise.all([
-        api.listTasks(), api.listProjects("todos"), api.listServices(), api.listUsers(),
+      const [taskData, projectData, serviceData, issueData, userData] = await Promise.all([
+        api.listTasks(), api.listProjects("todos"), api.listServices(), api.listIssues(), api.listUsers(),
       ]);
-      setTasks(taskData); setProjects(projectData); setServices(serviceData); setUsers(userData);
+      setTasks(taskData); setProjects(projectData); setServices(serviceData);
+      setIssues(issueData); setUsers(userData);
     } catch (err) {
       notify(err.message);
     } finally {
@@ -535,7 +423,7 @@ export default function App() {
   function logout() {
     api.setAccessToken("");
     setUser(null);
-    setTasks([]); setProjects([]); setServices([]); setUsers([]); setModal(null);
+    setTasks([]); setProjects([]); setServices([]); setIssues([]); setUsers([]); setModal(null);
   }
 
   useEffect(() => {
@@ -561,6 +449,23 @@ export default function App() {
     catch (err) { notify(err.message); return false; }
   }, [load, notify]);
 
+  // Registrar pendência acontece dentro do atendimento aberto: fechar o modal aqui
+  // faria o técnico perder o relatório que ainda está digitando.
+  const actionKeepingModal = useCallback(async (work, success) => {
+    try { await work(); await load(true); notify(success); return true; }
+    catch (err) { notify(err.message); return false; }
+  }, [load, notify]);
+
+  const resolveIssue = useCallback(
+    (issue, resolucao = "") => actionKeepingModal(() => api.resolveIssue(issue.id, resolucao), "Pendência resolvida"),
+    [actionKeepingModal],
+  );
+
+  const reopenIssue = useCallback(
+    (issue) => actionKeepingModal(() => api.reopenIssue(issue.id), "Pendência reaberta"),
+    [actionKeepingModal],
+  );
+
   if (booting) return <div className="boot"><Factory size={32} /><span>Carregando Gimak PCP…</span></div>;
   if (!user) return <Login onLogin={(logged) => { setUser(logged); if (logged.perfil === "TV") navigate("tv"); }} />;
   if (user.perfil === "TV" || page === "tv") return <FactoryTV user={user} onExit={() => user.perfil === "TV" ? logout() : navigate("board")} />;
@@ -573,15 +478,15 @@ export default function App() {
     {page === "board" && <Board tasks={tasks} projects={projects} users={users} now={now} onOpen={(task) => setModal({ type: "task", data: task })} onRefresh={() => load()} refreshing={refreshing} />}
     {page === "projects" && <Projects projects={projects} tasks={tasks} now={now} canManage={canManage} onOpen={(project) => setModal({ type: "project", data: project })} onNew={() => setModal({ type: "new-project" })} />}
     {page === "calendar" && <Calendar tasks={tasks} services={services} users={users} onOpenTask={(task) => setModal({ type: "task", data: task })} onOpenService={(service) => setModal({ type: "service", data: service })} />}
-    {page === "services" && <Services services={services} users={users} now={now} canManage={canManage} onOpen={(service) => setModal({ type: "service", data: service })} onNew={() => setModal({ type: "new-service" })} />}
+    {page === "services" && <ServicesPage services={services} issues={issues} now={now} canManage={canManage} canDelete={isAdmin} onOpen={(service) => setModal({ type: "service", data: service })} onNew={() => setModal({ type: "service-form" })} onResolveIssue={resolveIssue} onReopenIssue={reopenIssue} onDeleteIssue={(item) => action(() => api.deleteIssue(item.id), "Pendência excluída")} />}
     {page === "users" && user.perfil === "Administrador" && <UsersPage users={users} onCreate={(payload) => action(() => api.createUser(payload), "Usuário criado") } onToggle={(item) => action(() => api.updateUser(item.id, { ativo: !item.ativo }), item.ativo ? "Usuário desativado" : "Usuário ativado")} onReset={(item) => { const password = window.prompt(`Nova senha para ${item.nome} (mínimo 8 caracteres):`); if (password) action(() => api.resetPassword(item.id, password), "Senha atualizada"); }} onEdit={(item) => setModal({ type: "edit-user", data: item })} />}
     {modal?.type === "edit-user" && <UserEditModal user={users.find((item) => item.id === modal.data.id) || modal.data} onClose={() => setModal(null)} onSave={(item, payload) => action(() => api.updateUser(item.id, payload), "Usuário atualizado")} />}
     {modal?.type === "task" && <TaskModal task={tasks.find((item) => item.id === modal.data.id) || modal.data} projects={projects} users={users} now={now} canManage={canManage} canDelete={isAdmin} onClose={() => setModal(null)} onStatus={(id, status, reason) => action(() => api.updateTaskStatus(id, status, reason), `Situação atualizada: ${STATUS_LABELS[status]}`)} onAssign={(id, projectId) => action(() => api.updateTask(id, { projetoId: projectId ? Number(projectId) : null }), "Projeto vinculado")} onDelete={(item) => action(() => api.deleteTask(item.id), "Atividade excluída")} />}
     {modal?.type === "new-task" && <TaskForm projects={projects} users={users} onClose={() => setModal(null)} onSave={(payload) => action(() => api.createTask(payload), "Nova tarefa criada")} />}
     {modal?.type === "new-project" && <ProjectForm onClose={() => setModal(null)} onSave={(payload) => action(() => api.createProject(payload), "Projeto criado")} />}
     {modal?.type === "project" && <ProjectModal project={projects.find((item) => item.id === modal.data.id) || modal.data} tasks={tasks} now={now} canManage={canManage} onClose={() => setModal(null)} onToggleDone={(item, concluido) => action(() => api.updateProject(item.id, { concluido }), concluido ? "Projeto concluído" : "Projeto reaberto")} onOpenTask={(task) => setModal({ type: "task", data: task })} />}
-    {modal?.type === "service" && <ServiceModal service={services.find((item) => item.id === modal.data.id) || modal.data} users={users} canManage={canManage} canDelete={isAdmin} onClose={() => setModal(null)} onFinish={(item, relatorio) => action(() => api.finishService(item.id, relatorio), "Atendimento concluído")} onReopen={(item) => action(() => api.reopenService(item.id), "Atendimento reaberto")} onDelete={(item) => action(() => api.deleteService(item.id), "Atendimento excluído")} />}
-    {modal?.type === "new-service" && <ServiceForm users={users} onClose={() => setModal(null)} onSave={(payload) => action(() => api.createService(payload), "Atendimento agendado")} />}
+    {modal?.type === "service" && <ServiceModal service={services.find((item) => item.id === modal.data.id) || modal.data} users={users} canManage={canManage} canDelete={isAdmin} onClose={() => setModal(null)} onEdit={(item) => setModal({ type: "service-form", data: item })} onLeave={(item) => actionKeepingModal(() => api.leaveForService(item.id), "Saída registrada")} onFinish={(item, relatorio) => action(() => api.finishService(item.id, relatorio), "Atendimento concluído")} onReopen={(item) => action(() => api.reopenService(item.id), "Atendimento reaberto")} onDelete={(item) => action(() => api.deleteService(item.id), "Atendimento excluído")} onCreateIssue={(item, descricao) => actionKeepingModal(() => api.createIssue(item.id, descricao), "Pendência registrada")} onResolveIssue={resolveIssue} onReopenIssue={reopenIssue} />}
+    {modal?.type === "service-form" && <ServiceForm service={modal.data} users={users} onClose={() => setModal(null)} onSave={(payload, atual) => action(() => atual ? api.updateService(atual.id, payload) : api.createService(payload), atual ? "Atendimento atualizado" : "Atendimento agendado")} />}
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }

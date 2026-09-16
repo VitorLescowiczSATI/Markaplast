@@ -61,6 +61,10 @@ def ensure_gimak_database_exists() -> None:
 COLUNAS_ACRESCENTADAS = (
     ("projetos", "concluido_em", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
     ("usuarios", "cargo", "VARCHAR(80) NOT NULL DEFAULT ''", "VARCHAR(80) NOT NULL DEFAULT ''"),
+    ("atendimentos", "horario_saida", "VARCHAR(5) NOT NULL DEFAULT ''", "VARCHAR(5) NOT NULL DEFAULT ''"),
+    ("atendimentos", "horario_retorno", "VARCHAR(5) NOT NULL DEFAULT ''", "VARCHAR(5) NOT NULL DEFAULT ''"),
+    ("atendimentos", "saida_em", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+    ("atendimentos", "saida_por_id", "INTEGER", "INTEGER"),
 )
 
 

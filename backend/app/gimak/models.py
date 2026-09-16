@@ -107,9 +107,16 @@ class GimakAtendimento(GimakBase):
     tecnico: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     data: Mapped[date] = mapped_column(Date, nullable=False, default=date.today, index=True)
     horario: Mapped[str] = mapped_column(String(5), nullable=False, default="08:00")
+    # Horários planejados pelo administrador. O que de fato aconteceu fica em saidaEm e concluidoEm.
+    horarioSaida: Mapped[str] = mapped_column("horario_saida", String(5), nullable=False, default="")
+    horarioRetorno: Mapped[str] = mapped_column("horario_retorno", String(5), nullable=False, default="")
     descricao: Mapped[str] = mapped_column(Text, nullable=False, default="")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="agendado", index=True)
     relatorio: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    saidaEm: Mapped[datetime | None] = mapped_column("saida_em", DateTime(timezone=True), nullable=True)
+    saidaPorId: Mapped[int | None] = mapped_column(
+        "saida_por_id", ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
     concluidoEm: Mapped[datetime | None] = mapped_column("concluido_em", DateTime(timezone=True), nullable=True)
     concluidoPorId: Mapped[int | None] = mapped_column(
         "concluido_por_id", ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
@@ -121,3 +128,31 @@ class GimakAtendimento(GimakBase):
     updatedAt: Mapped[datetime] = mapped_column(
         "updated_at", DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    pendencias: Mapped[list["GimakPendencia"]] = relationship(
+        back_populates="atendimento", cascade="all, delete-orphan", order_by="GimakPendencia.createdAt"
+    )
+
+
+class GimakPendencia(GimakBase):
+    """O que ficou faltando depois de um atendimento, para o administrador não esquecer."""
+
+    __tablename__ = "pendencias"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    atendimentoId: Mapped[int] = mapped_column(
+        "atendimento_id", ForeignKey("atendimentos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    descricao: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="aberta", index=True)
+    resolucao: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    criadoPorId: Mapped[int | None] = mapped_column(
+        "criado_por_id", ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    resolvidoPorId: Mapped[int | None] = mapped_column(
+        "resolvido_por_id", ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    resolvidoEm: Mapped[datetime | None] = mapped_column("resolvido_em", DateTime(timezone=True), nullable=True)
+    createdAt: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), default=utc_now, nullable=False)
+
+    atendimento: Mapped[GimakAtendimento] = relationship(back_populates="pendencias")

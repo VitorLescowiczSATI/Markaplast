@@ -1,0 +1,76 @@
+/* Assistencias e instalacoes: cards da visita e as pendencias que sobram dela. */
+.filters .primary { margin-left: auto; }
+.service-grid { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 16px; }
+.service-card { padding: 18px; text-align: left; color: var(--ink); background: white; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 11px; box-shadow: var(--shadow); transition: .15s; }
+.service-card:hover { transform: translateY(-2px); border-color: #bfc8d2; }
+.service-card.overdue { border-left-color: var(--red); }
+.service-card.concluido { border-left-color: var(--green); background: #fbfcfd; }
+.service-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.service-type { padding: 4px 8px; color: #2b5f96; background: #e8f0f8; border-radius: 12px; font-size: .65rem; font-weight: 800; }
+.service-type.install { color: #7a4a10; background: #fdf1e1; }
+.service-state { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: .68rem; font-weight: 700; }
+.service-card.overdue .service-state { color: var(--red); }
+.service-card.concluido .service-state { color: var(--green); }
+.service-card h2 { margin: 13px 0 5px; font-size: 1.05rem; }
+.service-place { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: .78rem; }
+.service-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 15px; padding-top: 13px; border-top: 1px solid #edf0f2; color: var(--muted); font-size: .75rem; }
+.service-meta > span { display: flex; align-items: center; }
+.service-when { font: 600 .74rem "Roboto Mono", monospace; white-space: nowrap; }
+.service-report { position: relative; display: block; margin-top: 13px; padding: 10px 12px; background: #f5f7f9; border-radius: 8px; color: #3d4856; font-size: .75rem; line-height: 1.5; max-height: 82px; overflow: hidden; }
+.service-report::after { content: ""; position: absolute; inset: auto 0 0; height: 24px; background: linear-gradient(transparent, #f5f7f9); }
+.service-report small { display: block; margin-bottom: 5px; color: var(--muted); font-size: .62rem; font-weight: 800; letter-spacing: .06em; }
+.service-done-note { display: flex; align-items: center; gap: 8px; margin-top: 13px; padding: 11px 13px; color: #176d47; background: #e9f6ef; border-radius: 8px; font-size: .78rem; }
+.report-label { display: block; margin: 0 0 12px; }
+.report-label textarea { margin-top: 0; min-height: 120px; }
+
+.subtabs { display: flex; gap: 6px; margin: 4px 0 18px; border-bottom: 1px solid var(--line); }
+.subtabs button { display: flex; align-items: center; gap: 8px; padding: 11px 16px; margin-bottom: -1px; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; font-size: .86rem; font-weight: 700; }
+.subtabs button.active { color: var(--ink); border-bottom-color: var(--orange); }
+.subtabs .badge { min-width: 20px; padding: 2px 6px; text-align: center; border-radius: 10px; background: var(--red); color: white; font-style: normal; font-size: .64rem; font-weight: 800; }
+
+.trip { display: flex; flex-wrap: wrap; gap: 14px; color: #45607c; font-size: .74rem; font-weight: 600; }
+.trip span { display: flex; align-items: center; gap: 5px; }
+.trip.compact { margin-top: 10px; font-size: .71rem; }
+.trip-plan { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-top: 13px; padding: 11px 13px; background: #eef3f8; border-radius: 8px; }
+.trip-plan small { color: #6b7d92; font-size: .7rem; }
+
+.service-pending { display: flex; align-items: center; gap: 6px; margin-top: 12px; padding: 7px 10px; color: #8a4f0d; background: #fdf1e1; border-radius: 7px; font-size: .71rem; font-weight: 700; }
+.service-card.em_rota { border-left-color: #7a4a10; }
+.service-card.em_rota .service-state { color: #8a4f0d; }
+.service-trip-note { display: flex; align-items: center; gap: 8px; margin-top: 13px; padding: 11px 13px; color: #7a4a10; background: #fdf1e1; border-radius: 8px; font-size: .78rem; }
+.leave-button { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; margin-top: 15px; padding: 13px; color: white; background: #386a9f; border: 0; border-radius: 9px; font-size: .88rem; font-weight: 700; }
+.leave-button:hover { background: #2f5c8c; }
+
+.issue-list { padding: 8px 20px 16px; }
+.issue-list .panel-title { padding: 14px 0 17px; }
+.issue { padding: 15px 0; border-bottom: 1px solid #edf0f3; }
+.issue:last-child { border-bottom: 0; }
+.issue-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.issue-head b { display: block; font-size: .88rem; }
+.issue-head small { display: block; margin-top: 3px; color: var(--muted); font-size: .72rem; }
+.issue-text { margin: 11px 0 0; padding: 11px 13px; background: #fff7e2; border-radius: 8px; color: #5b4a17; font-size: .82rem; line-height: 1.5; }
+.issue.resolvida .issue-text { background: var(--bg); color: #566072; }
+.issue-solution { margin: 9px 0 0; padding: 11px 13px; background: #e9f6ef; border-radius: 8px; color: #176d47; font-size: .8rem; line-height: 1.5; }
+.issue-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 11px; }
+.issue-foot small { color: var(--muted); font-size: .7rem; }
+.issue-foot > span { display: flex; align-items: center; gap: 4px; }
+.danger-link { color: var(--red); display: grid; place-items: center; }
+
+.issue-compact { margin-bottom: 4px; padding: 4px 13px 13px; background: var(--bg); border-radius: 9px; }
+.issue-compact .issue { padding: 11px 0; border-bottom: 1px solid #e2e6ea; }
+.issue-compact .issue:last-of-type { border-bottom: 0; }
+.issue-resolve { margin-top: 11px; }
+.issue-resolve label { display: block; margin: 0; font-size: .78rem; font-weight: 700; }
+.issue-resolve textarea { min-height: 72px; }
+.issue-resolve > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.issue-empty { margin: 0; padding: 4px 0 9px; color: var(--muted); font-size: .77rem; }
+.issue-new { display: flex; gap: 8px; align-items: stretch; padding-top: 11px; }
+.issue-new input { margin-top: 0; }
+.issue-new button { white-space: nowrap; }
+
+/* O grid e o botao ja tem breakpoint no styles.css; aqui so o que e novo. */
+@media (max-width: 850px) {
+  .issue-head, .issue-foot { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .issue-new { flex-direction: column; }
+  .trip-plan { flex-direction: column; align-items: flex-start; gap: 8px; }
+}

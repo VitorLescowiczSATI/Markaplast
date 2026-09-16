@@ -10,16 +10,29 @@ from app.gimak.analytics import build_indicators, build_tv_panel
 from app.gimak.auth import PERFIL_ADMIN, PERFIL_FABRICA, PERFIL_PCP, PERFIL_TV
 from app.gimak.db import get_gimak_db
 from app.gimak.deps import get_gimak_current_user, require_gimak_roles
-from app.gimak.models import GimakAtendimento, GimakApontamento, GimakProjeto, GimakTarefa, GimakUsuario
+from app.gimak.models import (
+    GimakApontamento,
+    GimakAtendimento,
+    GimakPendencia,
+    GimakProjeto,
+    GimakTarefa,
+    GimakUsuario,
+)
 from app.gimak.schemas import (
     AtendimentoConclusao,
     AtendimentoCreate,
     AtendimentoRead,
     AtendimentoUpdate,
     GimakSituacaoAtendimento,
+    GimakSituacaoPendencia,
     GimakSituacaoProjeto,
     LoginRequest,
     LoginResponse,
+    PendenciaComAtendimento,
+    PendenciaCreate,
+    PendenciaRead,
+    PendenciaResolucao,
+    PendenciaUpdate,
     ProjetoCreate,
     ProjetoRead,
     ProjetoUpdate,
@@ -339,7 +352,11 @@ def delete_task(
 
 
 def _get_service(db: Session, service_id: int) -> GimakAtendimento:
-    service = db.get(GimakAtendimento, service_id)
+    service = db.scalar(
+        select(GimakAtendimento)
+        .options(selectinload(GimakAtendimento.pendencias))
+        .where(GimakAtendimento.id == service_id)
+    )
     if not service:
         raise HTTPException(status_code=404, detail="Atendimento não encontrado")
     return service
@@ -351,12 +368,14 @@ def list_services(
     db: Session = Depends(get_gimak_db),
     _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP, PERFIL_FABRICA)),
 ):
-    statement = select(GimakAtendimento).order_by(
+    statement = select(GimakAtendimento).options(selectinload(GimakAtendimento.pendencias)).order_by(
         GimakAtendimento.data.desc(), GimakAtendimento.horario, GimakAtendimento.id.desc()
     )
-    if situacao != "todos":
-        alvo = {"agendados": "agendado", "concluidos": "concluido"}[situacao]
-        statement = statement.where(GimakAtendimento.status == alvo)
+    if situacao == "agendados":
+        # "Em rota" ainda é um atendimento em aberto: ele continua na lista de agendados.
+        statement = statement.where(GimakAtendimento.status.in_(("agendado", "em_rota")))
+    elif situacao == "concluidos":
+        statement = statement.where(GimakAtendimento.status == "concluido")
     return db.scalars(statement).all()
 
 
@@ -369,8 +388,7 @@ def create_service(
     service = GimakAtendimento(**payload.model_dump(), createdById=user.id)
     db.add(service)
     db.commit()
-    db.refresh(service)
-    return service
+    return _get_service(db, service.id)
 
 
 @router.patch("/atendimentos/{service_id}", response_model=AtendimentoRead)
@@ -384,8 +402,7 @@ def update_service(
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(service, key, value.strip() if isinstance(value, str) else value)
     db.commit()
-    db.refresh(service)
-    return service
+    return _get_service(db, service.id)
 
 
 @router.post("/atendimentos/{service_id}/concluir", response_model=AtendimentoRead)
@@ -406,8 +423,7 @@ def finish_service(
         service.concluidoEm = datetime.now(timezone.utc)
         service.concluidoPorId = user.id
     db.commit()
-    db.refresh(service)
-    return service
+    return _get_service(db, service.id)
 
 
 @router.post("/atendimentos/{service_id}/reabrir", response_model=AtendimentoRead)
@@ -417,12 +433,11 @@ def reopen_service(
     _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP)),
 ):
     service = _get_service(db, service_id)
-    service.status = "agendado"
+    service.status = "em_rota" if service.saidaEm else "agendado"
     service.concluidoEm = None
     service.concluidoPorId = None
     db.commit()
-    db.refresh(service)
-    return service
+    return _get_service(db, service.id)
 
 
 @router.delete("/atendimentos/{service_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -432,4 +447,134 @@ def delete_service(
     _admin: GimakUsuario = Depends(require_gimak_roles(PERFIL_ADMIN)),
 ):
     db.delete(_get_service(db, service_id))
+    db.commit()
+
+@router.post("/atendimentos/{service_id}/sair", response_model=AtendimentoRead)
+def leave_for_service(
+    service_id: int,
+    db: Session = Depends(get_gimak_db),
+    user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP, PERFIL_FABRICA)),
+):
+    """O técnico marca que está saindo da empresa. Reenviar não move a hora registrada."""
+    service = _get_service(db, service_id)
+    if service.status == "concluido":
+        raise HTTPException(status_code=422, detail="Este atendimento já foi concluído")
+    if service.saidaEm is None:
+        service.saidaEm = datetime.now(timezone.utc)
+        service.saidaPorId = user.id
+    service.status = "em_rota"
+    db.commit()
+    return _get_service(db, service.id)
+
+
+def _get_issue(db: Session, issue_id: int) -> GimakPendencia:
+    issue = db.get(GimakPendencia, issue_id)
+    if not issue:
+        raise HTTPException(status_code=404, detail="Pendência não encontrada")
+    return issue
+
+
+@router.get("/pendencias", response_model=list[PendenciaComAtendimento])
+def list_issues(
+    situacao: GimakSituacaoPendencia = "abertas",
+    db: Session = Depends(get_gimak_db),
+    _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP, PERFIL_FABRICA)),
+):
+    statement = (
+        select(GimakPendencia, GimakAtendimento)
+        .join(GimakAtendimento, GimakAtendimento.id == GimakPendencia.atendimentoId)
+        .order_by(GimakPendencia.createdAt.desc(), GimakPendencia.id.desc())
+    )
+    if situacao != "todas":
+        statement = statement.where(
+            GimakPendencia.status == {"abertas": "aberta", "resolvidas": "resolvida"}[situacao]
+        )
+    return [
+        PendenciaComAtendimento(
+            **PendenciaRead.model_validate(issue).model_dump(),
+            cliente=service.cliente,
+            tecnico=service.tecnico,
+            tipo=service.tipo,
+            dataAtendimento=service.data,
+        )
+        for issue, service in db.execute(statement).all()
+    ]
+
+
+@router.post(
+    "/atendimentos/{service_id}/pendencias",
+    response_model=PendenciaRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_issue(
+    service_id: int,
+    payload: PendenciaCreate,
+    db: Session = Depends(get_gimak_db),
+    user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP, PERFIL_FABRICA)),
+):
+    """Quem voltou registra o que ficou faltando, para não morrer no relatório."""
+    _get_service(db, service_id)
+    issue = GimakPendencia(atendimentoId=service_id, descricao=payload.descricao, criadoPorId=user.id)
+    db.add(issue)
+    db.commit()
+    db.refresh(issue)
+    return issue
+
+
+@router.patch("/pendencias/{issue_id}", response_model=PendenciaRead)
+def update_issue(
+    issue_id: int,
+    payload: PendenciaUpdate,
+    db: Session = Depends(get_gimak_db),
+    _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP)),
+):
+    issue = _get_issue(db, issue_id)
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(issue, key, value.strip() if isinstance(value, str) else value)
+    db.commit()
+    db.refresh(issue)
+    return issue
+
+
+@router.post("/pendencias/{issue_id}/resolver", response_model=PendenciaRead)
+def resolve_issue(
+    issue_id: int,
+    payload: PendenciaResolucao,
+    db: Session = Depends(get_gimak_db),
+    user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP, PERFIL_FABRICA)),
+):
+    issue = _get_issue(db, issue_id)
+    issue.resolucao = payload.resolucao.strip()
+    issue.status = "resolvida"
+    if issue.resolvidoEm is None:
+        issue.resolvidoEm = datetime.now(timezone.utc)
+        issue.resolvidoPorId = user.id
+    db.commit()
+    db.refresh(issue)
+    return issue
+
+
+@router.post("/pendencias/{issue_id}/reabrir", response_model=PendenciaRead)
+def reopen_issue(
+    issue_id: int,
+    db: Session = Depends(get_gimak_db),
+    _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP)),
+):
+    issue = _get_issue(db, issue_id)
+    issue.status = "aberta"
+    issue.resolvidoEm = None
+    issue.resolvidoPorId = None
+    db.commit()
+    db.refresh(issue)
+    return issue
+
+
+@router.delete("/pendencias/{issue_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_issue(
+    issue_id: int,
+    db: Session = Depends(get_gimak_db),
+    _admin: GimakUsuario = Depends(require_gimak_roles(PERFIL_ADMIN)),
+):
+    db.delete(_get_issue(db, issue_id))
     db.commit()
