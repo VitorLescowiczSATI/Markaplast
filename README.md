@@ -4,6 +4,8 @@ Sistema inicial para controle de pedidos, produção, faturamento, financeiro e 
 
 O mesmo deploy também hospeda o Gimak PCP como uma aplicação isolada em dados, login e interface, reutilizando a capacidade já contratada da API e do PostgreSQL.
 
+O Gimak PCP tem documentação própria em [docs/GIMAK_PCP.md](docs/GIMAK_PCP.md): o que resolve, como funciona, perfis, arquitetura e o que ainda falta.
+
 ## Stack
 
 - Frontend: React + Vite + Tailwind.
