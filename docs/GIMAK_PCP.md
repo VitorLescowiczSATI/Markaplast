@@ -79,6 +79,14 @@ Tela do administrador. Entregas, taxa de conclusão, entregas no prazo, pendênc
 
 Os critérios de cálculo ficam escritos na própria tela, porque número de produção sem o critério ao lado vira discussão.
 
+### Apresentação pública
+
+Rota aberta em `/apresentacao`, fora do login: uma página só, em rolagem, que explica a dor que o sistema resolve, o princípio de projeto, as sete telas, os perfis, o registro por dentro e a infraestrutura.
+
+Serve para mandar o link para quem ainda não tem acesso. Vive em [Apresentacao.jsx](../gimak-frontend/src/Apresentacao.jsx) e é escolhida em `main.jsx` pelo caminho da URL, antes do app carregar. O Render reescreve qualquer rota para o `index.html`, então não precisa de configuração nova.
+
+O quadro de exemplo no topo da página é dado de demonstração escrito à mão, não vem da API.
+
 ### Usuários
 
 Só o administrador. Cria acesso, define perfil e cargo, corrige nome e redefine senha.
