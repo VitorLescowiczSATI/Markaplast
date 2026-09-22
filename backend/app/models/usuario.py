@@ -14,6 +14,8 @@ class Usuario(Base):
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
     senhaHash: Mapped[str] = mapped_column("senha_hash", String(255), nullable=False)
     perfil: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    # Perfil Vendedor: nome como aparece em pedido.vendedor. Restringe tudo que o login enxerga.
+    vendedor: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     createdAt: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), server_default=func.now(), nullable=False)
     updatedAt: Mapped[datetime] = mapped_column(

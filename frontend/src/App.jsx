@@ -60,6 +60,8 @@ import {
 const STATUS_OCULTOS_COMERCIAL = ["Cancelado", "Nota emitida", "Separado para entrega", "Enviado", "Finalizado"];
 const PERFIL_ADMIN = "Administrador";
 const PERFIL_PCP_LOGISTICA = "PCP + Logística";
+// Vendedor só consulta, e o backend devolve só os pedidos, clientes e metas dele.
+const PERFIL_VENDEDOR = "Vendedor";
 const PERFIS_USUARIO = [
   PERFIL_ADMIN,
   "Inteligência",
@@ -72,13 +74,21 @@ const PERFIS_USUARIO = [
   "Faturamento",
   "Financeiro",
   "Fiscal",
+  PERFIL_VENDEDOR,
 ];
 const MODULOS_ADMIN = ["Inteligência", "Comercial", "Clientes", "Estoque", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal", "Usuários"];
 const MODULOS_PCP_LOGISTICA = ["PCP", "Logística"];
+const MODULOS_VENDEDOR = ["Inteligência", "Comercial", "Clientes"];
+const PERFIS_MULTIMODULO = [PERFIL_ADMIN, PERFIL_PCP_LOGISTICA, PERFIL_VENDEDOR];
+
+function normalizarNome(nome) {
+  return String(nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+}
 
 function moduloInicial(perfil) {
   if (perfil === PERFIL_ADMIN) return "Inteligência";
   if (perfil === PERFIL_PCP_LOGISTICA) return "PCP";
+  if (perfil === PERFIL_VENDEDOR) return "Inteligência";
   return perfil;
 }
 
@@ -134,6 +144,7 @@ function perfilIcon(perfil) {
   if (perfil === "Estoque") return <Warehouse {...props} />;
   if (perfil === "PCP") return <Factory {...props} />;
   if (perfil === PERFIL_PCP_LOGISTICA) return <Factory {...props} />;
+  if (perfil === PERFIL_VENDEDOR) return <BarChart3 {...props} />;
   if (perfil === "Faturamento") return <FileText {...props} />;
   if (perfil === "Financeiro") return <WalletCards {...props} />;
   if (perfil === "Fiscal") return <FileText {...props} />;
@@ -213,7 +224,8 @@ function LoginScreen({ onLogin }) {
 }
 
 function UsuariosLayout({ usuarios, usuarioAtual, criarUsuario, atualizarUsuario, redefinirSenha, salvando }) {
-  const [form, setForm] = useState({ nome: "", username: "", perfil: "Comercial", senha: "" });
+  const formVazio = { nome: "", username: "", perfil: "Comercial", vendedor: "", senha: "" };
+  const [form, setForm] = useState(formVazio);
   const [resetId, setResetId] = useState(null);
   const [novaSenha, setNovaSenha] = useState("");
   const ativos = usuarios.filter((usuario) => usuario.ativo).length;
@@ -221,7 +233,22 @@ function UsuariosLayout({ usuarios, usuarioAtual, criarUsuario, atualizarUsuario
   async function cadastrar(event) {
     event.preventDefault();
     const sucesso = await criarUsuario(form);
-    if (sucesso) setForm({ nome: "", username: "", perfil: "Comercial", senha: "" });
+    if (sucesso) setForm(formVazio);
+  }
+
+  function trocarPerfil(usuario, perfil) {
+    if (perfil !== PERFIL_VENDEDOR) {
+      atualizarUsuario(usuario.id, { perfil });
+      return;
+    }
+    // Vendedor precisa do nome igual ao dos pedidos; sugere pelo primeiro nome do usuário.
+    const primeiroNome = normalizarNome(String(usuario.nome || "").split(" ")[0]);
+    const vendedor = vendedores.find((opcao) => normalizarNome(opcao) === primeiroNome);
+    if (!vendedor) {
+      window.alert(`Não achei ${usuario.nome} na lista de vendedores. Crie um acesso novo com o perfil Vendedor e escolha o nome.`);
+      return;
+    }
+    atualizarUsuario(usuario.id, { perfil, vendedor });
   }
 
   async function salvarNovaSenha(event, usuarioId) {
@@ -268,6 +295,16 @@ function UsuariosLayout({ usuarios, usuarioAtual, criarUsuario, atualizarUsuario
               ))}
             </SelectBox>
           </Field>
+          {form.perfil === PERFIL_VENDEDOR && (
+            <Field label="Vendedor nos pedidos">
+              <SelectBox value={form.vendedor} onChange={(vendedor) => setForm({ ...form, vendedor })}>
+                <option value="">Selecione</option>
+                {vendedores.map((vendedor) => (
+                  <option key={vendedor} value={vendedor}>{vendedor}</option>
+                ))}
+              </SelectBox>
+            </Field>
+          )}
           <Field label="Senha temporária">
             <Input
               type="password"
@@ -281,7 +318,13 @@ function UsuariosLayout({ usuarios, usuarioAtual, criarUsuario, atualizarUsuario
           <div className="flex items-end">
             <Button
               type="submit"
-              disabled={salvando || !form.nome.trim() || !form.username.trim() || form.senha.length < 8}
+              disabled={
+                salvando ||
+                !form.nome.trim() ||
+                !form.username.trim() ||
+                form.senha.length < 8 ||
+                (form.perfil === PERFIL_VENDEDOR && !form.vendedor)
+              }
               className="w-full bg-teal-700 text-white hover:bg-teal-800"
             >
               <UserPlus size={16} />
@@ -314,7 +357,7 @@ function UsuariosLayout({ usuarios, usuarioAtual, criarUsuario, atualizarUsuario
                   </div>
                   <SelectBox
                     value={usuario.perfil}
-                    onChange={(perfil) => atualizarUsuario(usuario.id, { perfil })}
+                    onChange={(perfil) => trocarPerfil(usuario, perfil)}
                     disabled={salvando || acessoAtual}
                     className="disabled:bg-slate-100"
                   >
@@ -322,6 +365,18 @@ function UsuariosLayout({ usuarios, usuarioAtual, criarUsuario, atualizarUsuario
                       <option key={perfilOpcao} value={perfilOpcao}>{perfilOpcao}</option>
                     ))}
                   </SelectBox>
+                  {usuario.perfil === PERFIL_VENDEDOR && (
+                    <SelectBox
+                      aria-label="Vendedor nos pedidos"
+                      value={usuario.vendedor || ""}
+                      onChange={(vendedor) => atualizarUsuario(usuario.id, { vendedor })}
+                      disabled={salvando}
+                    >
+                      {[...new Set([usuario.vendedor, ...vendedores].filter(Boolean))].map((vendedor) => (
+                        <option key={vendedor} value={vendedor}>{vendedor}</option>
+                      ))}
+                    </SelectBox>
+                  )}
                   <Button
                     onClick={() => atualizarUsuario(usuario.id, { ativo: !usuario.ativo })}
                     disabled={salvando || acessoAtual}
@@ -566,7 +621,7 @@ function PedidoCompactCard({ pedido, layout = "comercial", atualizarStatus, atua
   );
 }
 
-function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarPedido, atualizarStatus, excluirPedido, salvando }) {
+function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarPedido, atualizarStatus, excluirPedido, salvando, somenteLeitura = false }) {
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
   const [vendedorFiltro, setVendedorFiltro] = useState("Todos");
@@ -694,7 +749,8 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
     <div className="space-y-6">
       <ResumoCards pedidos={pedidos} />
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_1fr]">
+      <section className={`grid grid-cols-1 gap-6 ${somenteLeitura ? "" : "xl:grid-cols-[420px_1fr]"}`}>
+        {!somenteLeitura && (
         <Card className="p-5">
           <div className="mb-5 flex items-center gap-2">
             <Plus size={20} className="text-teal-700" />
@@ -921,6 +977,7 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
             </Button>
           </form>
         </Card>
+        )}
 
         <Card className="p-5">
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -941,14 +998,16 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
                   </option>
                 ))}
               </SelectBox>
-              <SelectBox value={vendedorFiltro} onChange={setVendedorFiltro} className="w-full sm:w-40">
-                <option value="Todos">Todos vendedores</option>
-                {vendedores.map((vendedor) => (
-                  <option key={vendedor} value={vendedor}>
-                    {vendedor}
-                  </option>
-                ))}
-              </SelectBox>
+              {!somenteLeitura && (
+                <SelectBox value={vendedorFiltro} onChange={setVendedorFiltro} className="w-full sm:w-40">
+                  <option value="Todos">Todos vendedores</option>
+                  {vendedores.map((vendedor) => (
+                    <option key={vendedor} value={vendedor}>
+                      {vendedor}
+                    </option>
+                  ))}
+                </SelectBox>
+              )}
               <div className="flex items-center gap-1">
                 <Input type="date" value={dataInicial} onChange={(e) => setDataInicial(e.target.value)} aria-label="Data inicial" className="w-36" />
                 <span className="text-slate-400">-</span>
@@ -1779,7 +1838,8 @@ export default function App() {
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState("");
   const perfil = sessao?.perfil || "";
-  const moduloAtual = [PERFIL_ADMIN, PERFIL_PCP_LOGISTICA].includes(perfil) ? moduloAtivo : perfil;
+  const somenteLeitura = perfil === PERFIL_VENDEDOR;
+  const moduloAtual = PERFIS_MULTIMODULO.includes(perfil) ? moduloAtivo : perfil;
 
   function limparDados() {
     setPedidos([]);
@@ -1799,17 +1859,18 @@ export default function App() {
     setError("");
     try {
       const isAdmin = perfil === PERFIL_ADMIN;
-      const carregaPedidos = isAdmin || ["Inteligência", "Comercial", "PCP", PERFIL_PCP_LOGISTICA, "Logística", "Faturamento", "Financeiro", "Fiscal"].includes(perfil);
-      const carregaClientes = isAdmin || ["Comercial", "Clientes"].includes(perfil);
+      const carregaPedidos = isAdmin || ["Inteligência", "Comercial", "PCP", PERFIL_PCP_LOGISTICA, "Logística", "Faturamento", "Financeiro", "Fiscal", PERFIL_VENDEDOR].includes(perfil);
+      const carregaClientes = isAdmin || ["Comercial", "Clientes", PERFIL_VENDEDOR].includes(perfil);
+      const carregaInteligencia = isAdmin || ["Inteligência", PERFIL_VENDEDOR].includes(perfil);
       const carregaProdutos = isAdmin || ["Comercial", "Clientes", "Estoque"].includes(perfil);
       const [pedidosResponse, cargasResponse, clientesResponse, produtosResponse, dashboardResponse, notasResponse, metasResponse, usuariosResponse] = await Promise.all([
         carregaPedidos ? api.listPedidos() : Promise.resolve([]),
         isAdmin || [PERFIL_PCP_LOGISTICA, "Logística"].includes(perfil) ? api.listCargas() : Promise.resolve([]),
         carregaClientes ? api.listClientes() : Promise.resolve([]),
         carregaProdutos ? api.listProdutos() : Promise.resolve([]),
-        isAdmin || perfil === "Inteligência" ? api.getDashboard() : Promise.resolve(null),
+        carregaInteligencia ? api.getDashboard() : Promise.resolve(null),
         isAdmin || perfil === "Fiscal" ? api.listNotas() : Promise.resolve([]),
-        isAdmin || perfil === "Inteligência" ? api.listMetas() : Promise.resolve([]),
+        carregaInteligencia ? api.listMetas() : Promise.resolve([]),
         isAdmin ? api.listUsuarios() : Promise.resolve([]),
       ]);
       setPedidos(pedidosResponse);
@@ -2128,6 +2189,32 @@ export default function App() {
             </div>
           </nav>
         )}
+        {perfil === PERFIL_VENDEDOR && (
+          <nav className="mb-5 rounded-xl border border-teal-100 bg-white p-3 shadow-sm" aria-label="Áreas do vendedor">
+            <div className="mb-3 flex items-center gap-2 px-1">
+              <BarChart3 size={18} className="text-teal-700" />
+              <div>
+                <p className="text-sm font-bold text-slate-800">Minha carteira</p>
+                <p className="text-xs text-slate-500">Seus números, seus pedidos e seus clientes.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {MODULOS_VENDEDOR.map((modulo) => (
+                <button
+                  key={modulo}
+                  type="button"
+                  onClick={() => setModuloAtivo(modulo)}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition ${
+                    moduloAtual === modulo ? "bg-teal-700 text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {perfilIcon(modulo)}
+                  {modulo}
+                </button>
+              ))}
+            </div>
+          </nav>
+        )}
         {error && (
           <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {error}
@@ -2148,9 +2235,21 @@ export default function App() {
             salvando={salvando}
           />
         ) : moduloAtual === "Inteligência" ? (
-          <InteligenciaLayout dashboard={dashboard} pedidos={pedidos} metas={metas} onRefresh={() => loadData(false)} />
+          <InteligenciaLayout
+            dashboard={dashboard}
+            pedidos={pedidos}
+            metas={metas}
+            onRefresh={() => loadData(false)}
+            vendedor={somenteLeitura ? sessao.vendedor : ""}
+          />
         ) : moduloAtual === "Clientes" ? (
-          <ClientesLayout clientes={clientes} produtos={produtosCatalogo} onRefresh={() => loadData(false)} salvando={salvando} />
+          <ClientesLayout
+            clientes={clientes}
+            produtos={produtosCatalogo}
+            onRefresh={() => loadData(false)}
+            salvando={salvando}
+            somenteLeitura={somenteLeitura}
+          />
         ) : moduloAtual === "Estoque" ? (
           <EstoqueLayout produtos={produtosCatalogo} onRefresh={() => loadData(false)} />
         ) : moduloAtual === "PCP" ? (
@@ -2196,9 +2295,10 @@ export default function App() {
             clientes={clientes}
             produtosCatalogo={produtosCatalogo}
             criarPedido={criarPedido}
-            atualizarStatus={atualizarStatus}
-            excluirPedido={excluirPedido}
+            atualizarStatus={somenteLeitura ? undefined : atualizarStatus}
+            excluirPedido={somenteLeitura ? undefined : excluirPedido}
             salvando={salvando}
+            somenteLeitura={somenteLeitura}
           />
         )}
       </main>

@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.models.meta import Meta
+from app.models.usuario import Usuario
+from app.services.auth import PERFIL_VENDEDOR
+from app.services.escopo import normalizar_vendedor, vendedor_do_usuario
 from app.schemas.meta import MetaRead, MetaUpsert
 from app.services.metas import ESCOPOS_VALIDOS, PERIODOS_VALIDOS, upsert_meta
 
@@ -12,8 +15,12 @@ router = APIRouter(prefix="/metas", tags=["metas"])
 
 
 @router.get("", response_model=list[MetaRead])
-def listar_metas(db: Session = Depends(get_db), _usuario=Depends(require_profiles("Inteligência"))):
-    return db.scalars(select(Meta).order_by(Meta.escopo, Meta.vendedor, Meta.periodo)).all()
+def listar_metas(db: Session = Depends(get_db), usuario: Usuario = Depends(require_profiles("Inteligência", PERFIL_VENDEDOR))):
+    metas = db.scalars(select(Meta).order_by(Meta.escopo, Meta.vendedor, Meta.periodo)).all()
+    vendedor_escopo = vendedor_do_usuario(usuario)
+    if vendedor_escopo is None:
+        return metas
+    return [meta for meta in metas if meta.escopo == "vendedor" and normalizar_vendedor(meta.vendedor) == vendedor_escopo]
 
 
 @router.post("", response_model=MetaRead, status_code=status.HTTP_201_CREATED)

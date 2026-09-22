@@ -14,6 +14,7 @@ from app.models.usuario import Usuario
 PBKDF2_ITERATIONS = 210_000
 PERFIL_ADMIN = "Administrador"
 PERFIL_PCP_LOGISTICA = "PCP + Logística"
+PERFIL_VENDEDOR = "Vendedor"
 PERFIS_INICIAIS = {
     "admin": ("Administrador", PERFIL_ADMIN),
     "inteligencia": ("Inteligência", "Inteligência"),

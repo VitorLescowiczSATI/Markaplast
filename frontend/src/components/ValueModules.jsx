@@ -101,7 +101,9 @@ function MetaBar({ label, realizado, meta }) {
   );
 }
 
-export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefresh }) {
+export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefresh, vendedor = "" }) {
+  // Com vendedor, pedidos e metas já chegam filtrados pelo backend e a tela vira só consulta.
+  const somenteLeitura = Boolean(vendedor);
   const resumo = dashboard?.resumo || {};
   const realizado = useMemo(() => realizadoMetas(pedidos), [pedidos]);
   const [competenciaIndicadores, setCompetenciaIndicadores] = useState(competenciaAtual);
@@ -127,6 +129,10 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
     );
     return Number(meta?.valor || 0);
   };
+
+  // A meta vem com o nome como o admin cadastrou; o backend já filtrou, então basta o período.
+  const metaDoVendedor = (periodo) =>
+    Number(metas.find((item) => item.escopo === "vendedor" && item.periodo === periodo)?.valor || 0);
 
   const vendedoresPainel = Array.from(
     new Set([...Object.keys(realizado.porVendedor), ...metas.filter((meta) => meta.escopo === "vendedor").map((meta) => meta.vendedor)])
@@ -179,7 +185,7 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
       <Card className="p-5">
         <div className="mb-4 flex items-center gap-2">
           <Target size={20} className="text-teal-700" />
-          <h2 className="text-xl font-bold">Metas da empresa</h2>
+          <h2 className="text-xl font-bold">{somenteLeitura ? "Minhas metas" : "Metas da empresa"}</h2>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {PERIODOS_META.map((periodo) => (
@@ -187,13 +193,13 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
               key={periodo.key}
               label={periodo.label}
               realizado={realizado.empresa[periodo.key]}
-              meta={metaValor("empresa", "", periodo.key)}
+              meta={somenteLeitura ? metaDoVendedor(periodo.key) : metaValor("empresa", "", periodo.key)}
             />
           ))}
         </div>
       </Card>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className={`grid grid-cols-1 gap-6 ${somenteLeitura ? "" : "xl:grid-cols-[1.1fr_0.9fr]"}`}>
         <Card className="p-5">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex items-center gap-2 pb-1">
@@ -237,6 +243,7 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
           </div>
         </Card>
 
+        {!somenteLeitura && (
         <Card className="p-5">
           <h2 className="mb-4 text-xl font-bold">Metas por vendedor (mês)</h2>
           <div className="space-y-3">
@@ -251,8 +258,10 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
             ))}
           </div>
         </Card>
+        )}
       </section>
 
+      {!somenteLeitura && (
       <Card className="p-5">
         <h2 className="mb-4 text-xl font-bold">Configurar metas</h2>
         <form onSubmit={salvarMeta} className="flex flex-wrap items-end gap-3">
@@ -320,6 +329,7 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
           ))}
         </div>
       </Card>
+      )}
     </div>
   );
 }
@@ -428,7 +438,7 @@ function PrecosClienteEditor({ cliente, produtos = [] }) {
   );
 }
 
-export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvando }) {
+export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvando, somenteLeitura = false }) {
   const [form, setForm] = useState(emptyCliente);
   const [editandoId, setEditandoId] = useState(null);
   const [precosAbertoId, setPrecosAbertoId] = useState(null);
@@ -509,7 +519,8 @@ export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvan
         <StatCard label="Com endereço completo" value={clientes.filter((cliente) => cliente.cep && cliente.cidade && cliente.uf).length} tone="green" />
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_1fr]">
+      <section className={`grid grid-cols-1 gap-6 ${somenteLeitura ? "" : "xl:grid-cols-[420px_1fr]"}`}>
+        {!somenteLeitura && (
         <Card className="p-5">
           <div className="mb-5 flex items-center gap-2">
             <Users size={20} className="text-teal-700" />
@@ -582,10 +593,11 @@ export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvan
             )}
           </form>
         </Card>
+        )}
 
         <Card className="p-5">
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <h2 className="text-xl font-bold">Carteira de clientes</h2>
+            <h2 className="text-xl font-bold">{somenteLeitura ? "Meus clientes" : "Carteira de clientes"}</h2>
             <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, CNPJ ou cidade" className="md:w-80" />
           </div>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -599,6 +611,8 @@ export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvan
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className="border-teal-200 bg-teal-50 text-teal-800">{cliente.uf || "--"}</Badge>
+                    {!somenteLeitura && (
+                    <>
                     <button
                       type="button"
                       onClick={() => setPrecosAbertoId((id) => (id === cliente.id ? null : cliente.id))}
@@ -630,6 +644,8 @@ export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvan
                     >
                       <Trash2 size={15} />
                     </button>
+                    </>
+                    )}
                   </div>
                 </div>
                 <p className="mt-3 text-sm text-slate-700">

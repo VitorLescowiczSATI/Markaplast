@@ -8,7 +8,10 @@ from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.usuario import Usuario
 from app.schemas.auth import LoginRequest, LoginResponse, UsuarioCreate, UsuarioRead, UsuarioSenhaUpdate, UsuarioUpdate
-from app.services.auth import PERFIL_ADMIN, criar_token, hash_senha, verificar_senha
+from app.services.auth import PERFIL_ADMIN, PERFIL_VENDEDOR, criar_token, hash_senha, verificar_senha
+
+
+ERRO_VENDEDOR_SEM_NOME = "Informe o nome do vendedor, igual ao usado nos pedidos"
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -51,6 +54,8 @@ def criar_usuario(
     db: Session = Depends(get_db),
     _usuario: Usuario = Depends(require_profiles(PERFIL_ADMIN)),
 ):
+    if payload.perfil == PERFIL_VENDEDOR and not payload.vendedor:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=ERRO_VENDEDOR_SEM_NOME)
     username = payload.username.strip().lower()
     existente = db.scalar(select(Usuario).where(func.lower(Usuario.username) == username))
     if existente:
@@ -60,6 +65,7 @@ def criar_usuario(
         username=username,
         senhaHash=hash_senha(payload.senha),
         perfil=payload.perfil,
+        vendedor=payload.vendedor if payload.perfil == PERFIL_VENDEDOR else "",
         ativo=True,
     )
     db.add(usuario)
@@ -85,6 +91,11 @@ def atualizar_usuario(
     dados = {campo: valor for campo, valor in payload.model_dump(exclude_unset=True).items() if valor is not None}
     if usuario.id == administrador.id and (dados.get("ativo") is False or dados.get("perfil", PERFIL_ADMIN) != PERFIL_ADMIN):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O administrador não pode remover o próprio acesso")
+    perfil_final = dados.get("perfil", usuario.perfil)
+    vendedor_final = dados.get("vendedor", usuario.vendedor) if perfil_final == PERFIL_VENDEDOR else ""
+    if perfil_final == PERFIL_VENDEDOR and not vendedor_final:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=ERRO_VENDEDOR_SEM_NOME)
+    dados["vendedor"] = vendedor_final
     for campo, valor in dados.items():
         setattr(usuario, campo, valor)
     db.commit()

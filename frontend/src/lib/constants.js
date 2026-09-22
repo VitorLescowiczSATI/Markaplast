@@ -13,7 +13,7 @@ export const statusList = [
 
 export const financeiroStatusList = ["Aguardando pagamento", "Pago"];
 
-export const vendedores = ["Arthur", "Ingrid", "Nelso", "Tadeu", "Martini", "Marcos", "Silvana"];
+export const vendedores = ["Arthur", "Ingrid", "Nelso", "Tadeu", "Martini", "Marcos", "Silvana", "Glaucia"];
 
 export const produtos = [
   "1L sem alça",

@@ -9,6 +9,9 @@ from app.db.session import get_db
 from app.models.carga import Carga
 from app.models.pedido import Pedido
 from app.models.produto import Produto
+from app.models.usuario import Usuario
+from app.services.auth import PERFIL_VENDEDOR
+from app.services.escopo import filtrar_pedidos, vendedor_do_usuario
 from app.schemas.dashboard import AlertaRead, DashboardItem, DashboardRead
 from app.services.estoque import itens_do_pedido
 from app.services.regras import calcular_resumo, valor_total_pedido
@@ -90,10 +93,16 @@ def montar_alertas(pedidos: list[Pedido], produtos: list[Produto], cargas: list[
 
 
 @router.get("", response_model=DashboardRead)
-def dashboard(db: Session = Depends(get_db), _usuario=Depends(require_profiles("Inteligência"))):
+def dashboard(db: Session = Depends(get_db), usuario: Usuario = Depends(require_profiles("Inteligência", PERFIL_VENDEDOR))):
     pedidos = db.scalars(select(Pedido).options(selectinload(Pedido.itens))).all()
-    produtos = db.scalars(select(Produto)).all()
-    cargas = db.scalars(select(Carga)).all()
+    vendedor_escopo = vendedor_do_usuario(usuario)
+    if vendedor_escopo is None:
+        produtos = db.scalars(select(Produto)).all()
+        cargas = db.scalars(select(Carga)).all()
+    else:
+        # Vendedor vê só os próprios números; estoque e cargas são da operação inteira.
+        pedidos = filtrar_pedidos(pedidos, vendedor_escopo)
+        produtos, cargas = [], []
 
     por_status = [
         DashboardItem(label=status, valor=sum(1 for pedido in pedidos if pedido.status == status))

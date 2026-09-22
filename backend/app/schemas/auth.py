@@ -15,6 +15,7 @@ PerfilUsuario = Literal[
     "Faturamento",
     "Financeiro",
     "Fiscal",
+    "Vendedor",
 ]
 
 
@@ -28,6 +29,7 @@ class UsuarioRead(BaseModel):
     nome: str
     username: str
     perfil: str
+    vendedor: str = ""
     ativo: bool
 
     model_config = ConfigDict(from_attributes=True)
@@ -44,8 +46,9 @@ class UsuarioCreate(BaseModel):
     username: str = Field(min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9._-]+$")
     senha: str = Field(min_length=8, max_length=200)
     perfil: PerfilUsuario
+    vendedor: str = Field(default="", max_length=80)
 
-    @field_validator("nome", "username", mode="before")
+    @field_validator("nome", "username", "vendedor", mode="before")
     @classmethod
     def limpar_texto(cls, valor: str) -> str:
         return valor.strip()
@@ -55,8 +58,9 @@ class UsuarioUpdate(BaseModel):
     nome: str | None = Field(default=None, min_length=2, max_length=120)
     perfil: PerfilUsuario | None = None
     ativo: bool | None = None
+    vendedor: str | None = Field(default=None, max_length=80)
 
-    @field_validator("nome", mode="before")
+    @field_validator("nome", "vendedor", mode="before")
     @classmethod
     def limpar_nome(cls, valor: str | None) -> str | None:
         return valor.strip() if valor is not None else None

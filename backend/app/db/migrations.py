@@ -25,6 +25,11 @@ PRODUTOS_COLUMNS = {
 }
 
 
+USUARIOS_COLUMNS = {
+    "vendedor": "VARCHAR(80) NOT NULL DEFAULT ''",
+}
+
+
 TIMESTAMP_TABLES = {
     "produtos": ("created_at", "updated_at"),
 }
@@ -112,5 +117,6 @@ def ensure_runtime_migrations(engine: Engine) -> None:
     _repair_timestamp_columns(engine, inspector)
     _add_missing_columns(engine, inspector, "pedidos", PEDIDOS_COLUMNS)
     _add_missing_columns(engine, inspector, "produtos", PRODUTOS_COLUMNS)
+    _add_missing_columns(engine, inspector, "usuarios", USUARIOS_COLUMNS)
     _migrate_status_values(engine, inspector)
     _backfill_pedido_itens(engine, inspector)
