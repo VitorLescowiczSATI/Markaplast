@@ -10,12 +10,12 @@ import {
   Monitor,
   PauseCircle,
   PlayCircle,
-  ServerCog,
   ShieldCheck,
   Timer,
   Wrench,
 } from "lucide-react";
 
+import { CONTATO_WHATSAPP, PRODUTO, linkWhatsApp } from "./mode";
 import "./apresentacao.css";
 
 const DORES = [
@@ -91,19 +91,15 @@ const PERMISSOES = [
 const ROADMAP = [
   {
     nome: "Anexo de arquivo na tarefa",
-    texto: "Por exemplo a lista de corte de material. Depende de armazenamento de arquivo, que o plano atual não tem.",
+    texto: "Por exemplo a lista de corte de material, junto da atividade que precisa dela.",
   },
   {
     nome: "Aplicativo no celular",
-    texto: "As telas já funcionam no navegador do celular. Falta a notificação e o campo de foto na assistência.",
-  },
-  {
-    nome: "Mais de um responsável na tarefa",
-    texto: "Parado por decisão, até definir o que acontece quando um sai e o outro continua.",
+    texto: "As telas já funcionam no navegador do celular. Vem aí a notificação e a foto na assistência.",
   },
   {
     nome: "Ranking visível para a fábrica",
-    texto: "O ranking já existe, mas hoje só o administrador enxerga.",
+    texto: "Hoje o ranking fica com o administrador. A ideia é a equipe acompanhar também.",
   },
 ];
 
@@ -117,7 +113,7 @@ function Nao() {
 
 export function Apresentacao() {
   useEffect(() => {
-    document.title = "Gimak PCP — como o sistema funciona";
+    document.title = `${PRODUTO} · como o sistema funciona`;
     const alvos = document.querySelectorAll("[data-reveal]");
     if (!("IntersectionObserver" in window)) {
       alvos.forEach((item) => item.classList.add("is-visible"));
@@ -141,29 +137,29 @@ export function Apresentacao() {
       <header className="lp-nav">
         <a className="lp-brand" href="#topo">
           <span className="brand-mark"><Factory size={22} /></span>
-          <div><strong>Gimak PCP</strong><small>Planejamento e controle da produção</small></div>
+          <div><strong>{PRODUTO}</strong><small>Planejamento e controle da produção</small></div>
         </a>
         <nav className="lp-links">
           <a href="#dor">A dor</a>
           <a href="#principio">O princípio</a>
           <a href="#telas">As telas</a>
           <a href="#acesso">Acesso</a>
-          <a href="#infra">Infraestrutura</a>
+          <a href="#comecar">Como começar</a>
         </nav>
-        <a className="lp-cta" href="/">Entrar no sistema</a>
+        <a className="lp-cta" href="/demo">Testar agora</a>
       </header>
 
       <main id="topo">
         <section className="lp-hero">
           <div className="lp-hero-text">
-            <p className="lp-eyebrow">Gimak</p>
+            <p className="lp-eyebrow">Sistema de PCP para a fábrica</p>
             <h1>PCP na mão de quem executa</h1>
             <p className="lp-lead">
               O andamento da fábrica em um lugar só, do apontamento na bancada ao indicador da diretoria,
               sem burocratizar o trabalho de quem faz.
             </p>
             <div className="lp-hero-actions">
-              <a className="lp-cta lp-cta-lg" href="/">Entrar no sistema</a>
+              <a className="lp-cta lp-cta-lg" href="/demo">Testar a demonstração</a>
               <a className="lp-ghost" href="#telas">Ver as telas</a>
             </div>
           </div>
@@ -314,38 +310,38 @@ export function Apresentacao() {
           </p>
         </section>
 
-        <section className="lp-section lp-section-light" id="infra" data-reveal>
-          <p className="lp-eyebrow lp-eyebrow-dark">Infraestrutura</p>
-          <h2>Roda no que já estava contratado</h2>
-          <div className="lp-infra">
-            <div>
-              <header><ServerCog size={18} /> API</header>
-              <p className="lp-infra-mk">Markaplast <code>/api/...</code></p>
-              <p className="lp-infra-gk">Gimak <code>/api/gimak/...</code></p>
-            </div>
-            <div>
-              <header><ServerCog size={18} /> PostgreSQL</header>
-              <p className="lp-infra-mk">Markaplast <code>banco giras</code></p>
-              <p className="lp-infra-gk">Gimak <code>banco gimak_pcp</code></p>
-            </div>
-            <div>
-              <header><ServerCog size={18} /> Sites</header>
-              <p className="lp-infra-mk">Markaplast <code>giras-web</code></p>
-              <p className="lp-infra-gk">Gimak <code>gimak-pcp-web</code></p>
-            </div>
+        <section className="lp-section lp-section-light" id="comecar" data-reveal>
+          <p className="lp-eyebrow lp-eyebrow-dark">Como começar</p>
+          <h2>Sem programa para instalar</h2>
+          <div className="lp-comecar">
+            <article>
+              <span className="lp-tela-icon"><Monitor size={22} /></span>
+              <h3>Roda no navegador</h3>
+              <p>Computador, celular ou a televisão da fábrica. Abriu o endereço, entrou com o seu acesso, está usando.</p>
+            </article>
+            <article>
+              <span className="lp-tela-icon"><ShieldCheck size={22} /></span>
+              <h3>Cada um com o seu acesso</h3>
+              <p>Administrador, PCP, fábrica e TV. Cada perfil enxerga só o que precisa para trabalhar.</p>
+            </article>
+            <article>
+              <span className="lp-tela-icon"><Factory size={22} /></span>
+              <h3>Nasceu no chão de fábrica</h3>
+              <p>Feito junto com uma fábrica de máquinas que usa o sistema todo dia, da montagem na bancada à instalação no cliente.</p>
+            </article>
           </div>
-          <div className="lp-zero">
-            <strong>Custo adicional de infraestrutura: zero</strong>
-            <p>
-              Reaproveita a API e o banco já contratados, e o site estático é gratuito. Banco lógico separado,
-              autenticação com segredo próprio, e nada em comum com a Markaplast além da infraestrutura.
-            </p>
+          <div className="lp-convite">
+            <div>
+              <strong>Veja funcionando antes de conversar</strong>
+              <p>A demonstração tem uma fábrica fictícia com tarefas, projetos e assistências. Pode clicar em tudo, nada ali é real.</p>
+            </div>
+            <a className="lp-cta lp-cta-lg" href="/demo">Abrir a demonstração</a>
           </div>
         </section>
 
         <section className="lp-section" id="proximo" data-reveal>
           <p className="lp-eyebrow lp-eyebrow-dark">Próximos passos</p>
-          <h2>O que ainda não existe</h2>
+          <h2>O que vem por aí</h2>
           <div className="lp-roadmap">
             {ROADMAP.map((item) => (
               <article key={item.nome}>
@@ -362,13 +358,16 @@ export function Apresentacao() {
             Sem formulário para quem executa, sem planilha para quem planeja e sem depender de alguém lembrar
             para quem cobra.
           </p>
-          <a className="lp-cta lp-cta-lg" href="/">Entrar no sistema</a>
+          <div className="lp-fim-acoes">
+            <a className="lp-cta lp-cta-lg" href="/demo">Testar a demonstração</a>
+            {CONTATO_WHATSAPP && <a className="lp-whats" href={linkWhatsApp("a apresentação")} target="_blank" rel="noopener noreferrer">Quero na minha fábrica</a>}
+          </div>
         </section>
       </main>
 
       <footer className="lp-rodape">
-        <span><Factory size={17} /> Gimak PCP</span>
-        <span>gimak-pcp-web.onrender.com</span>
+        <span><Factory size={17} /> {PRODUTO}</span>
+        <a href="https://www.instagram.com/pcp_namao/" target="_blank" rel="noopener noreferrer">@pcp_namao no Instagram</a>
       </footer>
     </div>
   );

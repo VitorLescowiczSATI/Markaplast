@@ -167,25 +167,18 @@
   background: var(--navy); color: #dfe4ea; font-size: 1rem; line-height: 1.6;
 }
 
-/* Infraestrutura */
-.lp-infra { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 34px; }
-.lp-infra > div { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 9px; }
-.lp-infra header {
-  display: flex; align-items: center; gap: 9px; padding-bottom: 14px; margin-bottom: 5px;
-  border-bottom: 1px solid var(--line); font-weight: 800; font-size: .95rem;
-}
-.lp-infra header svg { color: var(--muted); }
-.lp-infra p { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-radius: 9px; font-size: .92rem; font-weight: 700; }
-.lp-infra code { font: 600 .82rem "Roboto Mono", monospace; }
-.lp-infra-mk { background: #e7ebef; color: #3f4a57; }
-.lp-infra-gk { background: #fff3ec; color: #a6420c; border: 1px solid #f4c4a4; }
-.lp-zero {
+/* Como começar */
+.lp-comecar { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 34px; }
+.lp-comecar article { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 28px; }
+.lp-comecar h3 { font-size: 1.22rem; margin-bottom: 10px; }
+.lp-comecar p { color: #46505d; font-size: .98rem; line-height: 1.55; }
+.lp-convite {
   margin-top: 18px; padding: 28px 32px; border-radius: 14px;
-  background: white; border: 1px solid var(--line); border-left: 8px solid var(--orange);
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  background: var(--navy); color: white; border-left: 8px solid var(--orange);
 }
-.lp-section-light .lp-zero { background: var(--bg); }
-.lp-zero strong { display: block; font-size: clamp(1.2rem, 2vw, 1.5rem); margin-bottom: 10px; }
-.lp-zero p { color: #46505d; font-size: 1rem; line-height: 1.6; max-width: 900px; }
+.lp-convite strong { display: block; font-size: clamp(1.2rem, 2vw, 1.5rem); margin-bottom: 8px; }
+.lp-convite p { color: #c3ccd6; font-size: 1rem; line-height: 1.6; max-width: 640px; }
 
 /* Roadmap */
 .lp-roadmap { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; margin-top: 34px; }
@@ -198,6 +191,12 @@
 }
 .lp-fim h2 { max-width: 900px; margin: 0 auto; }
 .lp-fim p { max-width: 720px; margin: 20px auto 30px; color: #c3ccd6; font-size: 1.08rem; line-height: 1.6; }
+.lp-fim-acoes { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; }
+.lp-whats {
+  display: inline-flex; align-items: center; justify-content: center; padding: 15px 30px; border-radius: 8px;
+  background: #1f8a4c; color: white; text-decoration: none; font-weight: 700; font-size: 1rem;
+}
+.lp-whats:hover { background: #197340; }
 
 .lp-rodape {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
@@ -205,6 +204,8 @@
   background: var(--navy); color: #8d99a6; border-top: 1px solid #2f3d4d; font-size: .85rem;
 }
 .lp-rodape span { display: flex; align-items: center; gap: 9px; }
+.lp-rodape a { color: #c3ccd6; text-decoration: none; }
+.lp-rodape a:hover { color: white; }
 
 @media (max-width: 1080px) {
   .lp-hero { grid-template-columns: 1fr; }
@@ -217,3 +218,6 @@
   .lp-brand small { display: none; }
   .lp-hero-actions .lp-cta-lg, .lp-hero-actions .lp-ghost { flex: 1; }
 }
+
+/* O menu é fixo: sem essa folga, o título da seção some atrás dele ao usar as âncoras. */
+.lp [id] { scroll-margin-top: 84px; }

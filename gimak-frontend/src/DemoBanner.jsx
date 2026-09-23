@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, FlaskConical, MessageCircle, RotateCcw, X } from "lucide-react";
 
 import { demoControls } from "./demoApi";
-import { CONTATO_WHATSAPP, MARCA } from "./mode";
+import { CONTATO_WHATSAPP, linkWhatsApp } from "./mode";
 import "./demo.css";
 
 const GUIA_KEY = "gimak.demo.guia";
@@ -46,15 +46,10 @@ function gravarGuia(guia) {
   }
 }
 
-function linkWhatsApp() {
-  const texto = `Olá! Vi a demonstração do ${MARCA.produto} e quero saber como usar na minha fábrica.`;
-  return `https://wa.me/${CONTATO_WHATSAPP}?text=${encodeURIComponent(texto)}`;
-}
-
 function BotaoContato({ grande = false }) {
   if (!CONTATO_WHATSAPP) return null;
   return (
-    <a className={`demo-contato ${grande ? "demo-contato-grande" : ""}`} href={linkWhatsApp()} target="_blank" rel="noopener noreferrer">
+    <a className={`demo-contato ${grande ? "demo-contato-grande" : ""}`} href={linkWhatsApp("a demonstração")} target="_blank" rel="noopener noreferrer">
       <MessageCircle size={grande ? 18 : 15} /> Quero na minha fábrica
     </a>
   );
