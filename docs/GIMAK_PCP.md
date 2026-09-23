@@ -87,6 +87,15 @@ Serve para mandar o link para quem ainda não tem acesso. Vive em [Apresentacao.
 
 O quadro de exemplo no topo da página é dado de demonstração escrito à mão, não vem da API.
 
+### Demonstração
+
+Rota `/demo`: o sistema inteiro, com as mesmas telas, rodando com dados fictícios e sem falar com a API. Serve para mostrar o PCP a quem não pode ver os dados reais da fábrica.
+
+- Nada sai do navegador. O [api.js](../gimak-frontend/src/api.js) troca a API real pela [demoApi.js](../gimak-frontend/src/demoApi.js) quando o caminho é `/demo`, com a mesma interface.
+- Entra direto como administrador. O selo no canto troca de perfil (Administrador, PCP, Fábrica, TV) e tem o botão Recomeçar.
+- O que a pessoa faz fica só no navegador dela e os dados são recriados todo dia, relativos à data de hoje, para o quadro do dia nunca ficar vazio.
+- As regras de situação, cronômetro, permissões, indicadores e painel da TV são uma cópia em JavaScript do `api.py` e do `analytics.py`. **Mudou uma regra no backend, precisa mudar na demoApi.js também**, senão a demonstração mostra um sistema que não existe.
+
 ### Usuários
 
 Só o administrador. Cria acesso, define perfil e cargo, corrige nome e redefine senha.

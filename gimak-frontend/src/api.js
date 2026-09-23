@@ -1,3 +1,6 @@
+import { demoApi } from "./demoApi";
+import { IS_DEMO } from "./mode";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const TOKEN_KEY = "gimak.accessToken";
 
@@ -37,7 +40,7 @@ async function request(path, options = {}, authenticated = true) {
 
 const json = (method, payload) => ({ method, body: JSON.stringify(payload) });
 
-export const api = {
+const realApi = {
   hasToken: () => Boolean(accessToken),
   setAccessToken,
   login: (username, senha) => request("/auth/login", json("POST", { username, senha }), false),
@@ -71,3 +74,6 @@ export const api = {
   reopenIssue: (id) => request(`/pendencias/${id}/reabrir`, json("POST", {})),
   deleteIssue: (id) => request(`/pendencias/${id}`, { method: "DELETE" }),
 };
+
+// Em /demo a interface é a mesma, mas nenhuma chamada sai do navegador.
+export const api = IS_DEMO ? demoApi : realApi;
