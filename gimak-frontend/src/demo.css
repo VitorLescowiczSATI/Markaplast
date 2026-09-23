@@ -50,6 +50,10 @@
 }
 .demo-guia li button:hover { background: #d95d1c; }
 
+/* Com uma janela aberta (tarefa, atendimento, formulário) o selo sai da frente.
+   No celular ele ficava por cima dos botões de situação e engolia o toque no Iniciar. */
+body:has(.modal-backdrop) .demo-dock { display: none; }
+
 body:has(.demo-pill) { padding-bottom: 76px; }
 /* O modo TV ocupa a tela exata; espaço extra embaixo viraria rolagem na televisão. */
 body:has(.pv-tv) { padding-bottom: 0; }
