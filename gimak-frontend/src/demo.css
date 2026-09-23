@@ -1,24 +1,63 @@
-/* Selo do modo demonstração (/demo). */
-.demo-pill {
+/* Selo e roteiro do modo demonstração (/demo). */
+.demo-dock {
   position: fixed; left: 16px; bottom: 16px; z-index: 35;
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  max-width: calc(100vw - 32px); padding: 9px 10px 9px 14px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  max-width: calc(100vw - 32px);
+}
+.demo-pill {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: 100%;
+  padding: 9px 10px 9px 14px;
   background: #fff4ec; color: #5a2a0c; border: 1px solid #f2b98f; border-radius: 12px;
   box-shadow: 0 10px 30px rgba(23, 32, 42, .18); font-size: .8rem;
 }
 .demo-pill-label { display: flex; align-items: center; gap: 7px; font-weight: 800; color: #a6420c; }
 .demo-pill-label small { color: #7a4a2c; font-weight: 600; font-size: .72rem; }
 .demo-pill-profile { display: flex; align-items: center; gap: 7px; font-weight: 700; }
-.demo-pill-profile select { width: auto; margin: 0; padding: 6px 8px; font-size: .78rem; border-color: #efc4a4; }
+.demo-pill-profile select { width: auto; max-width: 230px; margin: 0; padding: 6px 8px; font-size: .78rem; border-color: #efc4a4; }
 .demo-pill button {
   display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px;
   border: 1px solid #efc4a4; border-radius: 8px; background: white; color: #5a2a0c; font-weight: 700; font-size: .78rem;
 }
 .demo-pill button:hover { background: #fff0e6; }
-body:has(.demo-pill) { padding-bottom: 76px; }
-@media (max-width: 700px) {
-  .demo-pill-label small { display: none; }
-  body:has(.demo-pill) { padding-bottom: 120px; }
+
+.demo-contato {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 8px;
+  background: #1f8a4c; color: white; text-decoration: none; font-weight: 800; font-size: .78rem;
 }
+.demo-contato:hover { background: #197340; }
+.demo-contato-grande { justify-content: center; width: 100%; margin-top: 14px; padding: 12px 16px; font-size: .92rem; }
+
+.demo-guia {
+  width: min(360px, calc(100vw - 32px)); padding: 16px 16px 14px;
+  background: white; border: 1px solid #f2b98f; border-top: 4px solid var(--orange); border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(23, 32, 42, .22);
+}
+.demo-guia header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.demo-guia header strong { display: block; font-size: 1rem; }
+.demo-guia header small { color: var(--muted); font-size: .76rem; }
+.demo-fechar { display: grid; place-items: center; padding: 4px; border: 0; background: none; color: var(--muted); }
+.demo-guia ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.demo-guia li { display: flex; gap: 10px; align-items: flex-start; }
+.demo-guia li > svg { flex: none; margin-top: 1px; color: #c3cad2; }
+.demo-guia li.feito > svg { color: var(--green); }
+.demo-guia li b { display: block; font-size: .88rem; }
+.demo-guia li.feito b { color: var(--muted); text-decoration: line-through; }
+.demo-guia li p { margin: 3px 0 0; color: #4b5663; font-size: .8rem; line-height: 1.45; }
+.demo-guia li.feito p { display: none; }
+.demo-guia li button {
+  margin-top: 8px; padding: 7px 12px; border: 0; border-radius: 7px;
+  background: var(--orange); color: white; font-weight: 700; font-size: .78rem;
+}
+.demo-guia li button:hover { background: #d95d1c; }
+
+body:has(.demo-pill) { padding-bottom: 76px; }
 /* O modo TV ocupa a tela exata; espaço extra embaixo viraria rolagem na televisão. */
 body:has(.pv-tv) { padding-bottom: 0; }
+@media (max-width: 700px) {
+  .demo-pill-label small { display: none; }
+  /* No celular o roteiro mostra só o passo da vez, para não cobrir o quadro. */
+  .demo-guia li:not(.atual) { display: none; }
+  .demo-guia { padding: 12px 14px; }
+  .demo-guia header { margin-bottom: 8px; }
+  body:has(.demo-pill) { padding-bottom: 130px; }
+}

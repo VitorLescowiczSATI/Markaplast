@@ -742,6 +742,8 @@ export const demoApi = {
       id: (state.seq.entry += 1), usuarioId: user.id, statusAnterior: previous, statusNovo: status,
       motivo: reason, createdAt: now.toISOString(),
     });
+    // O roteiro da demonstração marca o primeiro passo quando alguém inicia uma tarefa.
+    if (status === "doing") window.dispatchEvent(new Event("gimak:demo-iniciou"));
     return task;
   }),
   deleteTask: (id) => respond(() => {

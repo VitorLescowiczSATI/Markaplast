@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Activity, ArrowLeft, BarChart3, CheckCircle2, Clock3, Expand, Factory, PauseCircle, RefreshCw, TriangleAlert, Users } from "lucide-react";
 import { api } from "./api";
+import { MARCA } from "./mode";
 import "./production-views.css";
 
 const ZONE = "America/Sao_Paulo";
@@ -184,7 +185,7 @@ export function FactoryTV({ user, onExit }) {
   const projects = rotation((data?.projetos || []).filter(p => p.total > 0), page, tallScreen || chartHidden ? 3 : 2);
   const recent = rotation(data?.ultimosEventos || [], page, 3);
   return <main className="pv-tv">
-    <header className="pv-tv-header"><div className="pv-tv-brand"><span><Factory size={32} /></span><div><strong>GIMAK</strong><small>PRODUÇÃO EM TEMPO REAL</small></div></div><div className="pv-tv-clock"><strong>{clockLabel(serverNow)}</strong><span>{new Date(serverNow).toLocaleDateString("pt-BR", { timeZone: ZONE, weekday: "long", day: "2-digit", month: "long" })}</span></div><div className="pv-tv-tools"><button onClick={fullscreen}><Expand size={18} /> Tela cheia</button><button onClick={exit}><ArrowLeft size={18} /> {user.perfil === "TV" ? "Sair" : "Voltar"}</button></div></header>
+    <header className="pv-tv-header"><div className="pv-tv-brand"><span><Factory size={32} /></span><div><strong>{MARCA.empresa.toLocaleUpperCase("pt-BR")}</strong><small>PRODUÇÃO EM TEMPO REAL</small></div></div><div className="pv-tv-clock"><strong>{clockLabel(serverNow)}</strong><span>{new Date(serverNow).toLocaleDateString("pt-BR", { timeZone: ZONE, weekday: "long", day: "2-digit", month: "long" })}</span></div><div className="pv-tv-tools"><button onClick={fullscreen}><Expand size={18} /> Tela cheia</button><button onClick={exit}><ArrowLeft size={18} /> {user.perfil === "TV" ? "Sair" : "Voltar"}</button></div></header>
     <div className="pv-tv-status"><Connection live={live} /><span>Somente leitura · cards alternam a cada 15 s</span>{screenMessage && <span role="status">{screenMessage}</span>}</div>
     {!data && <div className="pv-tv-empty">{live.error ? "Aguardando conexão com a fábrica…" : "Carregando painel da fábrica…"}</div>}
     {data && <>

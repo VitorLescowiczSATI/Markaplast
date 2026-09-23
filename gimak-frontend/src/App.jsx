@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { api } from "./api";
+import { MARCA } from "./mode";
 import { Calendar } from "./Calendar";
 import { Modal } from "./Modal";
 import { ServiceForm, ServiceModal, ServicesPage } from "./Services";
@@ -114,7 +115,7 @@ function Login({ onLogin }) {
     <main className="login-page">
       <div className="login-brand">
         <span className="brand-mark"><Factory size={28} /></span>
-        <div><strong>Gimak PCP</strong><small>Gestão da produção</small></div>
+        <div><strong>{MARCA.produto}</strong><small>Gestão da produção</small></div>
       </div>
       <form className="login-card" onSubmit={submit}>
         <div className="login-icon"><ShieldCheck size={28} /></div>
@@ -148,7 +149,7 @@ function Header({ page, setPage, user, onLogout, onNewProject, onNewTask, canMan
   return (
     <>
       <header className="topbar">
-        <div className="brand"><span className="brand-mark"><Factory size={23} /></span><div><strong>Gimak PCP</strong><small>Painel de execução</small></div></div>
+        <div className="brand"><span className="brand-mark"><Factory size={23} /></span><div><strong>{MARCA.produto}</strong><small>Painel de execução</small></div></div>
         <div className="top-actions">
           <div className="clock"><small>{clock.toLocaleDateString("pt-BR", { weekday: "long" })}</small><strong>{clock.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</strong></div>
           <button className="outline desktop-only" onClick={() => document.documentElement.requestFullscreen?.()}><Expand size={17} /> Tela cheia</button>
@@ -271,9 +272,9 @@ function UsersPage({ users, onCreate, onToggle, onReset, onEdit }) {
   }
   return (
     <main className="page users-page">
-      <section className="intro"><div><p className="eyebrow">ADMINISTRAÇÃO</p><h1>Usuários da Gimak</h1><p>Crie acessos próprios para o PCP e para os colaboradores da fábrica.</p></div></section>
+      <section className="intro"><div><p className="eyebrow">ADMINISTRAÇÃO</p><h1>Usuários da {MARCA.empresa}</h1><p>Crie acessos próprios para o PCP e para os colaboradores da fábrica.</p></div></section>
       <div className="users-layout">
-        <form className="panel user-form" onSubmit={submit}><div className="panel-title"><UserRoundCog size={20} /><div><h2>Novo acesso</h2><p>O usuário receberá apenas permissões da Gimak.</p></div></div><label>Nome completo<input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required /></label><label>Usuário<input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required /></label><label>Cargo ou função<input value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} placeholder="Opcional" /></label><label>Senha inicial<input type="password" minLength="8" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} required /></label><label>Perfil<select value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>{PERFIS.map((item) => <option key={item}>{item}</option>)}</select></label><button className="primary wide"><Plus size={17} /> Criar usuário</button></form>
+        <form className="panel user-form" onSubmit={submit}><div className="panel-title"><UserRoundCog size={20} /><div><h2>Novo acesso</h2><p>O usuário receberá apenas permissões da {MARCA.empresa}.</p></div></div><label>Nome completo<input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required /></label><label>Usuário<input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required /></label><label>Cargo ou função<input value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} placeholder="Opcional" /></label><label>Senha inicial<input type="password" minLength="8" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} required /></label><label>Perfil<select value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>{PERFIS.map((item) => <option key={item}>{item}</option>)}</select></label><button className="primary wide"><Plus size={17} /> Criar usuário</button></form>
         <section className="panel user-list"><div className="panel-title"><Users size={20} /><div><h2>Acessos cadastrados</h2><p>{users.filter((item) => item.ativo).length} usuários ativos</p></div></div>{users.map((item) => <article className="user-row" key={item.id}><span className="avatar large">{initials(item.nome)}</span><span className="user-info"><b>{item.nome}</b><small>@{item.username} · {item.cargo ? `${item.cargo} · ` : ""}{item.perfil}</small></span><span className={`status-pill ${item.ativo ? "active" : ""}`}>{item.ativo ? "Ativo" : "Inativo"}</span><button className="link-button" onClick={() => onEdit(item)}>Editar</button><button className="link-button" onClick={() => onReset(item)}>Redefinir senha</button><button className="link-button" onClick={() => onToggle(item)}>{item.ativo ? "Desativar" : "Ativar"}</button></article>)}</section>
       </div>
     </main>
@@ -466,7 +467,7 @@ export default function App() {
     [actionKeepingModal],
   );
 
-  if (booting) return <div className="boot"><Factory size={32} /><span>Carregando Gimak PCP…</span></div>;
+  if (booting) return <div className="boot"><Factory size={32} /><span>Carregando {MARCA.produto}…</span></div>;
   if (!user) return <Login onLogin={(logged) => { setUser(logged); if (logged.perfil === "TV") navigate("tv"); }} />;
   if (user.perfil === "TV" || page === "tv") return <FactoryTV user={user} onExit={() => user.perfil === "TV" ? logout() : navigate("board")} />;
   const isAdmin = user.perfil === "Administrador";

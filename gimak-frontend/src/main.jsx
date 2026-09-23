@@ -4,8 +4,10 @@ import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import { Apresentacao } from "./Apresentacao.jsx";
 import { DemoBanner } from "./DemoBanner.jsx";
-import { IS_APRESENTACAO, IS_DEMO } from "./mode";
+import { IS_APRESENTACAO, IS_DEMO, MARCA } from "./mode";
 import "./styles.css";
+
+if (IS_DEMO) document.title = `${MARCA.produto} · demonstração`;
 
 // A apresentação é pública e fica fora do app: quem abre /apresentacao não passa pelo login.
 // Em /demo o app é o mesmo, só que falando com dados fictícios em memória (demoApi.js).

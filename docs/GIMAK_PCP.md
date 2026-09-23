@@ -94,6 +94,9 @@ Rota `/demo`: o sistema inteiro, com as mesmas telas, rodando com dados fictíci
 - Nada sai do navegador. O [api.js](../gimak-frontend/src/api.js) troca a API real pela [demoApi.js](../gimak-frontend/src/demoApi.js) quando o caminho é `/demo`, com a mesma interface.
 - Entra direto como administrador. O selo no canto troca de perfil (Administrador, PCP, Fábrica, TV) e tem o botão Recomeçar.
 - O que a pessoa faz fica só no navegador dela e os dados são recriados todo dia, relativos à data de hoje, para o quadro do dia nunca ficar vazio.
+- Na demonstração a marca é **PCP na mão** e a fábrica é a fictícia **Metalúrgica Modelo** (constante `MARCA` em [mode.js](../gimak-frontend/src/mode.js)). Fora de `/demo` continua Gimak.
+- Um roteiro de três passos guia quem abre o link sozinho: iniciar uma tarefa (marcado sozinho quando acontece), ver como operador e abrir a TV. No celular aparece só o passo da vez.
+- O botão "Quero na minha fábrica" abre o WhatsApp com mensagem pronta. O número fica em `CONTATO_WHATSAPP` no `mode.js`. Vazio, o botão não aparece.
 - As regras de situação, cronômetro, permissões, indicadores e painel da TV são uma cópia em JavaScript do `api.py` e do `analytics.py`. **Mudou uma regra no backend, precisa mudar na demoApi.js também**, senão a demonstração mostra um sistema que não existe.
 
 ### Usuários
