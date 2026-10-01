@@ -32,9 +32,11 @@ def _montar():
                 Pedido(id=10, cliente="Cliente A", cnpj="11.111.111/0001-11", vendedor="Gláucia ", status="Novo pedido", produto="5L M2", quantidade=10, valor=2),
                 Pedido(id=11, cliente="Cliente B", cnpj="", vendedor="glaucia", status="Nota emitida", produto="5L M2", quantidade=10, valor=2),
                 Pedido(id=12, cliente="Cliente C", cnpj="33333333000133", vendedor="Arthur", status="Novo pedido", produto="5L M2", quantidade=10, valor=2),
-                Cliente(nome="Cliente A (razão nova)", cnpj="11111111000111"),
-                Cliente(nome="Cliente B", cnpj=""),
-                Cliente(nome="Cliente C", cnpj="33333333000133"),
+                Pedido(id=13, cliente="Cliente D", cnpj="44.444.444/0001-44", vendedor="Arthur", status="Novo pedido", produto="5L M2", quantidade=10, valor=2),
+                Cliente(nome="Cliente A (razão nova)", cnpj="11111111000111", vendedor="Arthur"),
+                Cliente(nome="Cliente B", cnpj="", vendedor="Glaucia"),
+                Cliente(nome="Cliente C", cnpj="33333333000133", vendedor="Arthur"),
+                Cliente(nome="Cliente D", cnpj="44444444000144", vendedor="Glaucia"),
                 Meta(escopo="vendedor", vendedor="Glaucia", periodo="mensal", valor=1000),
                 Meta(escopo="vendedor", vendedor="Arthur", periodo="mensal", valor=2000),
                 Meta(escopo="empresa", vendedor="", periodo="mensal", valor=9000),
@@ -67,18 +69,20 @@ def test_vendedor_ve_so_os_proprios_pedidos_clientes_metas_e_numeros():
     glaucia = _headers(2)
 
     pedidos = client.get("/api/pedidos", headers=glaucia).json()
-    assert sorted(p["id"] for p in pedidos) == [10, 11]
+    # 10 e 11 saíram no nome dela; 13 é do Arthur, mas o cliente D é dela.
+    assert sorted(p["id"] for p in pedidos) == [10, 11, 13]
     assert client.get("/api/pedidos/10", headers=glaucia).status_code == 200
     assert client.get("/api/pedidos/12", headers=glaucia).status_code == 403
 
     clientes = sorted(c["nome"] for c in client.get("/api/clientes", headers=glaucia).json())
-    assert clientes == ["Cliente A (razão nova)", "Cliente B"]
+    # Cliente A tem pedido dela, mas o responsável é o Arthur.
+    assert clientes == ["Cliente B", "Cliente D"]
 
     metas = client.get("/api/metas", headers=glaucia).json()
     assert [(m["escopo"], m["vendedor"]) for m in metas] == [("vendedor", "Glaucia")]
 
     painel = client.get("/api/dashboard", headers=glaucia).json()
-    assert {item["label"] for item in painel["porVendedor"]} == {"Gláucia ", "glaucia"}
+    assert {item["label"] for item in painel["porVendedor"]} == {"Gláucia ", "glaucia", "Arthur"}
     assert painel["estoqueCritico"] == []
 
 
@@ -103,8 +107,8 @@ def test_vendedor_sem_vinculo_nao_ve_nada():
 def test_admin_segue_vendo_tudo_e_cadastro_exige_nome_do_vendedor():
     client = _montar()
     admin = _headers(1)
-    assert len(client.get("/api/pedidos", headers=admin).json()) == 3
-    assert len(client.get("/api/clientes", headers=admin).json()) == 3
+    assert len(client.get("/api/pedidos", headers=admin).json()) == 4
+    assert len(client.get("/api/clientes", headers=admin).json()) == 4
     assert len(client.get("/api/metas", headers=admin).json()) == 3
 
     base = {"nome": "Nova Vendedora", "username": "nova", "senha": "Temporaria@1", "perfil": "Vendedor"}
@@ -118,3 +122,21 @@ def test_admin_segue_vendo_tudo_e_cadastro_exige_nome_do_vendedor():
     virou_pcp = client.patch(f"/api/auth/usuarios/{novo_id}", headers=admin, json={"perfil": "PCP"})
     assert virou_pcp.status_code == 200
     assert virou_pcp.json()["vendedor"] == ""
+
+
+def test_cliente_criado_pelo_pedido_herda_o_vendedor_e_dono_existente_nao_muda():
+    from types import SimpleNamespace
+
+    from sqlalchemy import create_engine as criar
+    from sqlalchemy.orm import Session
+
+    from app.services.clientes import upsert_cliente_do_pedido
+
+    engine = criar("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    with Session(engine) as db:
+        novo = upsert_cliente_do_pedido(db, SimpleNamespace(cliente="Novo", cnpj="1", vendedor="Glaucia"))
+        db.commit()
+        assert novo.vendedor == "Glaucia"
+        mesmo = upsert_cliente_do_pedido(db, SimpleNamespace(cliente="Novo", cnpj="1", vendedor="Arthur"))
+        assert mesmo.vendedor == "Glaucia"

@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { Button, Card, EmptyState, Field, Input } from "./ui.jsx";
-import { currency, itensPedido, valorTotalPedido } from "../lib/domain.js";
+import { currency, itensPedido, valorPedidoComIpi, valorTotalPedido } from "../lib/domain.js";
 
 // O pedido faturado ou já em rota não pode mais mudar de quantidade (o backend devolve 409).
 const STATUS_SEM_EDICAO = ["Nota emitida", "Cancelado", "Separado para entrega", "Enviado", "Finalizado"];
@@ -65,7 +65,9 @@ export function EditarQuantidades({ pedido, atualizarPedido }) {
   );
 }
 
-export function HistoricoVendedores({ pedidos, vendedor, compacto = false }) {
+// comIpi: o Faturamento mostra o valor da nota; a Inteligência mostra sem IPI, igual às metas.
+export function HistoricoVendedores({ pedidos, vendedor, compacto = false, comIpi = false }) {
+  const valorNota = comIpi ? valorPedidoComIpi : valorTotalPedido;
   const emitidos = pedidos.filter((pedido) => pedido.status === "Nota emitida");
   const nomes = vendedor ? [vendedor] : [...new Set(emitidos.map((pedido) => pedido.vendedor || "Não informado"))].sort();
 
@@ -80,7 +82,7 @@ export function HistoricoVendedores({ pedidos, vendedor, compacto = false }) {
             (a, b) =>
               (b.dataEmissao || b.data || "").localeCompare(a.dataEmissao || a.data || "") || b.id - a.id
           );
-        const total = vendas.reduce((acumulado, pedido) => acumulado + valorTotalPedido(pedido), 0);
+        const total = vendas.reduce((acumulado, pedido) => acumulado + valorNota(pedido), 0);
         return (
           <details key={nome} className="mb-2 rounded-lg border border-slate-200 p-3">
             <summary className="cursor-pointer text-sm font-semibold">
@@ -107,7 +109,7 @@ export function HistoricoVendedores({ pedidos, vendedor, compacto = false }) {
                           <span className="block text-xs text-slate-500">Pedido #{pedido.id}</span>
                         </td>
                         <td className="p-2">{pedido.numeroNota || "Não informado"}</td>
-                        <td className="p-2">{currency(valorTotalPedido(pedido))}</td>
+                        <td className="p-2">{currency(valorNota(pedido))}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -1,3 +1,5 @@
+import { FATURAMENTOS_COM_IPI, IPI_ALIQUOTA } from "./constants.js";
+
 export function itensPedido(pedido) {
   if (Array.isArray(pedido?.itens) && pedido.itens.length) return pedido.itens;
   return [
@@ -25,6 +27,16 @@ export function valorTotalPedido(pedido) {
     (total, item) => total + valorUnitarioItem(item) * Number(item.quantidade || 0),
     0
   );
+}
+
+// Metas e indicadores contam sem IPI; o valor do pedido, da nota e do financeiro usa o total com IPI.
+export function ipiPedido(pedido) {
+  if (!FATURAMENTOS_COM_IPI.includes(pedido?.faturamento)) return 0;
+  return Math.round(valorTotalPedido(pedido) * IPI_ALIQUOTA * 100) / 100;
+}
+
+export function valorPedidoComIpi(pedido) {
+  return valorTotalPedido(pedido) + ipiPedido(pedido);
 }
 
 // Travas do pedido: campos obrigatórios para o pedido chegar completo no PCP.
@@ -102,6 +114,22 @@ export function percentualMeta(realizado, meta) {
   const alvo = Number(meta || 0);
   if (alvo <= 0) return 0;
   return Math.round((Number(realizado || 0) / alvo) * 100);
+}
+
+export function competenciaAtual(hoje = new Date()) {
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function rotuloCompetencia(competencia) {
+  const [ano, mes] = String(competencia || "").split("-").map(Number);
+  if (!ano || !mes) return competencia;
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(ano, mes - 1, 1));
+}
+
+// Nota entra no mês da emissão; faturado legado sem dataEmissao cai na data do pedido (mesma regra das metas).
+export function competenciaNota(pedido) {
+  const data = String(pedido?.dataEmissao || pedido?.data || "");
+  return /^\d{4}-\d{2}/.test(data) ? data.slice(0, 7) : "";
 }
 
 export function competenciaPedido(pedido) {

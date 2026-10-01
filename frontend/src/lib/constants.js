@@ -37,6 +37,9 @@ export const produtos = [
 ];
 
 export const tiposFaturamento = ["NF Gimak", "NF Markaplast", "ROM Gpack"];
+// IPI destacado só na nota da Markaplast; Gimak e ROM Gpack saem sem IPI.
+export const IPI_ALIQUOTA = 0.0975;
+export const FATURAMENTOS_COM_IPI = ["NF Markaplast"];
 export const tiposEntrega = ["Retirada na empresa", "Entrega CIF"];
 export const tiposFrete = ["CIF", "FOB"];
 

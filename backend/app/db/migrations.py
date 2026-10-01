@@ -30,6 +30,11 @@ USUARIOS_COLUMNS = {
 }
 
 
+CLIENTES_COLUMNS = {
+    "vendedor": "VARCHAR(80) NOT NULL DEFAULT ''",
+}
+
+
 TIMESTAMP_TABLES = {
     "produtos": ("created_at", "updated_at"),
 }
@@ -112,11 +117,45 @@ def _backfill_pedido_itens(engine: Engine, inspector) -> None:
         )
 
 
+def _so_digitos(valor) -> str:
+    return "".join(char for char in str(valor or "") if char.isdigit())
+
+
+def _backfill_vendedor_clientes(engine: Engine) -> None:
+    """Carga inicial do responsável: o vendedor do pedido mais recente do cliente (por CNPJ, senão nome).
+
+    Roda só no boot em que a coluna nasce, para não refazer atribuições que o admin limpou depois.
+    """
+    with engine.begin() as connection:
+        pedidos = connection.execute(
+            text("SELECT cliente, cnpj, vendedor FROM pedidos WHERE vendedor <> '' ORDER BY id DESC")
+        ).all()
+        por_cnpj: dict[str, str] = {}
+        por_nome: dict[str, str] = {}
+        for nome, cnpj, vendedor in pedidos:
+            por_cnpj.setdefault(_so_digitos(cnpj), vendedor)
+            por_nome.setdefault((nome or "").strip().casefold(), vendedor)
+        por_cnpj.pop("", None)
+        por_nome.pop("", None)
+        for cliente_id, nome, cnpj in connection.execute(text("SELECT id, nome, cnpj FROM clientes")).all():
+            vendedor = por_cnpj.get(_so_digitos(cnpj)) or por_nome.get((nome or "").strip().casefold())
+            if vendedor:
+                connection.execute(
+                    text("UPDATE clientes SET vendedor = :vendedor WHERE id = :id"), {"vendedor": vendedor, "id": cliente_id}
+                )
+
+
 def ensure_runtime_migrations(engine: Engine) -> None:
     inspector = inspect(engine)
+    clientes_sem_vendedor = inspector.has_table("clientes") and "vendedor" not in {
+        column["name"] for column in inspector.get_columns("clientes")
+    }
     _repair_timestamp_columns(engine, inspector)
     _add_missing_columns(engine, inspector, "pedidos", PEDIDOS_COLUMNS)
     _add_missing_columns(engine, inspector, "produtos", PRODUTOS_COLUMNS)
     _add_missing_columns(engine, inspector, "usuarios", USUARIOS_COLUMNS)
+    _add_missing_columns(engine, inspector, "clientes", CLIENTES_COLUMNS)
+    if clientes_sem_vendedor and inspector.has_table("pedidos"):
+        _backfill_vendedor_clientes(engine)
     _migrate_status_values(engine, inspector)
     _backfill_pedido_itens(engine, inspector)

@@ -42,6 +42,9 @@ import {
 } from "./lib/constants.js";
 import {
   calcularResumo,
+  competenciaAtual,
+  competenciaNota,
+  rotuloCompetencia,
   camposFaltandoPedido,
   currency,
   filtrarPedidos,
@@ -52,6 +55,8 @@ import {
   normalizarOpcao,
   quantidadeTotalPedido,
   statusColor,
+  ipiPedido,
+  valorPedidoComIpi,
   valorTotalPedido,
   valorUnitarioItem,
 } from "./lib/domain.js";
@@ -133,6 +138,7 @@ function pedidoFieldsFromCliente(cliente, form) {
     cidade: cliente.cidade || "",
     uf: cliente.uf || "",
     pagamento: cliente.condicaoPagamento || form.pagamento,
+    vendedor: cliente.vendedor || form.vendedor,
   };
 }
 
@@ -436,7 +442,7 @@ function ResumoCards({ pedidos }) {
 }
 
 function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido, bare = false }) {
-  const total = valorTotalPedido(pedido);
+  const total = valorPedidoComIpi(pedido);
   const itens = itensPedido(pedido);
   const temDetalhePcp =
     pedido.pcpPrevisaoProducao || pedido.pcpPrevisaoPronto || Number(pedido.pcpQuantidadeProduzida || 0) > 0 || pedido.pcpObservacoes;
@@ -539,6 +545,11 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">Valor do pedido</p>
             <p className="text-2xl font-bold">{currency(total)}</p>
+            {ipiPedido(pedido) > 0 && (
+              <p className="mt-1 text-xs text-slate-500">
+                Produtos {currency(valorTotalPedido(pedido))} · IPI 9,75% {currency(ipiPedido(pedido))}
+              </p>
+            )}
             <p className="mt-1 text-xs text-slate-500">
               {itens.length} {itens.length === 1 ? "item" : "itens"} · {quantidadeTotalPedido(pedido)} unidades
             </p>
@@ -586,7 +597,7 @@ function PedidoCard({ pedido, layout = "comercial", atualizarStatus, atualizarFi
 
 function PedidoCompactCard({ pedido, layout = "comercial", atualizarStatus, atualizarFinanceiro, excluirPedido }) {
   const [aberto, setAberto] = useState(false);
-  const total = valorTotalPedido(pedido);
+  const total = valorPedidoComIpi(pedido);
 
   return (
     <article className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -1062,7 +1073,7 @@ function PCPLayout({ pedidos, atualizarStatus, atualizarPedido, excluirPedido, s
       pcpQuantidadeProduzida: String(pedido.pcpQuantidadeProduzida || ""),
       pcpObservacoes: pedido.pcpObservacoes || "",
     }));
-    const total = valorTotalPedido(pedido);
+    const total = valorPedidoComIpi(pedido);
     const quantidadeProduzida = Number(pedido.pcpQuantidadeProduzida || 0);
     const percentualProduzido = Math.min(100, Math.round((quantidadeProduzida / Math.max(1, quantidadeTotalPedido(pedido))) * 100));
     const temDetalhePcp =
@@ -1343,7 +1354,7 @@ function CargasMontadas({ cargas, excluirPedido, excluirCarga, atualizarPedido }
           </EmptyState>
         )}
         {cargasVisiveis.map((carga) => {
-          const valorCarga = carga.pedidos.reduce((acc, pedido) => acc + valorTotalPedido(pedido), 0);
+          const valorCarga = carga.pedidos.reduce((acc, pedido) => acc + valorPedidoComIpi(pedido), 0);
           const statusDaCarga = carga.statusDestino;
           return (
             <article key={carga.id} className="rounded-lg border border-slate-200 bg-white p-4">
@@ -1412,16 +1423,36 @@ function CargasMontadas({ cargas, excluirPedido, excluirCarga, atualizarPedido }
 function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
-  const pedidosFaturamento = useMemo(() => filtrarPedidos(pedidos.filter((p) => statusFiltro === "Nota emitida" || p.status !== "Nota emitida"), busca, statusFiltro, "Todos", "Faturamento"), [pedidos, busca, statusFiltro]);
+  // Notas emitidas seguem o mês da emissão, como na Inteligência; pendentes aparecem sempre.
+  const [competencia, setCompetencia] = useState(competenciaAtual);
+  const notaDoMes = (pedido) => pedido.status === "Nota emitida" && competenciaNota(pedido) === competencia;
+  const competenciasNotas = useMemo(
+    () =>
+      Array.from(
+        new Set([competenciaAtual(), ...pedidos.filter((p) => p.status === "Nota emitida").map(competenciaNota).filter(Boolean)])
+      ).sort((a, b) => b.localeCompare(a)),
+    [pedidos]
+  );
+  const pedidosFaturamento = useMemo(
+    () =>
+      filtrarPedidos(
+        pedidos.filter((p) => (statusFiltro === "Nota emitida" ? notaDoMes(p) : p.status !== "Nota emitida")),
+        busca,
+        statusFiltro,
+        "Todos",
+        "Faturamento"
+      ),
+    [pedidos, busca, statusFiltro, competencia]
+  );
   const pedidosProntos = pedidos.filter((pedido) => ["Pronto para retirada", "Pronto para o envio"].includes(pedido.status));
-  const notasEmitidas = pedidos.filter((pedido) => pedido.status === "Nota emitida");
-  const valorParaFaturar = pedidosProntos.reduce((acc, pedido) => acc + valorTotalPedido(pedido), 0);
+  const notasEmitidas = pedidos.filter(notaDoMes);
+  const valorParaFaturar = pedidosProntos.reduce((acc, pedido) => acc + valorPedidoComIpi(pedido), 0);
 
   return (
     <div className="space-y-6">
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard label="Prontos para faturar" value={pedidosProntos.length} tone="green" />
-        <StatCard label="Notas emitidas" value={notasEmitidas.length} tone="teal" />
+        <StatCard label={`Notas emitidas em ${rotuloCompetencia(competencia)}`} value={notasEmitidas.length} tone="teal" />
         <StatCard label="Valor para faturar" value={currency(valorParaFaturar)} />
       </section>
 
@@ -1431,7 +1462,7 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
             <h2 className="text-xl font-bold">Faturamento</h2>
             <p className="text-sm text-slate-500">Pedidos liberados pela logística (retirada e envio) e notas emitidas.</p>
           </div>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-[260px_220px]">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[260px_220px_200px]">
             <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pedido, cliente ou produto" />
             <SelectBox aria-label="Filtrar por etapa de faturamento" value={statusFiltro} onChange={setStatusFiltro}>
               <option value="Todos">Pendentes de faturamento</option>
@@ -1439,11 +1470,18 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
               <option value="Pronto para o envio">Pronto para o envio</option>
               <option value="Nota emitida">Nota emitida</option>
             </SelectBox>
+            <SelectBox aria-label="Mês das notas emitidas" value={competencia} onChange={setCompetencia}>
+              {competenciasNotas.map((opcao) => (
+                <option key={opcao} value={opcao} className="capitalize">
+                  {rotuloCompetencia(opcao)}
+                </option>
+              ))}
+            </SelectBox>
           </div>
         </div>
       </Card>
 
-      <HistoricoVendedores pedidos={notasEmitidas} />
+      <HistoricoVendedores pedidos={notasEmitidas} comIpi />
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {tiposEntrega.map((tipoEntrega) => {
           const items = pedidosFaturamento.filter((pedido) => pedido.tipoEntrega === tipoEntrega);
@@ -1511,8 +1549,8 @@ function FinanceiroLayout({ pedidos, atualizarFinanceiro, excluirPedido }) {
   const pedidosComNF = pedidos.filter((pedido) => pedido.status === "Nota emitida");
   const pagos = pedidosComNF.filter((pedido) => pedido.statusFinanceiro === "Pago");
   const pendentes = pedidosComNF.filter((pedido) => pedido.statusFinanceiro !== "Pago");
-  const valorPago = pagos.reduce((acc, pedido) => acc + valorTotalPedido(pedido), 0);
-  const valorPendente = pendentes.reduce((acc, pedido) => acc + valorTotalPedido(pedido), 0);
+  const valorPago = pagos.reduce((acc, pedido) => acc + valorPedidoComIpi(pedido), 0);
+  const valorPendente = pendentes.reduce((acc, pedido) => acc + valorPedidoComIpi(pedido), 0);
   const clientesFinanceiro = useMemo(() => {
     const mapa = new Map();
     pedidosFinanceiro.forEach((pedido) => {
@@ -1521,7 +1559,7 @@ function FinanceiroLayout({ pedidos, atualizarFinanceiro, excluirPedido }) {
         mapa.set(nome, { nome, cidade: pedido.cidade || "", pedidos: [], total: 0, pago: 0, pendente: 0 });
       }
       const cliente = mapa.get(nome);
-      const valor = valorTotalPedido(pedido);
+      const valor = valorPedidoComIpi(pedido);
       cliente.pedidos.push(pedido);
       cliente.total += valor;
       if (pedido.statusFinanceiro === "Pago") cliente.pago += valor;

@@ -5,10 +5,9 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_profiles
 from app.db.session import get_db
 from app.models.cliente import Cliente
-from app.models.pedido import Pedido
 from app.models.usuario import Usuario
 from app.services.auth import PERFIL_VENDEDOR
-from app.services.escopo import filtrar_clientes, filtrar_pedidos, vendedor_do_usuario
+from app.services.escopo import normalizar_vendedor, vendedor_do_usuario
 from app.schemas.cliente import ClienteCreate, ClienteRead, ClienteUpdate
 
 router = APIRouter(prefix="/clientes", tags=["clientes"])
@@ -34,8 +33,7 @@ def listar_clientes(
     vendedor_escopo = vendedor_do_usuario(usuario)
     if vendedor_escopo is None:
         return clientes
-    pedidos = filtrar_pedidos(db.scalars(select(Pedido)).all(), vendedor_escopo)
-    return filtrar_clientes(clientes, pedidos)
+    return [cliente for cliente in clientes if normalizar_vendedor(cliente.vendedor) == vendedor_escopo]
 
 
 @router.post("", response_model=ClienteRead, status_code=status.HTTP_201_CREATED)

@@ -35,6 +35,8 @@ def upsert_cliente_do_pedido(db: Session, payload) -> Cliente | None:
     cliente.cidade = getattr(payload, "cidade", "") or cliente.cidade
     cliente.uf = getattr(payload, "uf", "") or cliente.uf
     cliente.condicaoPagamento = getattr(payload, "pagamento", "") or cliente.condicaoPagamento
+    # Cliente novo (ou ainda sem dono) fica com o vendedor do pedido; dono existente não muda pelo pedido.
+    cliente.vendedor = cliente.vendedor or (getattr(payload, "vendedor", "") or "").strip()
     return cliente
 
 

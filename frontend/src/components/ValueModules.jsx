@@ -6,6 +6,7 @@ import { HistoricoVendedores } from "./FluxoPedidos.jsx";
 import { api } from "../lib/api.js";
 import { vendedores } from "../lib/constants.js";
 import {
+  competenciaAtual,
   competenciaPedido,
   currency,
   indicadoresComerciaisPorMes,
@@ -13,8 +14,9 @@ import {
   percentualMeta,
   quantidadeTotalPedido,
   realizadoMetas,
+  rotuloCompetencia,
   statusColor,
-  valorTotalPedido,
+  valorPedidoComIpi,
 } from "../lib/domain.js";
 
 const emptyCliente = {
@@ -29,6 +31,7 @@ const emptyCliente = {
   bairro: "",
   cidade: "",
   uf: "",
+  vendedor: "",
   condicaoPagamento: "",
   observacoes: "",
 };
@@ -69,17 +72,6 @@ const PERIODOS_META = [
   { key: "mensal", label: "Mensal" },
   { key: "trimestral", label: "Trimestral" },
 ];
-
-function competenciaAtual() {
-  const hoje = new Date();
-  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function rotuloCompetencia(competencia) {
-  const [ano, mes] = competencia.split("-").map(Number);
-  if (!ano || !mes) return competencia;
-  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(ano, mes - 1, 1));
-}
 
 function MetaBar({ label, realizado, meta }) {
   const pct = percentualMeta(realizado, meta);
@@ -444,7 +436,12 @@ export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvan
   const [precosAbertoId, setPrecosAbertoId] = useState(null);
   const [busca, setBusca] = useState("");
   const [cepLoading, setCepLoading] = useState(false);
-  const filtrados = clientes.filter((cliente) => `${cliente.nome} ${cliente.cnpj} ${cliente.cidade}`.toLowerCase().includes(busca.toLowerCase()));
+  const [responsavelFiltro, setResponsavelFiltro] = useState("Todos");
+  const filtrados = clientes.filter(
+    (cliente) =>
+      `${cliente.nome} ${cliente.cnpj} ${cliente.cidade}`.toLowerCase().includes(busca.toLowerCase()) &&
+      (responsavelFiltro === "Todos" || (cliente.vendedor || "") === responsavelFiltro)
+  );
 
   async function buscarCep() {
     if (!form.cep) return;
@@ -494,6 +491,7 @@ export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvan
       bairro: cliente.bairro || "",
       cidade: cliente.cidade || "",
       uf: cliente.uf || "",
+      vendedor: cliente.vendedor || "",
       condicaoPagamento: cliente.condicaoPagamento || "",
       observacoes: cliente.observacoes || "",
     });
@@ -549,6 +547,16 @@ export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvan
             <Field label="E-mail">
               <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="financeiro@cliente.com.br" />
             </Field>
+            <Field label="Vendedor responsável">
+              <SelectBox value={form.vendedor} onChange={(vendedor) => setForm({ ...form, vendedor })}>
+                <option value="">Sem responsável</option>
+                {[...new Set([form.vendedor, ...vendedores].filter(Boolean))].map((vendedor) => (
+                  <option key={vendedor} value={vendedor}>
+                    {vendedor}
+                  </option>
+                ))}
+              </SelectBox>
+            </Field>
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <Field label="CEP">
                 <Input value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} placeholder="00000-000" />
@@ -598,7 +606,20 @@ export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvan
         <Card className="p-5">
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <h2 className="text-xl font-bold">{somenteLeitura ? "Meus clientes" : "Carteira de clientes"}</h2>
-            <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, CNPJ ou cidade" className="md:w-80" />
+            <div className="flex flex-col gap-2 md:flex-row">
+              {!somenteLeitura && (
+                <SelectBox aria-label="Filtrar por vendedor responsável" value={responsavelFiltro} onChange={setResponsavelFiltro} className="md:w-48">
+                  <option value="Todos">Todos os vendedores</option>
+                  <option value="">Sem responsável</option>
+                  {vendedores.map((vendedor) => (
+                    <option key={vendedor} value={vendedor}>
+                      {vendedor}
+                    </option>
+                  ))}
+                </SelectBox>
+              )}
+              <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, CNPJ ou cidade" className="md:w-80" />
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {filtrados.length === 0 && <EmptyState>Nenhum cliente encontrado.</EmptyState>}
@@ -655,6 +676,11 @@ export function ClientesLayout({ clientes = [], produtos = [], onRefresh, salvan
                   {cliente.cidade || "Cidade não informada"} {cliente.cep ? `- ${cliente.cep}` : ""}
                 </p>
                 <p className="mt-2 text-sm text-slate-600">{cliente.condicaoPagamento || "Condição de pagamento não informada"}</p>
+                {!somenteLeitura && (
+                  <p className="mt-1 text-sm text-slate-600">
+                    Responsável: <strong>{cliente.vendedor || "sem responsável"}</strong>
+                  </p>
+                )}
                 {precosAbertoId === cliente.id && <PrecosClienteEditor cliente={cliente} produtos={produtos} />}
               </article>
             ))}
@@ -890,7 +916,7 @@ export function FiscalLayout({ pedidos = [], notas = [], prepararNfe, marcarNfeE
                           {item.quantidade}x {item.produto}{item.cor ? ` ${item.cor}` : ""}
                         </p>
                       ))}
-                      <p className="font-semibold">{quantidadeTotalPedido(pedido)} un - {currency(valorTotalPedido(pedido))}</p>
+                      <p className="font-semibold">{quantidadeTotalPedido(pedido)} un - {currency(valorPedidoComIpi(pedido))}</p>
                     </div>
                     <p className="text-sm text-slate-500">Faturamento: {pedido.faturamento || "Não informado"}</p>
                     {nota && (

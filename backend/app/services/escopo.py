@@ -1,6 +1,10 @@
-"""Escopo do perfil Vendedor: o login enxerga só os pedidos com o nome dele e os clientes desses pedidos."""
+"""Escopo do perfil Vendedor: clientes de que ele é responsável, os pedidos desses clientes e os lançados no nome dele."""
 
 import unicodedata
+from dataclasses import dataclass, field
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.models.cliente import Cliente
 from app.models.pedido import Pedido
@@ -14,6 +18,10 @@ def normalizar_vendedor(nome: str | None) -> str:
     return " ".join(sem_acento.split()).casefold()
 
 
+def _nome_cliente(nome: str | None) -> str:
+    return (nome or "").strip().casefold()
+
+
 def vendedor_do_usuario(usuario: Usuario) -> str | None:
     """Nome normalizado do vendedor quando o login é restrito; None quando enxerga tudo."""
     if usuario.perfil != PERFIL_VENDEDOR:
@@ -22,21 +30,39 @@ def vendedor_do_usuario(usuario: Usuario) -> str | None:
     return normalizar_vendedor(usuario.vendedor) or "\x00sem-vinculo"
 
 
-def pedido_do_vendedor(pedido: Pedido, vendedor: str | None) -> bool:
-    return vendedor is None or normalizar_vendedor(pedido.vendedor) == vendedor
+@dataclass
+class EscopoVendedor:
+    """vendedor=None significa sem restrição."""
+
+    vendedor: str | None
+    clientes: list[Cliente] = field(default_factory=list)
+    cnpjs: set[str] = field(default_factory=set)
+    nomes: set[str] = field(default_factory=set)
+
+    def ve_pedido(self, pedido: Pedido) -> bool:
+        if self.vendedor is None or normalizar_vendedor(pedido.vendedor) == self.vendedor:
+            return True
+        cnpj = only_digits(pedido.cnpj)
+        if cnpj:
+            return cnpj in self.cnpjs
+        return _nome_cliente(pedido.cliente) in self.nomes
+
+    def filtrar_pedidos(self, pedidos) -> list[Pedido]:
+        return [pedido for pedido in pedidos if self.ve_pedido(pedido)]
 
 
-def filtrar_pedidos(pedidos, vendedor: str | None) -> list[Pedido]:
-    return [pedido for pedido in pedidos if pedido_do_vendedor(pedido, vendedor)]
-
-
-def filtrar_clientes(clientes, pedidos_do_vendedor) -> list[Cliente]:
-    """Clientes que aparecem em algum pedido do vendedor, por CNPJ ou pelo nome exato."""
-    cnpjs = {only_digits(pedido.cnpj) for pedido in pedidos_do_vendedor} - {""}
-    nomes = {(pedido.cliente or "").strip().casefold() for pedido in pedidos_do_vendedor} - {""}
-    return [
+def escopo_do_usuario(db: Session, usuario: Usuario) -> EscopoVendedor:
+    vendedor = vendedor_do_usuario(usuario)
+    if vendedor is None:
+        return EscopoVendedor(vendedor=None)
+    clientes = [
         cliente
-        for cliente in clientes
-        if (only_digits(cliente.cnpj) and only_digits(cliente.cnpj) in cnpjs)
-        or (cliente.nome or "").strip().casefold() in nomes
+        for cliente in db.scalars(select(Cliente).order_by(Cliente.nome)).all()
+        if normalizar_vendedor(cliente.vendedor) == vendedor
     ]
+    return EscopoVendedor(
+        vendedor=vendedor,
+        clientes=clientes,
+        cnpjs={only_digits(cliente.cnpj) for cliente in clientes} - {""},
+        nomes={_nome_cliente(cliente.nome) for cliente in clientes} - {""},
+    )

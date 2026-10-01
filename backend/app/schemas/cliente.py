@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ClienteBase(BaseModel):
@@ -15,6 +15,7 @@ class ClienteBase(BaseModel):
     bairro: str = ""
     cidade: str = ""
     uf: str = ""
+    vendedor: str = Field(default="", max_length=80)
     condicaoPagamento: str = ""
     observacoes: str = ""
 
@@ -35,6 +36,7 @@ class ClienteUpdate(BaseModel):
     bairro: str | None = None
     cidade: str | None = None
     uf: str | None = None
+    vendedor: str | None = Field(default=None, max_length=80)
     condicaoPagamento: str | None = None
     observacoes: str | None = None
 

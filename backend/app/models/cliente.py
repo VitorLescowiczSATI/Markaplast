@@ -21,6 +21,8 @@ class Cliente(Base):
     bairro: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     cidade: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     uf: Mapped[str] = mapped_column(String(2), default="", nullable=False)
+    # Vendedor responsável: é quem enxerga o cliente e os pedidos dele no perfil Vendedor.
+    vendedor: Mapped[str] = mapped_column(String(80), default="", nullable=False, index=True)
     condicaoPagamento: Mapped[str] = mapped_column("condicao_pagamento", String(160), default="", nullable=False)
     observacoes: Mapped[str] = mapped_column(Text, default="", nullable=False)
     createdAt: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), server_default=func.now(), nullable=False)

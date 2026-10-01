@@ -110,3 +110,36 @@ def test_runtime_migration_cria_item_para_pedido_antigo():
         item = db.scalar(select(PedidoItem).where(PedidoItem.pedidoId == pedido_id))
         assert item is not None
         assert (item.produto, item.cor, item.quantidade) == ("5L", "Azul", 20)
+
+
+def test_carga_inicial_do_vendedor_do_cliente_pega_o_pedido_mais_recente_e_roda_uma_vez():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE clientes (id INTEGER PRIMARY KEY, nome VARCHAR(180), cnpj VARCHAR(32))"))
+        connection.execute(
+            text("CREATE TABLE pedidos (id INTEGER PRIMARY KEY, cliente VARCHAR(180), cnpj VARCHAR(32), vendedor VARCHAR(80))")
+        )
+        connection.execute(
+            text(
+                "INSERT INTO clientes (id, nome, cnpj) VALUES "
+                "(1, 'Agro', '11111111000111'), (2, 'Sem CNPJ', ''), (3, 'Sem pedido', '99')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO pedidos (id, cliente, cnpj, vendedor) VALUES "
+                "(1, 'Agro velho', '11.111.111/0001-11', 'Ingrid'), (2, 'Agro', '11.111.111/0001-11', 'Arthur'), "
+                "(3, 'sem cnpj ', '', 'Tadeu')"
+            )
+        )
+
+    ensure_runtime_migrations(engine)
+    with engine.begin() as connection:
+        vendedores = dict(connection.execute(text("SELECT id, vendedor FROM clientes")).all())
+    assert vendedores == {1: "Arthur", 2: "Tadeu", 3: ""}
+
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE clientes SET vendedor = '' WHERE id = 1"))
+    ensure_runtime_migrations(engine)
+    with engine.begin() as connection:
+        assert connection.execute(text("SELECT vendedor FROM clientes WHERE id = 1")).scalar() == ""

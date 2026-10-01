@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user, require_profiles
 from app.services.auth import PERFIL_VENDEDOR
-from app.services.escopo import pedido_do_vendedor, vendedor_do_usuario
+from app.services.escopo import escopo_do_usuario
 from app.db.session import get_db
 from app.models.pedido import Pedido, PedidoItem, hoje_brasil
 from app.models.usuario import Usuario
@@ -52,7 +52,7 @@ def listar_pedidos(
         require_profiles("Inteligência", "Comercial", "PCP", "Logística", "Faturamento", "Financeiro", "Fiscal", PERFIL_VENDEDOR)
     ),
 ):
-    vendedor_escopo = vendedor_do_usuario(usuario)
+    escopo = escopo_do_usuario(db, usuario)
     pedidos = db.scalars(select(Pedido).options(selectinload(Pedido.itens)).order_by(Pedido.id.desc())).all()
     return [
         pedido
@@ -62,7 +62,7 @@ def listar_pedidos(
         and (vendedor == "Todos" or pedido.vendedor == vendedor)
         and (financeiro == "Todos" or pedido.statusFinanceiro == financeiro)
         and pode_ver_pedido_por_perfil(usuario.perfil, pedido.status)
-        and pedido_do_vendedor(pedido, vendedor_escopo)
+        and escopo.ve_pedido(pedido)
     ]
 
 
@@ -122,9 +122,7 @@ def obter_pedido(
     pedido = db.scalar(select(Pedido).options(selectinload(Pedido.itens)).where(Pedido.id == pedido_id))
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
-    if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status) or not pedido_do_vendedor(
-        pedido, vendedor_do_usuario(usuario)
-    ):
+    if not pode_ver_pedido_por_perfil(usuario.perfil, pedido.status) or not escopo_do_usuario(db, usuario).ve_pedido(pedido):
         raise HTTPException(status_code=403, detail="Seu perfil não pode acessar este pedido")
     return pedido
 
