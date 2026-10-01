@@ -147,12 +147,12 @@ describe("regras de pedidos", () => {
 });
 
 describe("IPI e competência da nota", () => {
-  it("cobra 9,75% só na NF Markaplast", async () => {
+  it("cobra 9,75% só na NF Gimak", async () => {
     const { ipiPedido, valorPedidoComIpi } = await import("./domain.js");
     const pedido = { valor: 10, valorTampa: 0, quantidade: 100 };
-    expect(ipiPedido({ ...pedido, faturamento: "NF Markaplast" })).toBe(97.5);
-    expect(valorPedidoComIpi({ ...pedido, faturamento: "NF Markaplast" })).toBe(1097.5);
-    expect(ipiPedido({ ...pedido, faturamento: "NF Gimak" })).toBe(0);
+    expect(ipiPedido({ ...pedido, faturamento: "NF Gimak" })).toBe(97.5);
+    expect(valorPedidoComIpi({ ...pedido, faturamento: "NF Gimak" })).toBe(1097.5);
+    expect(ipiPedido({ ...pedido, faturamento: "NF Markaplast" })).toBe(0);
     expect(valorPedidoComIpi({ ...pedido, faturamento: "ROM Gpack" })).toBe(1000);
   });
 
