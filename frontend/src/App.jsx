@@ -1481,7 +1481,7 @@ function FaturamentoLayout({ pedidos, atualizarStatus, excluirPedido }) {
         </div>
       </Card>
 
-      <HistoricoVendedores pedidos={notasEmitidas} comIpi />
+      <HistoricoVendedores pedidos={notasEmitidas} />
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {tiposEntrega.map((tipoEntrega) => {
           const items = pedidosFaturamento.filter((pedido) => pedido.tipoEntrega === tipoEntrega);

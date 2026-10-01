@@ -29,7 +29,7 @@ export function valorTotalPedido(pedido) {
   );
 }
 
-// Metas e indicadores contam sem IPI; o valor do pedido, da nota e do financeiro usa o total com IPI.
+// Todo valor de pedido, nota, meta e indicador usa o total com IPI; o card mostra a abertura.
 export function ipiPedido(pedido) {
   if (!FATURAMENTOS_COM_IPI.includes(pedido?.faturamento)) return 0;
   return Math.round(valorTotalPedido(pedido) * IPI_ALIQUOTA * 100) / 100;
@@ -86,7 +86,7 @@ export function realizadoMetas(pedidos = [], hoje = new Date()) {
     // Fatura pela data de emissão da nota; cai na data do pedido só para faturados legados (sem dataEmissao).
     const D = infoData(pedido.dataEmissao || pedido.data);
     if (D.ano !== H.ano) return;
-    const total = valorTotalPedido(pedido);
+    const total = valorPedidoComIpi(pedido);
     const vendedor = pedido.vendedor || "Não informado";
     if (!porVendedor[vendedor]) porVendedor[vendedor] = { diaria: 0, mensal: 0, trimestral: 0 };
 
@@ -150,7 +150,7 @@ export function indicadoresComerciaisPorMes(pedidos = [], competencia = "") {
 
     if (status === "Cancelado") return;
     const vendedor = pedido.vendedor || "Não informado";
-    vendasPorVendedor.set(vendedor, (vendasPorVendedor.get(vendedor) || 0) + valorTotalPedido(pedido));
+    vendasPorVendedor.set(vendedor, (vendasPorVendedor.get(vendedor) || 0) + valorPedidoComIpi(pedido));
   });
 
   const porStatus = Array.from(contagemPorStatus, ([label, valor]) => ({ label, valor })).sort((a, b) =>
@@ -230,7 +230,7 @@ export function calcularResumo(pedidos) {
     financeiroPago: pedidosAtivos.filter((p) => p.status === "Nota emitida" && p.statusFinanceiro === "Pago").length,
     financeiroPendente: pedidosAtivos.filter((p) => p.status === "Nota emitida" && p.statusFinanceiro !== "Pago").length,
     cancelados: pedidos.filter((p) => p.status === "Cancelado").length,
-    total: pedidosAtivos.reduce((acc, p) => acc + valorTotalPedido(p), 0),
+    total: pedidosAtivos.reduce((acc, p) => acc + valorPedidoComIpi(p), 0),
   };
 }
 

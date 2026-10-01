@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { Button, Card, EmptyState, Field, Input } from "./ui.jsx";
-import { currency, itensPedido, valorPedidoComIpi, valorTotalPedido } from "../lib/domain.js";
+import { currency, itensPedido, valorPedidoComIpi } from "../lib/domain.js";
 
 // O pedido faturado ou já em rota não pode mais mudar de quantidade (o backend devolve 409).
 const STATUS_SEM_EDICAO = ["Nota emitida", "Cancelado", "Separado para entrega", "Enviado", "Finalizado"];
@@ -65,9 +65,8 @@ export function EditarQuantidades({ pedido, atualizarPedido }) {
   );
 }
 
-// comIpi: o Faturamento mostra o valor da nota; a Inteligência mostra sem IPI, igual às metas.
-export function HistoricoVendedores({ pedidos, vendedor, compacto = false, comIpi = false }) {
-  const valorNota = comIpi ? valorPedidoComIpi : valorTotalPedido;
+export function HistoricoVendedores({ pedidos, vendedor, compacto = false }) {
+  const valorNota = valorPedidoComIpi;
   const emitidos = pedidos.filter((pedido) => pedido.status === "Nota emitida");
   const nomes = vendedor ? [vendedor] : [...new Set(emitidos.map((pedido) => pedido.vendedor || "Não informado"))].sort();
 

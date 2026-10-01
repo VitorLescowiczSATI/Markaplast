@@ -162,4 +162,12 @@ describe("IPI e competência da nota", () => {
     expect(competenciaNota({ data: "2026-09-29" })).toBe("2026-09");
     expect(competenciaNota({})).toBe("");
   });
+
+  it("meta conta o faturado com IPI", async () => {
+    const { realizadoMetas } = await import("./domain.js");
+    const pedido = { status: "Nota emitida", faturamento: "NF Gimak", dataEmissao: "2026-10-01", valor: 10, quantidade: 100, vendedor: "Glaucia" };
+    const realizado = realizadoMetas([pedido], new Date(2026, 9, 1));
+    expect(realizado.empresa.mensal).toBe(1097.5);
+    expect(realizado.porVendedor.Glaucia.mensal).toBe(1097.5);
+  });
 });
