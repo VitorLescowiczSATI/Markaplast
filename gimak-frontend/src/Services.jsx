@@ -118,16 +118,44 @@ function noPeriodo(service, periodo) {
   return periodo.modo === "mes" && periodo.mes === mesAtual() && service.status !== "concluido" && service.data < `${periodo.mes}-01`;
 }
 
+function ServiceCard({ service, now, onOpen }) {
+  const overdue = service.status !== "concluido" && serviceDeadline(service).getTime() < now;
+  const pendentes = (service.pendencias || []).filter((item) => item.status === "aberta").length;
+  return (
+    <button className={`service-card ${service.status}${overdue ? " overdue" : ""}`} onClick={() => onOpen(service)}>
+      <span className="service-top">
+        <span className={`service-type ${service.tipo === "Instalação" ? "install" : ""}`}>{service.tipo}</span>
+        <span className="service-state">
+          {service.status === "concluido" ? <><CheckCircle2 size={13} /> Concluído</>
+            : service.status === "em_rota" ? <><Truck size={13} /> Em atendimento</>
+            : overdue ? <><Clock3 size={13} /> Vencido</>
+            : <><Clock3 size={13} /> Agendado</>}
+        </span>
+      </span>
+      <h2>{service.cliente}</h2>
+      {service.local && <p className="service-place"><MapPin size={13} /> {service.local}</p>}
+      <PlannedTrip service={service} compact />
+      <span className="service-meta">
+        <span><i className="avatar">{initials(service.tecnico)}</i>{service.tecnico}</span>
+        <span className="service-when">{tripDates(service)}</span>
+      </span>
+      {pendentes > 0 && <span className="service-pending"><ClipboardList size={13} /> {pendentes} {pendentes === 1 ? "pendência aberta" : "pendências abertas"}</span>}
+      {service.status === "concluido"
+        ? <span className="service-report"><small>RELATÓRIO</small>{service.relatorio}</span>
+        : <strong className="open-project">Abrir atendimento ›</strong>}
+    </button>
+  );
+}
+
 export function ServicesPage({ services, issues, now, canManage, canDelete, onOpen, onNew, onResolveIssue, onReopenIssue, onDeleteIssue }) {
   const [tab, setTab] = useState("atendimentos");
   const [filter, setFilter] = useState("abertos");
-  const [tipo, setTipo] = useState("todos");
   const [periodo, setPeriodo] = useState(PERIODO_INICIAL);
   const [issueFilter, setIssueFilter] = useState("abertas");
 
   const open = services.filter((item) => item.status !== "concluido");
   const late = open.filter((item) => serviceDeadline(item).getTime() < now);
-  const filtrados = services.filter((item) => (tipo === "todos" || item.tipo === tipo) && noPeriodo(item, periodo));
+  const filtrados = services.filter((item) => noPeriodo(item, periodo));
   const openFiltered = filtrados.filter((item) => item.status !== "concluido");
   const finishedFiltered = filtrados.filter((item) => item.status === "concluido");
   const visible = filter === "abertos" ? openFiltered : filter === "concluidos" ? finishedFiltered : filtrados;
@@ -163,11 +191,6 @@ export function ServicesPage({ services, issues, now, canManage, canDelete, onOp
       {tab === "atendimentos" ? (
         <>
           <div className="filters filters-wrap">
-            <div className="segmented">
-              {[["todos", "Tudo"], ["Assistência técnica", "Assistências técnicas"], ["Instalação", "Instalações"]].map(([key, label]) => (
-                <button key={key} className={tipo === key ? "active" : ""} onClick={() => setTipo(key)}>{label}</button>
-              ))}
-            </div>
             <PeriodoFiltro periodo={periodo} onChange={setPeriodo} meses={services.map((item) => mesDe(item.data))} />
             {canManage && <button className="primary" onClick={onNew}><Plus size={17} /> Novo atendimento</button>}
           </div>
@@ -178,42 +201,27 @@ export function ServicesPage({ services, issues, now, canManage, canDelete, onOp
               ))}
             </div>
           </div>
-          <section className="service-grid">
-            {visible.map((service) => {
-              const overdue = service.status !== "concluido" && serviceDeadline(service).getTime() < now;
-              const pendentes = (service.pendencias || []).filter((item) => item.status === "aberta").length;
+          {/* Lado a lado na mesma tela: o técnico vê de cara o que é assistência e o que é instalação. */}
+          <section className="service-split">
+            {SERVICE_TYPES.map((tipo) => {
+              const doTipo = visible.filter((service) => service.tipo === tipo);
               return (
-                <button className={`service-card ${service.status}${overdue ? " overdue" : ""}`} key={service.id} onClick={() => onOpen(service)}>
-                  <span className="service-top">
-                    <span className={`service-type ${service.tipo === "Instalação" ? "install" : ""}`}>{service.tipo}</span>
-                    <span className="service-state">
-                      {service.status === "concluido" ? <><CheckCircle2 size={13} /> Concluído</>
-                        : service.status === "em_rota" ? <><Truck size={13} /> Em atendimento</>
-                        : overdue ? <><Clock3 size={13} /> Vencido</>
-                        : <><Clock3 size={13} /> Agendado</>}
-                    </span>
-                  </span>
-                  <h2>{service.cliente}</h2>
-                  {service.local && <p className="service-place"><MapPin size={13} /> {service.local}</p>}
-                  <PlannedTrip service={service} compact />
-                  <span className="service-meta">
-                    <span><i className="avatar">{initials(service.tecnico)}</i>{service.tecnico}</span>
-                    <span className="service-when">{tripDates(service)}</span>
-                  </span>
-                  {pendentes > 0 && <span className="service-pending"><ClipboardList size={13} /> {pendentes} {pendentes === 1 ? "pendência aberta" : "pendências abertas"}</span>}
-                  {service.status === "concluido"
-                    ? <span className="service-report"><small>RELATÓRIO</small>{service.relatorio}</span>
-                    : <strong className="open-project">Abrir atendimento ›</strong>}
-                </button>
+                <div key={tipo} className={`service-half ${tipo === "Instalação" ? "install" : ""}`}>
+                  <header className="service-half-head">
+                    <span>{tipo === "Instalação" ? <Truck size={18} /> : <Wrench size={18} />}<b>{tipo === "Instalação" ? "Instalações" : "Assistências técnicas"}</b></span>
+                    <i>{doTipo.length}</i>
+                  </header>
+                  <div className="service-column">
+                    {doTipo.map((service) => <ServiceCard key={service.id} service={service} now={now} onOpen={onOpen} />)}
+                    {!doTipo.length && (
+                      <p className="empty">
+                        Nenhuma {tipo === "Instalação" ? "instalação" : "assistência"} {filter === "concluidos" ? "concluída" : filter === "abertos" ? "em aberto" : ""} neste período.
+                      </p>
+                    )}
+                  </div>
+                </div>
               );
             })}
-            {!visible.length && (
-              <div className="blank-state">
-                <Wrench size={30} />
-                <h2>Nenhum atendimento {filter === "concluidos" ? "concluído" : filter === "abertos" ? "em aberto" : "cadastrado"} neste filtro</h2>
-                <p>{canManage ? "Cadastre uma assistência técnica ou instalação para o técnico acompanhar." : "Os atendimentos agendados pelo PCP aparecem aqui."}</p>
-              </div>
-            )}
           </section>
         </>
       ) : (

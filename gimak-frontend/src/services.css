@@ -74,3 +74,14 @@
   .issue-new { flex-direction: column; }
   .trip-plan { flex-direction: column; align-items: flex-start; gap: 8px; }
 }
+
+/* Assistências de um lado, instalações do outro, na mesma tela. */
+.service-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.service-half { padding: 12px; background: #e9ecef; border: 1px solid #d9dde1; border-radius: 11px; }
+.service-half-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 3px 12px; }
+.service-half-head span { display: flex; align-items: center; gap: 8px; font-size: .95rem; }
+.service-half-head svg { color: var(--orange); }
+.service-half.install .service-half-head svg { color: var(--blue); }
+.service-half-head i { min-width: 27px; padding: 4px 8px; text-align: center; border-radius: 14px; background: #d6dbe0; font-style: normal; font-size: .78rem; font-weight: 800; }
+.service-column { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+@media (max-width: 860px) { .service-split { grid-template-columns: 1fr; } }
