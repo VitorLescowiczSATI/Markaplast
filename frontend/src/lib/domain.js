@@ -30,9 +30,14 @@ export function valorTotalPedido(pedido) {
 }
 
 // Todo valor de pedido, nota, meta e indicador usa o total com IPI; o card mostra a abertura.
+// IPI incide só sobre a embalagem; a tampa fica de fora da base.
 export function ipiPedido(pedido) {
   if (!FATURAMENTOS_COM_IPI.includes(pedido?.faturamento)) return 0;
-  return Math.round(valorTotalPedido(pedido) * IPI_ALIQUOTA * 100) / 100;
+  const baseEmbalagem = itensPedido(pedido).reduce(
+    (total, item) => total + Number(item.valor || 0) * Number(item.quantidade || 0),
+    0
+  );
+  return Math.round(baseEmbalagem * IPI_ALIQUOTA * 100) / 100;
 }
 
 export function valorPedidoComIpi(pedido) {

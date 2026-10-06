@@ -153,6 +153,10 @@ describe("IPI e competência da nota", () => {
     expect(ipiPedido({ ...pedido, faturamento: "NF Gimak" })).toBe(97.5);
     expect(valorPedidoComIpi({ ...pedido, faturamento: "NF Gimak" })).toBe(1097.5);
     expect(ipiPedido({ ...pedido, faturamento: "NF Markaplast" })).toBe(0);
+    // Tampa fora da base: 100 x R$ 10 de embalagem + 100 x R$ 2 de tampa paga IPI só sobre R$ 1.000.
+    const comTampa = { valor: 10, valorTampa: 2, quantidade: 100, faturamento: "NF Gimak" };
+    expect(ipiPedido(comTampa)).toBe(97.5);
+    expect(valorPedidoComIpi(comTampa)).toBe(1297.5);
     expect(valorPedidoComIpi({ ...pedido, faturamento: "ROM Gpack" })).toBe(1000);
   });
 

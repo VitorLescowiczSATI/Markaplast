@@ -110,7 +110,6 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
     () => indicadoresComerciaisPorMes(pedidos, competenciaIndicadores),
     [pedidos, competenciaIndicadores]
   );
-  const statusMax = Math.max(1, ...indicadoresComerciais.porStatus.map((item) => Number(item.valor || 0)));
   const vendedorMax = Math.max(1, ...indicadoresComerciais.porVendedor.map((item) => Number(item.valor || 0)));
   const [config, setConfig] = useState({ escopo: "empresa", vendedor: "", periodo: "mensal", valor: "" });
   const [salvandoMeta, setSalvandoMeta] = useState(false);
@@ -210,14 +209,7 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
               </Field>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="space-y-3">
-              <h3 className="font-bold">Por status</h3>
-              {indicadoresComerciais.porStatus.length === 0 && <EmptyState>Nenhum pedido neste mês.</EmptyState>}
-              {indicadoresComerciais.porStatus.map((item) => (
-                <HorizontalBar key={item.label} label={item.label} value={item.valor} max={statusMax} />
-              ))}
-            </div>
+          <div>
             <div className="space-y-3">
               <h3 className="font-bold">Por vendedor</h3>
               {indicadoresComerciais.porVendedor.length === 0 && <EmptyState>Nenhuma venda válida neste mês.</EmptyState>}
