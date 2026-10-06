@@ -45,9 +45,11 @@ def test_gimak_auth_projects_tasks_and_time_entries_are_isolated():
     project = client.post(
         "/api/gimak/projetos",
         headers=headers,
-        json={"cliente": "Indústria Teste", "equipamento": "Envolvedora GK2100"},
+        json={"cliente": "Indústria Teste", "equipamento": "Envolvedora GK2100", "cidade": " Jaraguá do Sul ", "whatsapp": "(47) 99999-0000"},
     )
     assert project.status_code == 201
+    assert project.json()["cidade"] == "Jaraguá do Sul"
+    assert project.json()["whatsapp"] == "(47) 99999-0000"
 
     task = client.post(
         "/api/gimak/tarefas",

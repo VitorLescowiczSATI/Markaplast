@@ -62,11 +62,15 @@ class SenhaUpdate(BaseModel):
 class ProjetoCreate(BaseModel):
     cliente: str = Field(min_length=2, max_length=180)
     equipamento: str = Field(min_length=2, max_length=180)
+    cidade: str = Field(default="", max_length=120)
+    whatsapp: str = Field(default="", max_length=30)
 
 
 class ProjetoUpdate(BaseModel):
     cliente: str | None = Field(default=None, min_length=2, max_length=180)
     equipamento: str | None = Field(default=None, min_length=2, max_length=180)
+    cidade: str | None = Field(default=None, max_length=120)
+    whatsapp: str | None = Field(default=None, max_length=30)
     concluido: bool | None = None
 
 
@@ -74,6 +78,8 @@ class ProjetoRead(BaseModel):
     id: int
     cliente: str
     equipamento: str
+    cidade: str = ""
+    whatsapp: str = ""
     ativo: bool
     concluidoEm: datetime | None = None
     createdAt: datetime

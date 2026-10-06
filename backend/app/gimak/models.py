@@ -32,6 +32,8 @@ class GimakProjeto(GimakBase):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     cliente: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
     equipamento: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    cidade: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    whatsapp: Mapped[str] = mapped_column(String(30), nullable=False, default="")
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     concluidoEm: Mapped[datetime | None] = mapped_column(
         "concluido_em", DateTime(timezone=True), nullable=True, index=True

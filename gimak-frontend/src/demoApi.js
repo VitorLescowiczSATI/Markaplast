@@ -62,8 +62,8 @@ const USERS = [
 ];
 
 const PROJECTS = [
-  { cliente: "Laticínios Boa Vista", equipamento: "Envasadora GK 500" },
-  { cliente: "Cooperativa Vale Verde", equipamento: "Misturador MX 300" },
+  { cliente: "Laticínios Boa Vista", equipamento: "Envasadora GK 500", cidade: "Jaraguá do Sul / SC", whatsapp: "(47) 99123-4567" },
+  { cliente: "Cooperativa Vale Verde", equipamento: "Misturador MX 300", cidade: "Chapecó / SC" },
   { cliente: "Alimentos Serra Azul", equipamento: "Esteira transportadora ET 12" },
   { cliente: "Bebidas Rio Claro", equipamento: "Rotuladora RT 80" },
   { cliente: "Frigorífico Campo Belo", equipamento: "Seladora SL 40" },
@@ -676,6 +676,7 @@ export const demoApi = {
     requireRoles("PCP");
     const project = {
       id: (state.seq.project += 1), cliente: cleanText(payload.cliente), equipamento: cleanText(payload.equipamento),
+      cidade: cleanText(payload.cidade || ""), whatsapp: cleanText(payload.whatsapp || ""),
       ativo: true, concluidoEm: null, createdAt: new Date().toISOString(),
     };
     state.projects.push(project);

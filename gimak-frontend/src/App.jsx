@@ -27,6 +27,7 @@ import { api } from "./api";
 import { MARCA } from "./mode";
 import { Calendar } from "./Calendar";
 import { Modal } from "./Modal";
+import { PERIODO_INICIAL, PeriodoFiltro, cruzaPeriodo, diaDe, faixaDoPeriodo, mesDe } from "./Periodo";
 import { ServiceForm, ServiceModal, ServicesPage } from "./Services";
 import { AdminIndicators, FactoryTV } from "./ProductionViews";
 
@@ -220,10 +221,35 @@ function Board({ tasks, projects, users, now, onOpen, onRefresh, refreshing }) {
   );
 }
 
+/** Link do WhatsApp: número brasileiro sem o 55 ganha o código do país. */
+function whatsappLink(numero) {
+  const digitos = String(numero || "").replace(/\D/g, "");
+  if (!digitos) return "";
+  return `https://wa.me/${digitos.length <= 11 ? `55${digitos}` : digitos}`;
+}
+
+function ProjectContact({ project }) {
+  if (!project.cidade && !project.whatsapp) return null;
+  const link = whatsappLink(project.whatsapp);
+  return <span className="project-contact">{project.cidade && <span>{project.cidade}</span>}{project.whatsapp && (link ? <a href={link} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>WhatsApp {project.whatsapp}</a> : <span>{project.whatsapp}</span>)}</span>;
+}
+
+/**
+ * Concluído entra no mês em que foi encerrado. Em andamento aparece em todo mês desde a criação,
+ * porque continua aberto: um projeto de setembro ainda em curso também é trabalho de outubro.
+ */
+function projetoNoPeriodo(project, periodo) {
+  if (project.concluidoEm) return cruzaPeriodo(periodo, diaDe(project.concluidoEm));
+  const [, ate] = faixaDoPeriodo(periodo);
+  return !ate || diaDe(project.createdAt) <= ate;
+}
+
 function Projects({ projects, tasks, now, onOpen, onNew, canManage }) {
   const [filter, setFilter] = useState("andamento");
-  const open = projects.filter((item) => !item.concluidoEm);
-  const finished = projects.filter((item) => item.concluidoEm);
+  const [periodo, setPeriodo] = useState(PERIODO_INICIAL);
+  const noPeriodo = projects.filter((item) => projetoNoPeriodo(item, periodo));
+  const open = noPeriodo.filter((item) => !item.concluidoEm);
+  const finished = noPeriodo.filter((item) => item.concluidoEm);
   const visible = filter === "andamento" ? open : finished;
   return (
     <main className="page">
@@ -233,6 +259,7 @@ function Projects({ projects, tasks, now, onOpen, onNew, canManage }) {
           <button className={filter === "andamento" ? "active" : ""} onClick={() => setFilter("andamento")}>Em andamento ({open.length})</button>
           <button className={filter === "concluidos" ? "active" : ""} onClick={() => setFilter("concluidos")}>Concluídos ({finished.length})</button>
         </div>
+        <PeriodoFiltro periodo={periodo} onChange={setPeriodo} meses={projects.map((item) => mesDe(item.concluidoEm || item.createdAt))} />
       </div>
       <section className="project-grid">
         {visible.map((project) => {
@@ -240,7 +267,7 @@ function Projects({ projects, tasks, now, onOpen, onNew, canManage }) {
           const done = projectTasks.filter((task) => task.status === "done");
           const percent = projectTasks.length ? Math.round(done.length / projectTasks.length * 100) : 0;
           const total = done.reduce((sum, task) => sum + elapsedSeconds(task, now), 0);
-          return <button className={`project-card${project.concluidoEm ? " finished" : ""}`} key={project.id} onClick={() => onOpen(project)}><span className="project-card-top"><span className="op">PROJETO {String(project.id).padStart(4, "0")}</span>{project.concluidoEm ? <span className="project-done"><CheckCircle2 size={13} /> Concluído</span> : <span className="project-percent">{percent}%</span>}</span><h2>{project.equipamento}</h2><p>{project.cliente}</p><span className="progress"><i style={{ width: `${percent}%` }} /></span><span className="project-stats"><span><b>{done.length}</b> concluídas</span><span><b>{projectTasks.length - done.length}</b> pendentes</span><span><b>{formatDuration(total)}</b> trabalhadas</span></span><strong className="open-project">{project.concluidoEm ? `Encerrado em ${new Date(project.concluidoEm).toLocaleDateString("pt-BR")} ›` : "Abrir histórico ›"}</strong></button>;
+          return <button className={`project-card${project.concluidoEm ? " finished" : ""}`} key={project.id} onClick={() => onOpen(project)}><span className="project-card-top"><span className="op">PROJETO {String(project.id).padStart(4, "0")}</span>{project.concluidoEm ? <span className="project-done"><CheckCircle2 size={13} /> Concluído</span> : <span className="project-percent">{percent}%</span>}</span><h2>{project.equipamento}</h2><p>{project.cliente}</p><ProjectContact project={project} /><span className="progress"><i style={{ width: `${percent}%` }} /></span><span className="project-stats"><span><b>{done.length}</b> concluídas</span><span><b>{projectTasks.length - done.length}</b> pendentes</span><span><b>{formatDuration(total)}</b> trabalhadas</span></span><strong className="open-project">{project.concluidoEm ? `Encerrado em ${new Date(project.concluidoEm).toLocaleDateString("pt-BR")} ›` : "Abrir histórico ›"}</strong></button>;
         })}
         {!visible.length && <div className="blank-state"><BriefcaseBusiness size={30} /><h2>{filter === "andamento" ? "Nenhum projeto em andamento" : "Nenhum projeto concluído"}</h2><p>{filter === "andamento" ? "Cadastre o primeiro projeto para organizar as atividades." : "Projetos encerrados aparecem aqui quando você conclui um."}</p></div>}
       </section>
@@ -342,7 +369,9 @@ function TaskForm({ projects, users, onClose, onSave }) {
 function ProjectForm({ onClose, onSave }) {
   const [cliente, setCliente] = useState("");
   const [equipamento, setEquipamento] = useState("");
-  return <Modal onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave({ cliente, equipamento }); }}><div className="modal-head"><div><span className="op">NOVO PROJETO</span><h2>Cadastrar projeto</h2></div><button type="button" className="close" onClick={onClose}><X /></button></div><label>Cliente<input value={cliente} onChange={(e) => setCliente(e.target.value)} required autoFocus /></label><label>Equipamento<input value={equipamento} onChange={(e) => setEquipamento(e.target.value)} required placeholder="Ex.: Envolvedora GK2100" /></label><div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Criar projeto</button></div></form></Modal>;
+  const [cidade, setCidade] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  return <Modal onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave({ cliente, equipamento, cidade, whatsapp }); }}><div className="modal-head"><div><span className="op">NOVO PROJETO</span><h2>Cadastrar projeto</h2></div><button type="button" className="close" onClick={onClose}><X /></button></div><label>Cliente<input value={cliente} onChange={(e) => setCliente(e.target.value)} required autoFocus /></label><label>Equipamento<input value={equipamento} onChange={(e) => setEquipamento(e.target.value)} required placeholder="Ex.: Envolvedora GK2100" /></label><div className="form-grid"><label>Cidade do cliente<input value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={120} placeholder="Ex.: Jaraguá do Sul / SC" /></label><label>WhatsApp do cliente<input type="tel" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} maxLength={30} placeholder="(47) 99999-0000" /></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Criar projeto</button></div></form></Modal>;
 }
 
 function ProjectModal({ project, tasks, now, canManage, onClose, onToggleDone, onOpenTask }) {
@@ -351,7 +380,7 @@ function ProjectModal({ project, tasks, now, canManage, onClose, onToggleDone, o
   const pending = projectTasks.filter((task) => task.status !== "done").sort((a, b) => a.dataPlanejada.localeCompare(b.dataPlanejada) || a.horario.localeCompare(b.horario));
   const percent = projectTasks.length ? Math.round(done.length / projectTasks.length * 100) : 0;
   return <Modal onClose={onClose} className="project-modal">
-    <div className="modal-head"><div><span className="op">PROJETO {String(project.id).padStart(4, "0")}</span><h2>{project.equipamento}</h2><p>{project.cliente}</p></div><button className="close" onClick={onClose}><X /></button></div>
+    <div className="modal-head"><div><span className="op">PROJETO {String(project.id).padStart(4, "0")}</span><h2>{project.equipamento}</h2><p>{project.cliente}</p><ProjectContact project={project} /></div><button className="close" onClick={onClose}><X /></button></div>
     <div className="project-progress"><span><b>{done.length} de {projectTasks.length} concluídas</b><b>{formatDuration(done.reduce((sum, task) => sum + elapsedSeconds(task, now), 0))} trabalhadas</b></span><span className="progress"><i style={{ width: `${percent}%` }} /></span></div>
     <h3>Ainda pendentes <i className="count">{pending.length}</i></h3>
     <div className="timeline pending">

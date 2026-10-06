@@ -221,7 +221,12 @@ def create_project(
     db: Session = Depends(get_gimak_db),
     _user: GimakUsuario = Depends(require_gimak_roles(PERFIL_PCP)),
 ):
-    project = GimakProjeto(cliente=payload.cliente.strip(), equipamento=payload.equipamento.strip())
+    project = GimakProjeto(
+        cliente=payload.cliente.strip(),
+        equipamento=payload.equipamento.strip(),
+        cidade=payload.cidade.strip(),
+        whatsapp=payload.whatsapp.strip(),
+    )
     db.add(project)
     db.commit()
     db.refresh(project)

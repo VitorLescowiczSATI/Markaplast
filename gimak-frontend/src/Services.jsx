@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { Modal } from "./Modal";
+import { PERIODO_INICIAL, PeriodoFiltro, cruzaPeriodo, mesAtual, mesDe } from "./Periodo";
 import "./services.css";
 
 export const SERVICE_TYPES = ["Assistência técnica", "Instalação"];
@@ -108,15 +109,28 @@ function IssueCard({ issue, contexto = true, canManage, canDelete, onResolve, on
   );
 }
 
+/**
+ * O atendimento entra no mês da ida (e nos dias até a volta). Atendimento em aberto de mês
+ * anterior continua aparecendo no mês corrente, para o atraso não sumir na virada do mês.
+ */
+function noPeriodo(service, periodo) {
+  if (cruzaPeriodo(periodo, service.data, service.dataVolta || service.data)) return true;
+  return periodo.modo === "mes" && periodo.mes === mesAtual() && service.status !== "concluido" && service.data < `${periodo.mes}-01`;
+}
+
 export function ServicesPage({ services, issues, now, canManage, canDelete, onOpen, onNew, onResolveIssue, onReopenIssue, onDeleteIssue }) {
   const [tab, setTab] = useState("atendimentos");
   const [filter, setFilter] = useState("abertos");
+  const [tipo, setTipo] = useState("todos");
+  const [periodo, setPeriodo] = useState(PERIODO_INICIAL);
   const [issueFilter, setIssueFilter] = useState("abertas");
 
   const open = services.filter((item) => item.status !== "concluido");
-  const finished = services.filter((item) => item.status === "concluido");
   const late = open.filter((item) => serviceDeadline(item).getTime() < now);
-  const visible = filter === "abertos" ? open : filter === "concluidos" ? finished : services;
+  const filtrados = services.filter((item) => (tipo === "todos" || item.tipo === tipo) && noPeriodo(item, periodo));
+  const openFiltered = filtrados.filter((item) => item.status !== "concluido");
+  const finishedFiltered = filtrados.filter((item) => item.status === "concluido");
+  const visible = filter === "abertos" ? openFiltered : filter === "concluidos" ? finishedFiltered : filtrados;
 
   const openIssues = issues.filter((item) => item.status === "aberta");
   const solvedIssues = issues.filter((item) => item.status === "resolvida");
@@ -148,13 +162,21 @@ export function ServicesPage({ services, issues, now, canManage, canDelete, onOp
 
       {tab === "atendimentos" ? (
         <>
-          <div className="filters">
+          <div className="filters filters-wrap">
             <div className="segmented">
-              {[["abertos", "Em aberto"], ["concluidos", "Concluídos"], ["todos", "Todos"]].map(([key, label]) => (
-                <button key={key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>
+              {[["todos", "Tudo"], ["Assistência técnica", "Assistências técnicas"], ["Instalação", "Instalações"]].map(([key, label]) => (
+                <button key={key} className={tipo === key ? "active" : ""} onClick={() => setTipo(key)}>{label}</button>
               ))}
             </div>
+            <PeriodoFiltro periodo={periodo} onChange={setPeriodo} meses={services.map((item) => mesDe(item.data))} />
             {canManage && <button className="primary" onClick={onNew}><Plus size={17} /> Novo atendimento</button>}
+          </div>
+          <div className="filters">
+            <div className="segmented">
+              {[["abertos", "Em aberto", openFiltered.length], ["concluidos", "Concluídos", finishedFiltered.length], ["todos", "Todos", filtrados.length]].map(([key, label, total]) => (
+                <button key={key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label} ({total})</button>
+              ))}
+            </div>
           </div>
           <section className="service-grid">
             {visible.map((service) => {
@@ -188,7 +210,7 @@ export function ServicesPage({ services, issues, now, canManage, canDelete, onOp
             {!visible.length && (
               <div className="blank-state">
                 <Wrench size={30} />
-                <h2>Nenhum atendimento {filter === "concluidos" ? "concluído" : filter === "abertos" ? "em aberto" : "cadastrado"}</h2>
+                <h2>Nenhum atendimento {filter === "concluidos" ? "concluído" : filter === "abertos" ? "em aberto" : "cadastrado"} neste filtro</h2>
                 <p>{canManage ? "Cadastre uma assistência técnica ou instalação para o técnico acompanhar." : "Os atendimentos agendados pelo PCP aparecem aqui."}</p>
               </div>
             )}
