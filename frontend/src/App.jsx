@@ -44,6 +44,7 @@ import {
   calcularResumo,
   competenciaAtual,
   competenciaNota,
+  competenciaPedido,
   rotuloCompetencia,
   camposFaltandoPedido,
   currency,
@@ -138,7 +139,6 @@ function pedidoFieldsFromCliente(cliente, form) {
     cidade: cliente.cidade || "",
     uf: cliente.uf || "",
     pagamento: cliente.condicaoPagamento || form.pagamento,
-    vendedor: cliente.vendedor || form.vendedor,
   };
 }
 
@@ -646,8 +646,18 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
     [produtosCatalogo]
   );
   const nomesProdutos = produtosOrdenados.length ? produtosOrdenados.map((produto) => produto.nome) : produtos;
+  // O Comercial zera na virada do mês: cards e lista seguem o mês do pedido, como os indicadores.
+  const [competencia, setCompetencia] = useState(competenciaAtual);
+  const competenciasPedidos = useMemo(
+    () => Array.from(new Set([competenciaAtual(), ...pedidos.map(competenciaPedido).filter(Boolean)])).sort((a, b) => b.localeCompare(a)),
+    [pedidos]
+  );
+  const pedidosDoMes = useMemo(
+    () => (competencia === "todos" ? pedidos : pedidos.filter((pedido) => competenciaPedido(pedido) === competencia)),
+    [pedidos, competencia]
+  );
   const pedidosFiltrados = useMemo(() => {
-    let lista = filtrarPedidos(pedidos, busca, statusFiltro, vendedorFiltro, "Comercial");
+    let lista = filtrarPedidos(pedidosDoMes, busca, statusFiltro, vendedorFiltro, "Comercial");
     // Pedidos cancelados/faturados somem da aba principal; só aparecem ao filtrar por aquele status.
     if (statusFiltro === "Todos") {
       lista = lista.filter((pedido) => !STATUS_OCULTOS_COMERCIAL.includes(pedido.status));
@@ -655,7 +665,7 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
     if (dataInicial) lista = lista.filter((pedido) => String(pedido.data || "") >= dataInicial);
     if (dataFinal) lista = lista.filter((pedido) => String(pedido.data || "") <= dataFinal);
     return lista;
-  }, [pedidos, busca, statusFiltro, vendedorFiltro, dataInicial, dataFinal]);
+  }, [pedidosDoMes, busca, statusFiltro, vendedorFiltro, dataInicial, dataFinal]);
 
   const precoReqIds = useRef({});
   async function aplicarPrecoCliente(clienteId, produtoNome, indiceItem) {
@@ -758,7 +768,7 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
 
   return (
     <div className="space-y-6">
-      <ResumoCards pedidos={pedidos} />
+      <ResumoCards pedidos={pedidosDoMes} />
 
       <section className={`grid grid-cols-1 gap-6 ${somenteLeitura ? "" : "xl:grid-cols-[420px_1fr]"}`}>
         {!somenteLeitura && (
@@ -1008,6 +1018,14 @@ function ComercialLayout({ pedidos, clientes = [], produtosCatalogo = [], criarP
                     {status}
                   </option>
                 ))}
+              </SelectBox>
+              <SelectBox aria-label="Mês dos pedidos" value={competencia} onChange={setCompetencia} className="w-full sm:w-44">
+                {competenciasPedidos.map((opcao) => (
+                  <option key={opcao} value={opcao}>
+                    {rotuloCompetencia(opcao)}
+                  </option>
+                ))}
+                <option value="todos">Todos os meses</option>
               </SelectBox>
               {!somenteLeitura && (
                 <SelectBox value={vendedorFiltro} onChange={setVendedorFiltro} className="w-full sm:w-40">
