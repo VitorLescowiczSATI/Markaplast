@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, CheckCircle2, FileText, PackagePlus, Pencil, Search, Tags, Target, Trash2, Users, X } from "lucide-react";
+import { CheckCircle2, FileText, PackagePlus, Pencil, Search, Tags, Target, Trash2, Users, X } from "lucide-react";
 
 import { Badge, Button, Card, EmptyState, Field, Input, SelectBox, StatCard, TextArea } from "./ui.jsx";
 import { HistoricoVendedores } from "./FluxoPedidos.jsx";
@@ -7,14 +7,12 @@ import { api } from "../lib/api.js";
 import { vendedores } from "../lib/constants.js";
 import {
   competenciaAtual,
-  competenciaPedido,
+  competenciaNota,
   currency,
-  indicadoresComerciaisPorMes,
   itensPedido,
   percentualMeta,
   quantidadeTotalPedido,
   realizadoMetas,
-  rotuloCompetencia,
   statusColor,
   valorPedidoComIpi,
 } from "../lib/domain.js";
@@ -52,21 +50,6 @@ const emptyProduto = {
   ativo: "sim",
 };
 
-function HorizontalBar({ label, value, max, detail }) {
-  const width = max > 0 ? Math.max(4, Math.round((Number(value || 0) / max) * 100)) : 0;
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between gap-3 text-sm">
-        <span className="truncate font-medium text-slate-700">{label}</span>
-        <span className="whitespace-nowrap text-xs font-semibold text-slate-500">{detail || value}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-teal-600" style={{ width: `${width}%` }} />
-      </div>
-    </div>
-  );
-}
-
 const PERIODOS_META = [
   { key: "diaria", label: "Diária" },
   { key: "mensal", label: "Mensal" },
@@ -98,19 +81,11 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
   const somenteLeitura = Boolean(vendedor);
   const resumo = dashboard?.resumo || {};
   const realizado = useMemo(() => realizadoMetas(pedidos), [pedidos]);
-  const [competenciaIndicadores, setCompetenciaIndicadores] = useState(competenciaAtual);
-  const competenciasDisponiveis = useMemo(
-    () =>
-      Array.from(new Set([competenciaAtual(), ...pedidos.map(competenciaPedido).filter(Boolean)])).sort((a, b) =>
-        b.localeCompare(a)
-      ),
+  // Histórico de notas junto da meta: as mesmas notas que contam no realizado do mês.
+  const notasDoMes = useMemo(
+    () => pedidos.filter((pedido) => competenciaNota(pedido) === competenciaAtual()),
     [pedidos]
   );
-  const indicadoresComerciais = useMemo(
-    () => indicadoresComerciaisPorMes(pedidos, competenciaIndicadores),
-    [pedidos, competenciaIndicadores]
-  );
-  const vendedorMax = Math.max(1, ...indicadoresComerciais.porVendedor.map((item) => Number(item.valor || 0)));
   const [config, setConfig] = useState({ escopo: "empresa", vendedor: "", periodo: "mensal", valor: "" });
   const [salvandoMeta, setSalvandoMeta] = useState(false);
 
@@ -128,7 +103,8 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
   const vendedoresPainel = Array.from(
     new Set([...Object.keys(realizado.porVendedor), ...metas.filter((meta) => meta.escopo === "vendedor").map((meta) => meta.vendedor)])
   )
-    .filter(Boolean)
+    // Só quem está na lista de vendedores; nome desligado (ex.: Silvana) some do painel.
+    .filter((nome) => vendedores.includes(nome))
     .sort();
 
   async function salvarMeta(event) {
@@ -190,60 +166,22 @@ export function InteligenciaLayout({ dashboard, pedidos = [], metas = [], onRefr
         </div>
       </Card>
 
-      <section className={`grid grid-cols-1 gap-6 ${somenteLeitura ? "" : "xl:grid-cols-[1.1fr_0.9fr]"}`}>
-        <Card className="p-5">
-          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex items-center gap-2 pb-1">
-              <BarChart3 size={20} className="text-teal-700" />
-              <h2 className="text-xl font-bold">Indicadores comerciais</h2>
-            </div>
-            <div className="w-full sm:w-52">
-              <Field label="Mês dos indicadores">
-                <SelectBox value={competenciaIndicadores} onChange={setCompetenciaIndicadores}>
-                  {competenciasDisponiveis.map((competencia) => (
-                    <option key={competencia} value={competencia} className="capitalize">
-                      {rotuloCompetencia(competencia)}
-                    </option>
-                  ))}
-                </SelectBox>
-              </Field>
-            </div>
-          </div>
-          <div>
-            <div className="space-y-3">
-              <h3 className="font-bold">Por vendedor</h3>
-              {indicadoresComerciais.porVendedor.length === 0 && <EmptyState>Nenhuma venda válida neste mês.</EmptyState>}
-              {indicadoresComerciais.porVendedor.slice(0, 8).map((item) => (
-                <div key={item.label}>
-                  <HorizontalBar label={item.label} value={item.valor} max={vendedorMax} detail={currency(item.valor)} />
-                  <HistoricoVendedores
-                    compacto
-                    vendedor={item.label}
-                    pedidos={pedidos.filter((pedido) => competenciaPedido(pedido) === competenciaIndicadores)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
-
-        {!somenteLeitura && (
-        <Card className="p-5">
-          <h2 className="mb-4 text-xl font-bold">Metas por vendedor (mês)</h2>
-          <div className="space-y-3">
-            {vendedoresPainel.length === 0 && <EmptyState>Nenhuma meta ou faturamento por vendedor ainda.</EmptyState>}
-            {vendedoresPainel.map((vendedor) => (
+      <Card className="p-5">
+        <h2 className="mb-4 text-xl font-bold">Metas por vendedor (mês)</h2>
+        <div className="space-y-4">
+          {vendedoresPainel.length === 0 && <EmptyState>Nenhuma meta ou faturamento por vendedor ainda.</EmptyState>}
+          {vendedoresPainel.map((nome) => (
+            <div key={nome} className="space-y-2">
               <MetaBar
-                key={vendedor}
-                label={vendedor}
-                realizado={realizado.porVendedor[vendedor]?.mensal || 0}
-                meta={metaValor("vendedor", vendedor, "mensal")}
+                label={nome}
+                realizado={realizado.porVendedor[nome]?.mensal || 0}
+                meta={metaValor("vendedor", nome, "mensal")}
               />
-            ))}
-          </div>
-        </Card>
-        )}
-      </section>
+              <HistoricoVendedores compacto vendedor={nome} pedidos={notasDoMes} />
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {!somenteLeitura && (
       <Card className="p-5">
