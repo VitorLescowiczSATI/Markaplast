@@ -546,6 +546,92 @@ function buildIndicators(inicioParam, fimParam) {
   };
 }
 
+// Espelho de build_person_report (analytics.py): a ficha de uma pessoa no período.
+function buildPersonReport(nome, inicioParam, fimParam) {
+  const { tasks, users, services, issues } = load();
+  const now = new Date();
+  const today = isoDate(now);
+  const inicio = inicioParam || today;
+  const fim = fimParam || today;
+  if (fim < inicio) fail("A data final deve ser igual ou posterior à inicial");
+  const key = normalizeName(nome || "");
+  if (!key) fail("Informe o nome");
+  const lower = new Date(`${inicio}T00:00:00`);
+  const upper = new Date(`${fim}T00:00:00`);
+  upper.setDate(upper.getDate() + 1);
+  const inside = (value) => new Date(value) >= lower && new Date(value) < upper && new Date(value) <= now;
+
+  const projects = new Map(load().projects.map((item) => [item.id, item]));
+  const matches = users.filter((user) => user.perfil !== "TV" && normalizeName(user.nome) === key);
+  const linked = matches.length === 1 ? matches[0] : null;
+  const own = tasks.filter((task) => normalizeName(task.responsavel) === key);
+  if (!own.length && !matches.length) fail("Pessoa não encontrada");
+  const completions = new Map(own.map((task) => [task.id, completionTime(task)]));
+  const cohort = own.filter((task) => task.dataPlanejada >= inicio && task.dataPlanejada <= fim);
+  const finished = cohort.filter((task) => task.status === "done");
+  const known = finished.filter((task) => completions.get(task.id));
+  const inTime = known.filter((task) => completions.get(task.id) <= deadline(task)).length;
+  const count = (status) => cohort.filter((task) => task.status === status).length;
+  const titles = new Map(tasks.map((task) => [task.id, task.titulo]));
+
+  const events = linked
+    ? tasks.flatMap((task) => task.historico.filter((entry) => entry.usuarioId === linked.id && inside(entry.createdAt)).map((entry) => ({ ...entry, tarefaId: task.id })))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt) || b.id - a.id)
+    : [];
+  const reasons = new Map();
+  for (const task of own) for (const entry of task.historico) {
+    const motivo = (entry.motivo || "").trim();
+    if (["paused", "blocked"].includes(entry.statusNovo) && motivo && inside(entry.createdAt)) reasons.set(motivo, (reasons.get(motivo) || 0) + 1);
+  }
+  const visits = services
+    .filter((item) => normalizeName(item.tecnico) === key && item.data <= fim && (item.dataVolta || item.data) >= inicio)
+    .sort((a, b) => b.data.localeCompare(a.data) || b.id - a.id);
+  const row = (task) => {
+    const doneAt = completions.get(task.id);
+    const project = projects.get(task.projetoId);
+    return {
+      id: task.id, titulo: task.titulo, ordem: task.ordem, status: task.status, prioridade: task.prioridade,
+      dataPlanejada: task.dataPlanejada, horario: task.horario, prazo: deadline(task).toISOString(),
+      projeto: project ? `${project.cliente} · ${project.equipamento}` : null,
+      concluidaEm: doneAt ? doneAt.toISOString() : null, noPrazo: doneAt ? doneAt <= deadline(task) : null,
+      atrasada: isOverdue(task, now), tempoRegistradoSegundos: recordedSeconds(task, now),
+      motivo: task.motivo || "", observacao: task.observacao || "",
+    };
+  };
+  const desc = (a, b) => b.dataPlanejada.localeCompare(a.dataPlanejada) || b.horario.localeCompare(a.horario) || b.id - a.id;
+  return {
+    geradoEm: now.toISOString(), periodo: { inicio, fim },
+    nome: linked ? linked.nome : own[0]?.responsavel || nome,
+    usuarioId: linked?.id ?? null, perfil: linked?.perfil ?? null, cargo: linked?.cargo || "",
+    vinculo: linked ? "unico" : matches.length ? "ambiguo" : "sem_usuario",
+    resumo: {
+      planejadas: cohort.length, concluidas: finished.length, aFazer: count("todo"), emExecucao: count("doing"),
+      pausadas: count("paused"), naoRealizadas: count("blocked"),
+      atrasadasNoPeriodo: cohort.filter((task) => isOverdue(task, now)).length,
+      atrasadasEmAberto: own.filter((task) => isOverdue(task, now)).length,
+      noPrazo: inTime, concluidasComPrazoConhecido: known.length,
+      taxaConclusao: percentage(finished.length, cohort.length), taxaNoPrazo: percentage(inTime, known.length),
+      tempoRegistradoSegundos: cohort.reduce((sum, task) => sum + recordedSeconds(task, now), 0),
+      apontamentos: events.length,
+      diasAtivos: new Set(events.map((entry) => localDateOf(new Date(entry.createdAt)))).size,
+      atendimentos: visits.length, atendimentosConcluidos: visits.filter((item) => item.status === "concluido").length,
+    },
+    serieDiaria: dailySeries(cohort, new Map(cohort.map((task) => [task.id, completions.get(task.id)])), inicio, fim),
+    tarefas: [...cohort].sort(desc).map(row),
+    atrasadasAnteriores: own.filter((task) => isOverdue(task, now) && task.dataPlanejada < inicio).sort(byDeadline).map(row),
+    apontamentos: events.slice(0, 300).map((entry) => ({
+      id: entry.id, tarefaId: entry.tarefaId, titulo: titles.get(entry.tarefaId) || "", de: entry.statusAnterior,
+      para: entry.statusNovo, motivo: entry.motivo || "", ocorridoEm: entry.createdAt,
+    })),
+    motivos: [...reasons].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([motivo, quantidade]) => ({ motivo, quantidade })),
+    atendimentos: visits.map((item) => ({
+      id: item.id, tipo: item.tipo, cliente: item.cliente, local: item.local, data: item.data, dataVolta: item.dataVolta,
+      status: item.status, relatorio: item.relatorio,
+      pendenciasAbertas: issues.filter((issue) => issue.atendimentoId === item.id && issue.status === "aberta").length,
+    })),
+  };
+}
+
 function buildTvPanel() {
   const { tasks } = load();
   const now = new Date();
@@ -618,6 +704,10 @@ export const demoApi = {
   getIndicators: (inicio, fim) => respond(() => {
     requireRoles(ADMIN);
     return buildIndicators(inicio, fim);
+  }),
+  getPersonReport: (nome, inicio, fim) => respond(() => {
+    requireRoles(ADMIN);
+    return buildPersonReport(nome, inicio, fim);
   }),
   getTVPanel: () => respond(() => {
     currentUser();

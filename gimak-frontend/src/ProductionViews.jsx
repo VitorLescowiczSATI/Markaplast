@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Activity, ArrowLeft, BarChart3, CheckCircle2, Clock3, Expand, Factory, PauseCircle, RefreshCw, TriangleAlert, Users } from "lucide-react";
+import { Activity, ArrowLeft, BarChart3, CalendarDays, CheckCircle2, Clock3, Expand, Factory, PauseCircle, Printer, RefreshCw, TriangleAlert, Users, Wrench } from "lucide-react";
 import { api } from "./api";
 import { MARCA } from "./mode";
 import "./production-views.css";
@@ -77,12 +77,106 @@ function initialPeriod(kind) {
   return { inicio: dateKey(start), fim: today };
 }
 
+const SERVICE_STATUS = { agendado: "Agendado", em_rota: "Em atendimento", concluido: "Concluído" };
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+
+/** Resumo em texto corrido: o que o administrador leria em voz alta numa conversa com a pessoa. */
+function resumoTexto(data) {
+  const r = data.resumo;
+  const primeiro = data.nome.split(" ")[0];
+  const frases = [];
+  if (!r.planejadas) frases.push(`${primeiro} não teve tarefas planejadas neste período.`);
+  else {
+    frases.push(`${primeiro} teve ${plural(r.planejadas, "tarefa planejada", "tarefas planejadas")} e concluiu ${r.concluidas} (${percent(r.taxaConclusao)}).`);
+    if (r.concluidasComPrazoConhecido) frases.push(`${plural(r.noPrazo, "entrega foi", "entregas foram")} no prazo, de ${r.concluidasComPrazoConhecido} com prazo conhecido (${percent(r.taxaNoPrazo)}).`);
+    const abertas = r.aFazer + r.emExecucao + r.pausadas;
+    if (abertas) frases.push(`Ainda ${plural(abertas, "está em aberto", "estão em aberto")}${r.pausadas ? `, ${r.pausadas} pausada${r.pausadas === 1 ? "" : "s"}` : ""}.`);
+    if (r.naoRealizadas) frases.push(`${plural(r.naoRealizadas, "tarefa foi marcada", "tarefas foram marcadas")} como não realizada.`);
+  }
+  if (r.atrasadasEmAberto) frases.push(`Há ${plural(r.atrasadasEmAberto, "tarefa vencida", "tarefas vencidas")} em aberto${data.atrasadasAnteriores.length ? `, ${data.atrasadasAnteriores.length} de antes do período` : ""}.`);
+  if (data.motivos.length) frases.push(`Motivo de pausa mais comum: "${data.motivos[0].motivo}".`);
+  if (r.atendimentos) frases.push(`Fez ${plural(r.atendimentos, "atendimento externo", "atendimentos externos")}, ${r.atendimentosConcluidos} concluído${r.atendimentosConcluidos === 1 ? "" : "s"}.`);
+  if (data.vinculo === "unico") frases.push(r.apontamentos ? `Registrou ${plural(r.apontamentos, "apontamento", "apontamentos")} no próprio acesso, em ${plural(r.diasAtivos, "dia", "dias")}.` : "Não registrou apontamentos com o próprio login.");
+  return frases.join(" ");
+}
+
+function TaskRow({ task }) {
+  const prazo = task.status === "done"
+    ? (task.noPrazo == null ? "—" : task.noPrazo ? <span className="pv-ok">No prazo</span> : <span className="pv-alert-text">Atrasou</span>)
+    : task.atrasada ? <span className="pv-alert-text">Vencida</span> : "Em dia";
+  return <tr>
+    <td>{dateLabel(task.dataPlanejada)}<small>{task.horario}</small></td>
+    <td><b>{task.titulo}</b><small>{task.ordem}{task.projeto ? ` · ${task.projeto}` : ""}</small>{task.motivo && task.status !== "done" && <small className="pv-reason">Motivo: {task.motivo}</small>}</td>
+    <td><span className={`pv-status ${task.status}`}>{STATUS[task.status]}</span></td>
+    <td>{task.concluidaEm ? `${dateLabel(task.concluidaEm)} ${clockLabel(task.concluidaEm)}` : "—"}</td>
+    <td>{prazo}</td>
+    <td className="pv-mono">{duration(task.tempoRegistradoSegundos)}</td>
+  </tr>;
+}
+
+function TaskTable({ tasks, empty }) {
+  return <div className="pv-table-wrap"><table><thead><tr><th>Data</th><th>Tarefa</th><th>Situação</th><th>Concluída em</th><th>Prazo</th><th>Tempo</th></tr></thead>
+    <tbody>{tasks.map(task => <TaskRow key={task.id} task={task} />)}</tbody></table>{!tasks.length && <p className="pv-empty">{empty}</p>}</div>;
+}
+
+/** Ficha de uma pessoa: abre o ranking tarefa por tarefa, com resumo e relatório para imprimir. */
+function PersonReport({ nome, period, onBack }) {
+  const [state, setState] = useState({ data: null, error: "" });
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({ data: null, error: "" });
+    api.getPersonReport(nome, period.inicio, period.fim, { signal: controller.signal })
+      .then(data => setState({ data, error: "" }))
+      .catch(error => error.name !== "AbortError" && setState({ data: null, error: error.message || "Falha ao carregar" }));
+    return () => controller.abort();
+  }, [nome, period]);
+  const data = state.data;
+  const r = data?.resumo;
+  return <main className="page pv-admin pv-person">
+    <section className="pv-admin-title">
+      <div><p className="eyebrow">FICHA DO COLABORADOR</p><h1>{data?.nome || nome}</h1><p>{data ? `${data.cargo || data.perfil || "Responsável sem acesso próprio"} · ${dateLabel(data.periodo.inicio)} a ${dateLabel(data.periodo.fim)}` : "Carregando…"}</p></div>
+      <div className="pv-person-actions no-print"><button className="secondary" onClick={onBack}><ArrowLeft size={16} /> Voltar aos indicadores</button><button className="primary" onClick={() => window.print()} disabled={!data}><Printer size={16} /> Imprimir ou salvar PDF</button></div>
+    </section>
+    {!data && <div className="pv-empty" role="status">{state.error || "Montando a ficha…"}</div>}
+    {data && <>
+      <p className="pv-print-only pv-scope">{MARCA.empresa} · relatório gerado em {dateLabel(data.geradoEm)} às {clockLabel(data.geradoEm)}</p>
+      <section className="pv-panel pv-summary-text"><header><h2>Resumo do período</h2></header><p>{resumoTexto(data)}</p>
+        {data.vinculo !== "unico" && <p className="pv-note">{data.vinculo === "ambiguo" ? "Há mais de um usuário com esse nome; os apontamentos não foram atribuídos a ninguém." : "Esse nome não tem usuário próprio no sistema; os apontamentos ficam no login de quem registrou."}</p>}
+      </section>
+      <section className="pv-metrics">
+        <Metric label="Planejadas" value={r.planejadas} detail={`${r.aFazer} a fazer · ${r.emExecucao} em execução`} icon={BarChart3} />
+        <Metric label="Concluídas" value={r.concluidas} detail={`${percent(r.taxaConclusao)} das planejadas`} tone="green" icon={CheckCircle2} />
+        <Metric label="Entregas no prazo" value={percent(r.taxaNoPrazo)} detail={`${r.noPrazo} de ${r.concluidasComPrazoConhecido} com prazo conhecido`} tone="blue" icon={Clock3} />
+        <Metric label="Vencidas em aberto" value={r.atrasadasEmAberto} detail={`${r.atrasadasNoPeriodo} do período · ${r.naoRealizadas} não realizadas`} tone="red" icon={TriangleAlert} />
+      </section>
+      <section className="pv-metrics pv-metrics-small">
+        <Metric label="Tempo nas tarefas" value={duration(r.tempoRegistradoSegundos)} detail="Não representa jornada" icon={Clock3} />
+        <Metric label="Dias com apontamento" value={data.vinculo === "unico" ? r.diasAtivos : "—"} detail={data.vinculo === "unico" ? `${r.apontamentos} apontamentos no próprio acesso` : "Sem acesso próprio"} icon={CalendarDays} />
+        <Metric label="Atendimentos externos" value={r.atendimentos} detail={`${r.atendimentosConcluidos} concluídos`} icon={Wrench} />
+        <Metric label="Pausadas agora" value={r.pausadas} detail={data.motivos[0] ? `Mais comum: ${data.motivos[0].motivo}` : "Sem motivo registrado"} tone="amber" icon={PauseCircle} />
+      </section>
+      <section className="pv-panel"><header><h2>Dia a dia</h2><span>{dateLabel(data.periodo.inicio)} — {dateLabel(data.periodo.fim)}</span></header><DailyChart series={data.serieDiaria} /></section>
+      <section className="pv-panel"><header><div><h2>Tarefas do período</h2><p>Planejadas entre {dateLabel(data.periodo.inicio)} e {dateLabel(data.periodo.fim)}, da mais recente para a mais antiga.</p></div><span className="pv-count">{data.tarefas.length}</span></header><TaskTable tasks={data.tarefas} empty="Nenhuma tarefa planejada para essa pessoa no período." /></section>
+      {data.atrasadasAnteriores.length > 0 && <section className="pv-panel"><header><div><h2>Vencidas de antes do período</h2><p>Continuam em aberto e não entram no resumo acima.</p></div><span className="pv-count">{data.atrasadasAnteriores.length}</span></header><TaskTable tasks={data.atrasadasAnteriores} empty="" /></section>}
+      <section className="pv-middle-grid">
+        <article className="pv-panel"><header><h2>Motivos de pausa e não realizado</h2></header><div className="pv-reasons">{data.motivos.map(row => <div key={row.motivo}><span>{row.motivo}</span><b>{row.quantidade}</b></div>)}{!data.motivos.length && <p className="pv-empty">Nenhum motivo registrado no período.</p>}</div></article>
+        <article className="pv-panel"><header><h2>Atendimentos externos</h2><span className="pv-count">{data.atendimentos.length}</span></header><div className="pv-pending-list">{data.atendimentos.map(item => <div key={item.id}><span><b>{item.cliente}</b><small>{item.tipo}{item.local ? ` · ${item.local}` : ""}{item.relatorio ? ` · ${item.relatorio}` : ""}</small></span><span><b>{dateLabel(item.data)}{item.dataVolta && item.dataVolta !== item.data ? ` a ${dateLabel(item.dataVolta)}` : ""}</b><small>{SERVICE_STATUS[item.status] || item.status}{item.pendenciasAbertas ? ` · ${item.pendenciasAbertas} pendência(s)` : ""}</small></span></div>)}{!data.atendimentos.length && <p className="pv-empty">Nenhum atendimento externo no período.</p>}</div></article>
+      </section>
+      <details className="pv-panel pv-history" open={data.apontamentos.length <= 15}><summary><h2>Histórico de apontamentos</h2><span className="pv-count">{data.apontamentos.length}</span></summary>
+        {data.vinculo !== "unico" ? <p className="pv-empty">Sem acesso próprio: os apontamentos dessa pessoa ficam no login de quem registrou.</p>
+          : <div className="pv-timeline">{data.apontamentos.map(item => <div key={item.id}><time>{dateLabel(item.ocorridoEm)} {clockLabel(item.ocorridoEm)}</time><span><b>{item.titulo}</b><small>{STATUS[item.de] || item.de} → {STATUS[item.para] || item.para}{item.motivo ? ` · ${item.motivo}` : ""}</small></span></div>)}{!data.apontamentos.length && <p className="pv-empty">Nenhum apontamento no período.</p>}</div>}
+      </details>
+    </>}
+  </main>;
+}
+
 export function AdminIndicators() {
   const [preset, setPreset] = useState("week");
   const [period, setPeriod] = useState(() => initialPeriod("week"));
   const [draft, setDraft] = useState(period);
   const [validation, setValidation] = useState("");
   const [sort, setSort] = useState("concluidas");
+  const [pessoa, setPessoa] = useState(null);
   const fetcher = useCallback(signal => api.getIndicators(period.inicio, period.fim, { signal }), [period]);
   const live = useLiveData(fetcher);
   const data = live.data;
@@ -98,6 +192,8 @@ export function AdminIndicators() {
   }
   const ranked = [...(data?.ranking || [])].sort((a, b) => (b[sort] ?? -1) - (a[sort] ?? -1) || a.nome.localeCompare(b.nome));
   const summary = data?.resumo;
+  if (pessoa) return <PersonReport nome={pessoa} period={period} onBack={() => setPessoa(null)} />;
+  const nomeClicavel = (nome) => <button className="pv-person-link" onClick={() => setPessoa(nome)} title="Abrir a ficha">{nome}</button>;
   return <main className="page pv-admin">
     <section className="pv-admin-title"><div><p className="eyebrow">GESTÃO DA PRODUÇÃO</p><h1>Indicadores da fábrica</h1><p>Entregas, prazos e participação nos apontamentos.</p></div><span className="pv-private"><Users size={16} /> Exclusivo do administrador</span></section>
     <section className="pv-toolbar"><div className="segmented">{[["today", "Hoje"], ["week", "Esta semana"], ["month", "Este mês"], ["custom", "Personalizado"]].map(([key, label]) => <button key={key} className={preset === key ? "active" : ""} onClick={() => selectPreset(key)}>{label}</button>)}</div><Connection live={live} /></section>
@@ -113,10 +209,10 @@ export function AdminIndicators() {
       </section>
       <section className="pv-middle-grid"><article className="pv-panel"><header><h2>Planejamento e entregas</h2><span>{dateLabel(period.inicio)} — {dateLabel(period.fim)}</span></header><DailyChart series={data.serieDiaria} /><p className="pv-note">Conclusões pela data de entrega final; podem vir de tarefas planejadas em outros dias.</p></article>
         <article className="pv-panel"><header><h2>Situação do período</h2></header><div className="pv-state-list">{[["aFazer", "A fazer", "todo"], ["emExecucao", "Em execução", "doing"], ["pausadas", "Pausadas", "paused"], ["naoRealizadas", "Não realizadas", "blocked"], ["concluidas", "Concluídas", "done"]].map(([key, label, tone]) => <div key={key}><span><i className={tone} />{label}</span><b>{summary[key]}</b></div>)}</div><div className="pv-time-total"><small>Tempo acumulado nas tarefas do período</small><b>{duration(summary.tempoRegistradoSegundos)}</b><p>Pode incluir execução fora do período. Não representa jornada de trabalho.</p></div></article></section>
-      <section className="pv-panel"><header><div><h2>Ranking por responsável</h2><p>Tarefas atribuídas no período. Quantidades não medem dificuldade ou qualidade.</p></div><label className="pv-sort">Ordenar<select value={sort} onChange={e => setSort(e.target.value)}><option value="concluidas">Mais concluídas</option><option value="taxaNoPrazo">Maior % no prazo</option><option value="atrasadas">Mais atrasadas</option></select></label></header>
-        <div className="pv-table-wrap"><table><thead><tr><th>#</th><th>Responsável</th><th>Planejadas</th><th>Concluídas</th><th>Conclusão</th><th>No prazo</th><th>Atrasadas</th><th>Não realizadas</th><th>Tempo acumulado</th></tr></thead><tbody>{ranked.map((row, index) => <tr key={`${row.usuarioId}-${row.nome}`}><td><span className={`pv-rank ${index === 0 ? "first" : ""}`}>{index + 1}</span></td><td><b>{row.nome}</b>{row.vinculo !== "unico" && <small className="pv-match-warning">{row.vinculo === "ambiguo" ? "Nome com mais de um usuário" : "Sem usuário correspondente"}</small>}</td><td>{row.planejadas}</td><td><b>{row.concluidas}</b></td><td>{percent(row.taxaConclusao)}</td><td>{percent(row.taxaNoPrazo)}<small>{row.noPrazo}/{row.concluidasComPrazoConhecido} conclusões</small></td><td className={row.atrasadas ? "pv-alert-text" : ""}>{row.atrasadas}</td><td>{row.naoRealizadas}</td><td className="pv-mono">{duration(row.tempoRegistradoSegundos)}</td></tr>)}</tbody></table>{!ranked.length && <p className="pv-empty">Nenhuma tarefa planejada neste período.</p>}</div>
+      <section className="pv-panel"><header><div><h2>Ranking por responsável</h2><p>Tarefas atribuídas no período. Clique no nome para abrir a ficha com o histórico. Quantidades não medem dificuldade ou qualidade.</p></div><label className="pv-sort">Ordenar<select value={sort} onChange={e => setSort(e.target.value)}><option value="concluidas">Mais concluídas</option><option value="taxaNoPrazo">Maior % no prazo</option><option value="atrasadas">Mais atrasadas</option></select></label></header>
+        <div className="pv-table-wrap"><table><thead><tr><th>#</th><th>Responsável</th><th>Planejadas</th><th>Concluídas</th><th>Conclusão</th><th>No prazo</th><th>Atrasadas</th><th>Não realizadas</th><th>Tempo acumulado</th></tr></thead><tbody>{ranked.map((row, index) => <tr key={`${row.usuarioId}-${row.nome}`}><td><span className={`pv-rank ${index === 0 ? "first" : ""}`}>{index + 1}</span></td><td>{nomeClicavel(row.nome)}{row.vinculo !== "unico" && <small className="pv-match-warning">{row.vinculo === "ambiguo" ? "Nome com mais de um usuário" : "Sem usuário correspondente"}</small>}</td><td>{row.planejadas}</td><td><b>{row.concluidas}</b></td><td>{percent(row.taxaConclusao)}</td><td>{percent(row.taxaNoPrazo)}<small>{row.noPrazo}/{row.concluidasComPrazoConhecido} conclusões</small></td><td className={row.atrasadas ? "pv-alert-text" : ""}>{row.atrasadas}</td><td>{row.naoRealizadas}</td><td className="pv-mono">{duration(row.tempoRegistradoSegundos)}</td></tr>)}</tbody></table>{!ranked.length && <p className="pv-empty">Nenhuma tarefa planejada neste período.</p>}</div>
       </section>
-      <section className="pv-panel"><header><div><h2>Uso dos apontamentos</h2><p>Quem registrou mudanças de situação, independentemente do responsável pela tarefa.</p></div></header><div className="pv-table-wrap"><table><thead><tr><th>Usuário</th><th>Apontamentos</th><th>Tarefas movimentadas</th><th>Dias com registro</th><th>Tarefas próprias apontadas</th><th>Último registro no período</th></tr></thead><tbody>{data.adesao.map(row => <tr key={row.usuarioId}><td><b>{row.nome}</b><small>{row.perfil}{!row.ativo ? " · inativo" : ""}</small></td><td>{row.apontamentos}</td><td>{row.tarefasMovimentadas}</td><td>{row.diasAtivos}</td><td><b>{percent(row.taxaApontamentoProprio)}</b><small>{row.tarefasPropriasApontadas} de {row.tarefasAtribuidas} atribuídas</small></td><td>{row.ultimoApontamento ? `${dateLabel(row.ultimoApontamento)} às ${clockLabel(row.ultimoApontamento)}` : "Sem registro no período"}</td></tr>)}</tbody></table>{!data.adesao.length && <p className="pv-empty">Nenhum usuário para analisar.</p>}</div><p className="pv-note">Não mede presença nem logins. Para identificar cada colaborador, use acessos individuais. Percentuais sem tarefas atribuídas aparecem como “—”.</p></section>
+      <section className="pv-panel"><header><div><h2>Uso dos apontamentos</h2><p>Quem registrou mudanças de situação, independentemente do responsável pela tarefa.</p></div></header><div className="pv-table-wrap"><table><thead><tr><th>Usuário</th><th>Apontamentos</th><th>Tarefas movimentadas</th><th>Dias com registro</th><th>Tarefas próprias apontadas</th><th>Último registro no período</th></tr></thead><tbody>{data.adesao.map(row => <tr key={row.usuarioId}><td>{nomeClicavel(row.nome)}<small>{row.perfil}{!row.ativo ? " · inativo" : ""}</small></td><td>{row.apontamentos}</td><td>{row.tarefasMovimentadas}</td><td>{row.diasAtivos}</td><td><b>{percent(row.taxaApontamentoProprio)}</b><small>{row.tarefasPropriasApontadas} de {row.tarefasAtribuidas} atribuídas</small></td><td>{row.ultimoApontamento ? `${dateLabel(row.ultimoApontamento)} às ${clockLabel(row.ultimoApontamento)}` : "Sem registro no período"}</td></tr>)}</tbody></table>{!data.adesao.length && <p className="pv-empty">Nenhum usuário para analisar.</p>}</div><p className="pv-note">Não mede presença nem logins. Para identificar cada colaborador, use acessos individuais. Percentuais sem tarefas atribuídas aparecem como “—”.</p></section>
       <section className="pv-middle-grid"><article className="pv-panel"><header><div><h2>Pendências vencidas</h2><p>Todo o histórico · ordenadas pelo prazo mais antigo</p></div><span className="pv-count">{data.atrasadas.length}</span></header><div className="pv-pending-list">{data.atrasadas.map(task => <div key={task.id}><span><b>{task.titulo}</b><small>{task.responsavel} · {task.projeto || "Sem projeto"}</small></span><span><b className="pv-alert-text">{dateLabel(task.prazo)} {clockLabel(task.prazo)}</b><small>{STATUS[task.status]}</small></span></div>)}{!data.atrasadas.length && <p className="pv-empty">Nenhuma tarefa em aberto fora do prazo.</p>}</div></article>
         <article className="pv-panel"><header><h2>Motivos das pausas atuais</h2></header><div className="pv-reasons">{data.motivosPausa.map(row => <div key={row.motivo}><span>{row.motivo}</span><b>{row.quantidade}</b></div>)}{!data.motivosPausa.length && <p className="pv-empty">Nenhuma tarefa pausada.</p>}</div></article></section>
       <details className="pv-definitions"><summary>Como os indicadores são calculados</summary>{Object.entries(data.criterios).map(([key, description]) => <p key={key}>{description}</p>)}</details>

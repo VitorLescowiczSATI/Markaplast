@@ -246,3 +246,47 @@ def test_repeating_completion_preserves_time_and_history(api, db):
     assert first.status_code == second.status_code == 200
     assert first.json()["finishedAt"] == second.json()["finishedAt"]
     assert len(second.json()["historico"]) == 1
+
+
+def test_person_report_opens_the_period_task_by_task(db):
+    from app.gimak.models import GimakAtendimento
+
+    ana = user(db, "Ana Souza")
+    other = user(db, "Bruno")
+    on_time = task(db, "ana souza", planned=date(2026, 9, 10), clock="17:00", state="done")
+    event(db, on_time, ana, "todo", "doing", datetime(2026, 9, 10, 12, tzinfo=timezone.utc))
+    event(db, on_time, ana, "doing", "done", datetime(2026, 9, 10, 13, tzinfo=timezone.utc))
+    paused = task(db, "Ana Souza", planned=date(2026, 9, 11), clock="08:00", state="paused", motivo="Falta de peça")
+    entry = event(db, paused, other, "doing", "paused", datetime(2026, 9, 11, 12, tzinfo=timezone.utc))
+    entry.motivo = "Falta de peça"
+    old_late = task(db, "Ana Souza", planned=date(2026, 9, 1), clock="08:00", state="todo")
+    task(db, "Bruno", planned=date(2026, 9, 10))
+    db.add(GimakAtendimento(tipo="Instalação", cliente="Cliente X", tecnico="Ana Souza", data=date(2026, 9, 9),
+                            dataVolta=date(2026, 9, 10), status="concluido", relatorio="Instalado"))
+    db.add(GimakAtendimento(tipo="Assistência técnica", cliente="Fora do período", tecnico="Ana Souza", data=date(2026, 8, 1)))
+    db.flush()
+
+    report = analytics.build_person_report(db, " ana  SOUZA ", date(2026, 9, 10), date(2026, 9, 11))
+
+    assert report["nome"] == "Ana Souza" and report["vinculo"] == "unico"
+    resumo = report["resumo"]
+    assert (resumo["planejadas"], resumo["concluidas"], resumo["pausadas"]) == (2, 1, 1)
+    assert (resumo["noPrazo"], resumo["taxaNoPrazo"]) == (1, 100.0)
+    # Atraso de antes do período aparece à parte, sem entrar no resumo do período.
+    assert resumo["atrasadasNoPeriodo"] == 1 and resumo["atrasadasEmAberto"] == 2
+    assert [t["id"] for t in report["atrasadasAnteriores"]] == [old_late.id]
+    # Só os apontamentos feitos pela própria Ana; a pausa foi do Bruno, mas o motivo é da tarefa dela.
+    assert [a["para"] for a in report["apontamentos"]] == ["done", "doing"]
+    assert report["motivos"] == [{"motivo": "Falta de peça", "quantidade": 1}]
+    assert [s["cliente"] for s in report["atendimentos"]] == ["Cliente X"]
+    assert resumo["atendimentosConcluidos"] == 1
+
+
+def test_person_report_is_admin_only_and_unknown_name_is_404(api):
+    client, headers, _ = api
+    params = {"nome": PERFIL_FABRICA}
+    assert client.get("/api/gimak/indicadores/pessoa", params=params).status_code == 401
+    for role in (PERFIL_PCP, PERFIL_FABRICA, PERFIL_TV):
+        assert client.get("/api/gimak/indicadores/pessoa", headers=headers[role], params=params).status_code == 403
+    assert client.get("/api/gimak/indicadores/pessoa", headers=headers[PERFIL_ADMIN], params=params).status_code == 200
+    assert client.get("/api/gimak/indicadores/pessoa", headers=headers[PERFIL_ADMIN], params={"nome": "Ninguém"}).status_code == 404

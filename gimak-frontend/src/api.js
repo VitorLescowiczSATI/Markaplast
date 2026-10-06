@@ -46,6 +46,7 @@ const realApi = {
   login: (username, senha) => request("/auth/login", json("POST", { username, senha }), false),
   me: () => request("/auth/me"),
   getIndicators: (inicio, fim, options = {}) => request(`/indicadores?${new URLSearchParams({ inicio, fim })}`, options),
+  getPersonReport: (nome, inicio, fim, options = {}) => request(`/indicadores/pessoa?${new URLSearchParams({ nome, inicio, fim })}`, options),
   getTVPanel: (options = {}) => request("/painel-tv", options),
   listUsers: () => request("/usuarios"),
   createUser: (payload) => request("/usuarios", json("POST", payload)),

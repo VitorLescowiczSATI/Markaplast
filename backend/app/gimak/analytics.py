@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.gimak.auth import PERFIL_TV
-from app.gimak.models import GimakProjeto, GimakTarefa, GimakUsuario
+from app.gimak.models import GimakAtendimento, GimakProjeto, GimakTarefa, GimakUsuario
 
 
 FACTORY_TZ = ZoneInfo("America/Sao_Paulo")
@@ -222,6 +222,101 @@ def build_indicators(db: Session, inicio: date | None = None, fim: date | None =
         "atrasadas": [_task_payload(t, now, projects) for t in overdue],
         "motivosPausa": [{"motivo": reason, "quantidade": count} for reason, count in pause_reasons.most_common()],
         "projetos": _project_payloads(projects, tasks, now),
+    }
+
+
+def build_person_report(db: Session, nome: str, inicio: date | None = None, fim: date | None = None):
+    """Ficha de uma pessoa no período: o mesmo recorte dos indicadores, aberto tarefa por tarefa.
+
+    Responsável é casado pelo nome (como no ranking). Apontamentos só entram quando o nome
+    corresponde a um único usuário, porque conta compartilhada não identifica a pessoa.
+    """
+    now = utc_now()
+    inicio, fim, lower, upper = _period(inicio, fim, now)
+    key = normalize_name(nome)
+    if not key:
+        raise HTTPException(status_code=422, detail="Informe o nome")
+    tasks = _load_tasks(db)
+    projects = {p.id: p for p in db.scalars(select(GimakProjeto)).all()}
+    users = [u for u in db.scalars(select(GimakUsuario)).all() if u.perfil != PERFIL_TV]
+    matches = [u for u in users if normalize_name(u.nome) == key]
+    linked = matches[0] if len(matches) == 1 else None
+    own = [t for t in tasks if normalize_name(t.responsavel) == key]
+    if not own and not matches:
+        raise HTTPException(status_code=404, detail="Pessoa não encontrada")
+    completions = {t.id: completion_time(t) for t in own}
+    cohort = [t for t in own if inicio <= t.dataPlanejada <= fim]
+    finished = [t for t in cohort if t.status == "done"]
+    known = [t for t in finished if completions[t.id]]
+    in_time = sum(completions[t.id] <= deadline(t) for t in known)
+    statuses = Counter(t.status for t in cohort)
+    task_titles = {t.id: t.titulo for t in tasks}
+
+    events = []
+    if linked:
+        events = sorted(
+            (e for t in tasks for e in t.historico
+             if e.usuarioId == linked.id and lower <= aware(e.createdAt) < upper and aware(e.createdAt) <= now),
+            key=lambda e: (aware(e.createdAt), e.id), reverse=True,
+        )
+    # Motivo de pausa ou "não realizado" registrado nas tarefas dela, por quem quer que tenha apontado.
+    reasons = Counter(
+        e.motivo.strip() for t in own for e in t.historico
+        if e.statusNovo in {"paused", "blocked"} and e.motivo.strip() and lower <= aware(e.createdAt) < upper
+    )
+
+    services = [
+        s for s in db.scalars(select(GimakAtendimento).options(selectinload(GimakAtendimento.pendencias))).all()
+        if normalize_name(s.tecnico) == key and s.data <= fim and (s.dataVolta or s.data) >= inicio
+    ]
+    services.sort(key=lambda s: (s.data, s.id), reverse=True)
+
+    def task_row(t):
+        done_at = completions.get(t.id)
+        return {
+            "id": t.id, "titulo": t.titulo, "ordem": t.ordem, "status": t.status, "prioridade": t.prioridade,
+            "dataPlanejada": t.dataPlanejada, "horario": t.horario, "prazo": deadline(t),
+            "projeto": f"{projects[t.projetoId].cliente} · {projects[t.projetoId].equipamento}" if t.projetoId in projects else None,
+            "concluidaEm": done_at, "noPrazo": (done_at <= deadline(t)) if done_at else None,
+            "atrasada": is_overdue(t, now), "tempoRegistradoSegundos": recorded_seconds(t, now),
+            "motivo": t.motivo, "observacao": t.observacao,
+        }
+
+    return {
+        "geradoEm": now, "periodo": {"inicio": inicio, "fim": fim},
+        "nome": linked.nome if linked else (own[0].responsavel if own else nome),
+        "usuarioId": linked.id if linked else None,
+        "perfil": linked.perfil if linked else None, "cargo": linked.cargo if linked else "",
+        "vinculo": "unico" if linked else "ambiguo" if matches else "sem_usuario",
+        "resumo": {
+            "planejadas": len(cohort), "concluidas": len(finished), "aFazer": statuses["todo"],
+            "emExecucao": statuses["doing"], "pausadas": statuses["paused"], "naoRealizadas": statuses["blocked"],
+            "atrasadasNoPeriodo": sum(is_overdue(t, now) for t in cohort),
+            "atrasadasEmAberto": sum(is_overdue(t, now) for t in own),
+            "noPrazo": in_time, "concluidasComPrazoConhecido": len(known),
+            "taxaConclusao": percentage(len(finished), len(cohort)),
+            "taxaNoPrazo": percentage(in_time, len(known)),
+            "tempoRegistradoSegundos": sum(recorded_seconds(t, now) for t in cohort),
+            "apontamentos": len(events),
+            "diasAtivos": len({aware(e.createdAt).astimezone(FACTORY_TZ).date() for e in events}),
+            "atendimentos": len(services), "atendimentosConcluidos": sum(s.status == "concluido" for s in services),
+        },
+        "serieDiaria": _daily_series(cohort, {t.id: completions[t.id] for t in cohort}, inicio, fim),
+        "tarefas": [task_row(t) for t in sorted(cohort, key=lambda t: (t.dataPlanejada, t.horario, t.id), reverse=True)],
+        "atrasadasAnteriores": [task_row(t) for t in sorted(
+            (t for t in own if is_overdue(t, now) and t.dataPlanejada < inicio), key=lambda t: (deadline(t), t.id))],
+        "apontamentos": [
+            {"id": e.id, "tarefaId": e.tarefaId, "titulo": task_titles.get(e.tarefaId, ""), "de": e.statusAnterior,
+             "para": e.statusNovo, "motivo": e.motivo, "ocorridoEm": aware(e.createdAt)}
+            for e in events[:300]
+        ],
+        "motivos": [{"motivo": m, "quantidade": q} for m, q in reasons.most_common(10)],
+        "atendimentos": [
+            {"id": s.id, "tipo": s.tipo, "cliente": s.cliente, "local": s.local, "data": s.data, "dataVolta": s.dataVolta,
+             "status": s.status, "relatorio": s.relatorio,
+             "pendenciasAbertas": sum(item.status == "aberta" for item in s.pendencias)}
+            for s in services
+        ],
     }
 
 

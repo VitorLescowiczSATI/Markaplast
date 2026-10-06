@@ -220,3 +220,31 @@
   .pv-tv-events > span { max-width: none; width: 100%; }
   .pv-tv-events > div { min-width: 100%; }
 }
+
+/* Ficha do colaborador */
+.pv-person-link { padding: 0; border: 0; background: none; color: #2f5f93; font: inherit; font-weight: 800; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: #b9cbe0; text-underline-offset: 3px; }
+.pv-person-link:hover { color: #1d4675; text-decoration-color: currentColor; }
+.pv-person-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pv-person-actions button { display: inline-flex; align-items: center; gap: 7px; }
+.pv-summary-text > p:first-of-type { margin: 0; font-size: .95rem; line-height: 1.65; color: var(--ink); }
+.pv-metrics-small .pv-metric > strong { font-size: clamp(1.3rem, 2vw, 1.8rem); }
+.pv-status { display: inline-block; padding: 3px 8px; border-radius: 12px; background: #eef1f4; font-size: .7rem; font-weight: 700; white-space: nowrap; }
+.pv-status.done { color: #176d47; background: #e7f6ee; }.pv-status.doing { color: #1d5b9a; background: #e6f0fb; }.pv-status.paused { color: #8a5a00; background: #fff4dc; }.pv-status.blocked { color: #a12b2b; background: #fdecec; }
+.pv-ok { color: #178158; font-weight: 700; }
+.pv-reason { color: #8a5a00 !important; }
+.pv-history > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+.pv-history > summary h2 { margin: 0; }
+.pv-timeline { display: flex; flex-direction: column; margin-top: 12px; }
+.pv-timeline > div { display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding: 9px 0; border-top: 1px solid #edf0f2; }
+.pv-timeline time { color: var(--muted); font: 600 .74rem "Roboto Mono", monospace; }
+.pv-timeline small { display: block; color: var(--muted); font-size: .74rem; }
+.pv-print-only { display: none; }
+@media print {
+  .topbar, .page-tabs, .no-print, .demo-dock, .pv-toolbar { display: none !important; }
+  .pv-print-only { display: block; }
+  body, .page { background: white !important; }
+  .page { padding: 0 !important; }
+  .pv-panel, .pv-metric { break-inside: avoid; box-shadow: none !important; }
+  .pv-history { display: block; }
+  .pv-history:not([open]) > *:not(summary) { display: block; }
+}

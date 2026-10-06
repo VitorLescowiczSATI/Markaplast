@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import get_settings
-from app.gimak.analytics import build_indicators, build_tv_panel
+from app.gimak.analytics import build_indicators, build_person_report, build_tv_panel
 from app.gimak.auth import PERFIL_ADMIN, PERFIL_FABRICA, PERFIL_PCP, PERFIL_TV
 from app.gimak.db import get_gimak_db
 from app.gimak.deps import get_gimak_current_user, require_gimak_roles
@@ -99,6 +99,17 @@ def indicators(
     _admin: GimakUsuario = Depends(require_gimak_roles(PERFIL_ADMIN)),
 ):
     return build_indicators(db, inicio, fim)
+
+
+@router.get("/indicadores/pessoa")
+def person_report(
+    nome: str,
+    inicio: date | None = None,
+    fim: date | None = None,
+    db: Session = Depends(get_gimak_db),
+    _admin: GimakUsuario = Depends(require_gimak_roles(PERFIL_ADMIN)),
+):
+    return build_person_report(db, nome, inicio, fim)
 
 
 @router.get("/painel-tv")
