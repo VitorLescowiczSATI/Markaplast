@@ -106,7 +106,7 @@ function TaskRow({ task }) {
     : task.atrasada ? <span className="pv-alert-text">Vencida</span> : "Em dia";
   return <tr>
     <td>{dateLabel(task.dataPlanejada)}<small>{task.horario}</small></td>
-    <td><b>{task.titulo}</b><small>{task.ordem}{task.projeto ? ` · ${task.projeto}` : ""}</small>{task.motivo && task.status !== "done" && <small className="pv-reason">Motivo: {task.motivo}</small>}</td>
+    <td><b>{task.titulo}</b><small>{task.ordem}{task.projeto ? ` · ${task.projeto}` : ""}</small>{task.motivo && <small className="pv-reason">{task.status === "done" ? "Observação" : "Motivo"}: {task.motivo}</small>}</td>
     <td><span className={`pv-status ${task.status}`}>{STATUS[task.status]}</span></td>
     <td>{task.concluidaEm ? `${dateLabel(task.concluidaEm)} ${clockLabel(task.concluidaEm)}` : "—"}</td>
     <td>{prazo}</td>

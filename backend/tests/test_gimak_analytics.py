@@ -290,3 +290,19 @@ def test_person_report_is_admin_only_and_unknown_name_is_404(api):
         assert client.get("/api/gimak/indicadores/pessoa", headers=headers[role], params=params).status_code == 403
     assert client.get("/api/gimak/indicadores/pessoa", headers=headers[PERFIL_ADMIN], params=params).status_code == 200
     assert client.get("/api/gimak/indicadores/pessoa", headers=headers[PERFIL_ADMIN], params={"nome": "Ninguém"}).status_code == 404
+
+
+def test_concluding_keeps_the_optional_note_on_task_and_history(api, db):
+    client, headers, _ = api
+    item = task(db, PERFIL_FABRICA, state="doing")
+    db.commit()
+    done = client.patch(f"/api/gimak/tarefas/{item.id}/status", headers=headers[PERFIL_FABRICA],
+                        json={"status": "done", "motivo": "  Trocado o rolamento  "})
+    assert done.status_code == 200
+    assert done.json()["motivo"] == "Trocado o rolamento"
+    assert done.json()["historico"][-1]["motivo"] == "Trocado o rolamento"
+    other = task(db, PERFIL_FABRICA, state="doing")
+    db.commit()
+    # A observação é opcional: concluir sem texto continua valendo.
+    assert client.patch(f"/api/gimak/tarefas/{other.id}/status", headers=headers[PERFIL_FABRICA],
+                        json={"status": "done"}).status_code == 200
