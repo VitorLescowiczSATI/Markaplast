@@ -146,3 +146,11 @@ textarea { resize: vertical; min-height: 84px; }.login-card .primary { margin-to
 .reason.note { color: #1f5f45; background: #e9f6ef; }
 .reason-panel.done textarea { min-height: 80px; }
 .done-note { color: #1f5f45 !important; }
+.project-notes { margin-top: 14px; padding: 12px 14px; border: 1px solid #f1d38a; border-radius: 10px; background: #fff8e6; }
+.project-notes h3 { margin-top: 0 !important; color: #7a5200; }
+.project-note { display: block; width: 100%; margin-top: 8px; padding: 10px 12px; text-align: left; color: var(--ink); background: white; border: 1px solid #f1d38a; border-left: 4px solid #e2a51c; border-radius: 8px; cursor: pointer; }
+.project-note:hover { border-color: #e2a51c; }
+.project-note p { margin: 0 0 4px; font-size: .86rem; line-height: 1.45; }
+.project-note small { color: var(--muted); font-size: .72rem; }
+.project-notes .empty { padding: 10px 4px; }
+.project-note-badge { display: inline-block; margin-top: 10px; padding: 4px 9px; color: #7a5200; background: #fff4dc; border-radius: 12px; font-size: .7rem; font-weight: 700; }
