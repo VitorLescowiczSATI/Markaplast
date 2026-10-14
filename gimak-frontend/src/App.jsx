@@ -29,6 +29,7 @@ import { Calendar } from "./Calendar";
 import { Modal } from "./Modal";
 import { PERIODO_INICIAL, PeriodoFiltro, cruzaPeriodo, diaDe, faixaDoPeriodo, mesDe } from "./Periodo";
 import { ServiceForm, ServiceModal, ServicesPage } from "./Services";
+import { ValidationSheet } from "./ValidationSheet";
 import { AdminIndicators, FactoryTV } from "./ProductionViews";
 
 const STATUS_LABELS = {
@@ -375,7 +376,7 @@ function ProjectForm({ onClose, onSave }) {
   return <Modal onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave({ cliente, equipamento, cidade, whatsapp }); }}><div className="modal-head"><div><span className="op">NOVO PROJETO</span><h2>Cadastrar projeto</h2></div><button type="button" className="close" onClick={onClose}><X /></button></div><label>Cliente<input value={cliente} onChange={(e) => setCliente(e.target.value)} required autoFocus /></label><label>Equipamento<input value={equipamento} onChange={(e) => setEquipamento(e.target.value)} required placeholder="Ex.: Envolvedora GK2100" /></label><div className="form-grid"><label>Cidade do cliente<input value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={120} placeholder="Ex.: Jaraguá do Sul / SC" /></label><label>WhatsApp do cliente<input type="tel" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} maxLength={30} placeholder="(47) 99999-0000" /></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Criar projeto</button></div></form></Modal>;
 }
 
-function ProjectModal({ project, tasks, now, canManage, onClose, onToggleDone, onOpenTask }) {
+function ProjectModal({ project, tasks, now, canManage, onClose, onToggleDone, onOpenTask, onPrintSheet }) {
   const projectTasks = tasks.filter((task) => task.projetoId === project.id);
   const done = projectTasks.filter((task) => task.status === "done").sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt));
   const pending = projectTasks.filter((task) => task.status !== "done").sort((a, b) => a.dataPlanejada.localeCompare(b.dataPlanejada) || a.horario.localeCompare(b.horario));
@@ -401,7 +402,7 @@ function ProjectModal({ project, tasks, now, canManage, onClose, onToggleDone, o
     </div>
     {project.concluidoEm && <p className="project-closed-note"><CheckCircle2 size={15} /> Projeto encerrado em {new Date(project.concluidoEm).toLocaleString("pt-BR")}. Ele sai da lista de andamento e fica no filtro de concluídos.</p>}
     <div className="modal-actions">{canManage && (project.concluidoEm
-      ? <button className="secondary" onClick={() => onToggleDone(project, false)}>Reabrir projeto</button>
+      ? <><button className="secondary" onClick={() => onPrintSheet(project)}>Imprimir folha de validação</button><button className="secondary" onClick={() => onToggleDone(project, false)}>Reabrir projeto</button></>
       : <button className="conclude-project" onClick={() => onToggleDone(project, true)}><CheckCircle2 size={16} /> Concluir projeto</button>)}<button className="secondary" onClick={onClose}>Fechar</button></div>
   </Modal>;
 }
@@ -481,6 +482,8 @@ export default function App() {
     return () => window.clearInterval(polling);
   }, [user, page, load]);
 
+  // Ao concluir um projeto abre a folha de "Equipamento validado" para imprimir.
+  const [sheetProjectId, setSheetProjectId] = useState(null);
   const action = useCallback(async (work, success) => {
     try { await work(); await load(true); setModal(null); notify(success); return true; }
     catch (err) { notify(err.message); return false; }
@@ -521,7 +524,8 @@ export default function App() {
     {modal?.type === "task" && <TaskModal task={tasks.find((item) => item.id === modal.data.id) || modal.data} projects={projects} users={users} now={now} canManage={canManage} canDelete={isAdmin} onClose={() => setModal(null)} onStatus={(id, status, reason) => action(() => api.updateTaskStatus(id, status, reason), `Situação atualizada: ${STATUS_LABELS[status]}`)} onAssign={(id, projectId) => action(() => api.updateTask(id, { projetoId: projectId ? Number(projectId) : null }), "Projeto vinculado")} onDelete={(item) => action(() => api.deleteTask(item.id), "Atividade excluída")} />}
     {modal?.type === "new-task" && <TaskForm projects={projects} users={users} onClose={() => setModal(null)} onSave={(payload) => action(() => api.createTask(payload), "Nova tarefa criada")} />}
     {modal?.type === "new-project" && <ProjectForm onClose={() => setModal(null)} onSave={(payload) => action(() => api.createProject(payload), "Projeto criado")} />}
-    {modal?.type === "project" && <ProjectModal project={projects.find((item) => item.id === modal.data.id) || modal.data} tasks={tasks} now={now} canManage={canManage} onClose={() => setModal(null)} onToggleDone={(item, concluido) => action(() => api.updateProject(item.id, { concluido }), concluido ? "Projeto concluído" : "Projeto reaberto")} onOpenTask={(task) => setModal({ type: "task", data: task })} />}
+    {sheetProjectId && projects.some((item) => item.id === sheetProjectId) && <ValidationSheet project={projects.find((item) => item.id === sheetProjectId)} onClose={() => setSheetProjectId(null)} />}
+    {modal?.type === "project" && <ProjectModal project={projects.find((item) => item.id === modal.data.id) || modal.data} tasks={tasks} now={now} canManage={canManage} onClose={() => setModal(null)} onToggleDone={async (item, concluido) => { if (await action(() => api.updateProject(item.id, { concluido }), concluido ? "Projeto concluído" : "Projeto reaberto") && concluido) setSheetProjectId(item.id); }} onPrintSheet={(item) => { setModal(null); setSheetProjectId(item.id); }} onOpenTask={(task) => setModal({ type: "task", data: task })} />}
     {modal?.type === "service" && <ServiceModal service={services.find((item) => item.id === modal.data.id) || modal.data} users={users} canManage={canManage} canDelete={isAdmin} onClose={() => setModal(null)} onEdit={(item) => setModal({ type: "service-form", data: item })} onLeave={(item) => actionKeepingModal(() => api.leaveForService(item.id), "Saída registrada")} onFinish={(item, relatorio) => action(() => api.finishService(item.id, relatorio), "Atendimento concluído")} onReopen={(item) => action(() => api.reopenService(item.id), "Atendimento reaberto")} onDelete={(item) => action(() => api.deleteService(item.id), "Atendimento excluído")} onCreateIssue={(item, descricao) => actionKeepingModal(() => api.createIssue(item.id, descricao), "Pendência registrada")} onResolveIssue={resolveIssue} onReopenIssue={reopenIssue} />}
     {modal?.type === "service-form" && <ServiceForm service={modal.data} users={users} onClose={() => setModal(null)} onSave={(payload, atual) => action(() => atual ? api.updateService(atual.id, payload) : api.createService(payload), atual ? "Atendimento atualizado" : "Atendimento agendado")} />}
     {toast && <div className="toast">{toast}</div>}

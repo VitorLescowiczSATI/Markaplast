@@ -1,0 +1,21 @@
+.validation-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px; overflow: auto; background: rgba(22, 31, 40, .72); }
+.validation-toolbar { display: flex; gap: 8px; }
+.validation-toolbar button { display: inline-flex; align-items: center; gap: 7px; }
+.validation-sheet { box-sizing: border-box; width: min(210mm, 100%); min-height: 297mm; padding: 22mm 20mm; display: flex; flex-direction: column; color: #161f28; background: white; border-radius: 6px; box-shadow: 0 10px 40px rgba(0, 0, 0, .35); }
+.validation-sheet header { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 10mm; border-bottom: 2px solid #161f28; }
+.validation-sheet header span { font-size: 26pt; font-weight: 800; letter-spacing: -.02em; }
+.validation-sheet header small { color: #59636e; font: 600 11pt "Roboto Mono", monospace; }
+.validation-stamp { margin: 26mm auto 20mm; padding: 9mm 14mm; border: 4px solid #178158; border-radius: 6px; color: #178158; font-size: 30pt; font-weight: 900; letter-spacing: .04em; text-align: center; }
+.validation-sheet dl { display: grid; gap: 9mm; margin: 0; }
+.validation-sheet dl div { padding-bottom: 4mm; border-bottom: 1px solid #d7dce1; }
+.validation-sheet dt { color: #59636e; font-size: 10pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.validation-sheet dd { margin: 2mm 0 0; font-size: 20pt; font-weight: 700; }
+.validation-sheet footer { display: grid; grid-template-columns: 1fr 1fr; gap: 16mm; margin-top: auto; padding-top: 30mm; }
+.validation-sheet footer span { padding-top: 3mm; border-top: 1px solid #161f28; color: #59636e; font-size: 10pt; text-align: center; }
+@media print {
+  @page { size: A4; margin: 0; }
+  body.printing-sheet > *:not(.validation-overlay) { display: none !important; }
+  body.printing-sheet .validation-overlay { position: static; padding: 0; background: none; overflow: visible; }
+  body.printing-sheet .validation-toolbar { display: none !important; }
+  body.printing-sheet .validation-sheet { width: 210mm; height: 297mm; border-radius: 0; box-shadow: none; }
+}
