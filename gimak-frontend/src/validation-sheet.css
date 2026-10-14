@@ -10,7 +10,7 @@
 .validation-sheet dl div { padding-bottom: 4mm; border-bottom: 1px solid #d7dce1; }
 .validation-sheet dt { color: #59636e; font-size: 10pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .validation-sheet dd { margin: 2mm 0 0; font-size: 20pt; font-weight: 700; }
-.validation-sheet footer { display: grid; grid-template-columns: 1fr 1fr; gap: 16mm; margin-top: auto; padding-top: 30mm; }
+.validation-sheet footer { display: grid; grid-template-columns: minmax(0, 90mm); justify-content: center; margin-top: auto; padding-top: 30mm; }
 .validation-sheet footer span { padding-top: 3mm; border-top: 1px solid #161f28; color: #59636e; font-size: 10pt; text-align: center; }
 @media print {
   @page { size: A4; margin: 0; }

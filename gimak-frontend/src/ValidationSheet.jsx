@@ -36,8 +36,7 @@ export function ValidationSheet({ project, onClose }) {
           <div><dt>Data da validação</dt><dd>{concluido.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</dd></div>
         </dl>
         <footer>
-          <span>Responsável pela validação</span>
-          <span>Cliente</span>
+          <span>Responsável {MARCA.empresa}</span>
         </footer>
       </article>
     </div>,
