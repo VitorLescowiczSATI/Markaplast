@@ -109,7 +109,7 @@ const TASKS = [
 // [tipo, cliente, local, técnico, ida, volta, saída, retorno, descrição, situação, relatório, pendências]
 // Pendência: [descrição, resolução ou null].
 const SERVICES = [
-  ["Instalação", "Grãos do Sul", "Rodovia BR 277, km 40, Cascavel PR", "Diego Martins", -8, -6, "06:00", "18:00",
+  ["Instalação", "Grãos do Sul", "Rodovia BR 277, km 40, Cascavel PR", ["Diego Martins", "Leandro Souza"], -8, -6, "06:00", "18:00",
     "Instalação do silo pulmão SP 20 e treinamento da equipe.", "concluido",
     "Silo instalado e testado com carga. Equipe do cliente treinada na operação e na limpeza.", []],
   ["Assistência técnica", "Indústria de Sucos Primavera", "Av. das Indústrias, 1200, Londrina PR", "Leandro Souza", -6, null, "07:00", "17:00",
@@ -217,10 +217,11 @@ function seed() {
   for (const [tipo, cliente, local, tecnico, ida, volta, saida, retorno, descricao, status, relatorio, pendencias] of SERVICES) {
     const data = businessDay(ida);
     const dataVolta = volta === null ? null : businessDay(volta);
-    const tecnicoId = userId(tecnico);
+    const equipe = Array.isArray(tecnico) ? tecnico : [tecnico];
+    const tecnicoId = userId(equipe[0]);
     const ultimoDia = dataVolta || data;
     const service = {
-      id: next("service"), tipo, cliente, local, tecnico, data, dataVolta,
+      id: next("service"), tipo, cliente, local, tecnico: equipe[0], tecnicos: equipe, data, dataVolta,
       horario: saida, horarioSaida: saida, horarioRetorno: retorno, descricao, status, relatorio,
       saidaEm: null, saidaPorId: null, concluidoEm: null, concluidoPorId: null,
       createdAt: at(businessDay(Math.min(ida, 0) - 3), "10:00").toISOString(), pendencias: [],
@@ -335,7 +336,26 @@ function applyPatch(target, payload, { skipNull = false } = {}) {
 }
 
 function serviceWithIssues(service) {
-  return { ...service, pendencias: load().issues.filter((item) => item.atendimentoId === service.id) };
+  return { ...service, tecnicos: serviceTeamOf(service), pendencias: load().issues.filter((item) => item.atendimentoId === service.id) };
+}
+
+// Mesmo contrato do backend: tecnicos é a equipe, tecnico é o primeiro dela.
+function serviceTeamOf(service) {
+  return service.tecnicos?.length ? service.tecnicos : [service.tecnico].filter(Boolean);
+}
+
+function cleanTeam(payload) {
+  const vistos = new Set();
+  const equipe = (payload.tecnicos?.length ? payload.tecnicos : [payload.tecnico])
+    .map((nome) => cleanText(nome || ""))
+    .filter((nome) => nome && !vistos.has(nome.toLowerCase()) && vistos.add(nome.toLowerCase()));
+  if (!equipe.length) fail("Escolha pelo menos um técnico");
+  return equipe;
+}
+
+function setTeam(service, equipe) {
+  service.tecnicos = equipe;
+  service.tecnico = equipe[0];
 }
 
 function normalizeName(value = "") {
@@ -584,7 +604,7 @@ function buildPersonReport(nome, inicioParam, fimParam) {
     if (["paused", "blocked"].includes(entry.statusNovo) && motivo && inside(entry.createdAt)) reasons.set(motivo, (reasons.get(motivo) || 0) + 1);
   }
   const visits = services
-    .filter((item) => normalizeName(item.tecnico) === key && item.data <= fim && (item.dataVolta || item.data) >= inicio)
+    .filter((item) => serviceTeamOf(item).some((nome) => normalizeName(nome) === key) && item.data <= fim && (item.dataVolta || item.data) >= inicio)
     .sort((a, b) => b.data.localeCompare(a.data) || b.id - a.id);
   const row = (task) => {
     const doneAt = completions.get(task.id);
@@ -626,7 +646,7 @@ function buildPersonReport(nome, inicioParam, fimParam) {
     motivos: [...reasons].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([motivo, quantidade]) => ({ motivo, quantidade })),
     atendimentos: visits.map((item) => ({
       id: item.id, tipo: item.tipo, cliente: item.cliente, local: item.local, data: item.data, dataVolta: item.dataVolta,
-      status: item.status, relatorio: item.relatorio,
+      status: item.status, relatorio: item.relatorio, tecnicos: serviceTeamOf(item),
       pendenciasAbertas: issues.filter((issue) => issue.atendimentoId === item.id && issue.status === "aberta").length,
     })),
   };
@@ -743,7 +763,9 @@ export const demoApi = {
       const homonimo = state.users.some((item) => item.id !== user.id && normalizeName(item.nome) === normalizeName(antigo));
       if (!homonimo) {
         state.tasks.filter((task) => task.responsavel === antigo).forEach((task) => { task.responsavel = user.nome; });
-        state.services.filter((item) => item.tecnico === antigo).forEach((item) => { item.tecnico = user.nome; });
+        state.services.filter((item) => serviceTeamOf(item).includes(antigo)).forEach((item) => {
+          setTeam(item, serviceTeamOf(item).map((nome) => (nome === antigo ? user.nome : nome)));
+        });
       }
     }
     return user;
@@ -856,13 +878,14 @@ export const demoApi = {
     if (payload.dataVolta && payload.dataVolta < payload.data) fail("A data de volta não pode ser antes da ida");
     const service = {
       id: (state.seq.service += 1), tipo: payload.tipo || "Assistência técnica", cliente: cleanText(payload.cliente),
-      local: cleanText(payload.local || ""), tecnico: cleanText(payload.tecnico), data: payload.data,
+      local: cleanText(payload.local || ""), data: payload.data,
       dataVolta: payload.dataVolta || null, horario: payload.horario || "08:00",
       horarioSaida: payload.horarioSaida || "", horarioRetorno: payload.horarioRetorno || "",
       descricao: cleanText(payload.descricao || ""), status: "agendado", relatorio: "",
       saidaEm: null, saidaPorId: null, concluidoEm: null, concluidoPorId: null,
       createdAt: new Date().toISOString(),
     };
+    setTeam(service, cleanTeam(payload));
     state.services.push(service);
     return serviceWithIssues(service);
   }),
@@ -870,7 +893,9 @@ export const demoApi = {
     requireRoles("PCP");
     const service = findOr404(load().services, id, "Atendimento não encontrado");
     const next = { ...service };
-    applyPatch(next, payload);
+    const { tecnicos, tecnico, ...resto } = payload;
+    applyPatch(next, resto);
+    if (tecnicos !== undefined || tecnico !== undefined) setTeam(next, cleanTeam(payload));
     if (next.dataVolta && next.dataVolta < next.data) fail("A data de volta não pode ser antes da ida");
     Object.assign(service, next);
     return serviceWithIssues(service);
@@ -924,7 +949,7 @@ export const demoApi = {
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt) || b.id - a.id)
       .map((issue) => {
         const service = state.services.find((item) => item.id === issue.atendimentoId);
-        return { ...issue, cliente: service.cliente, tecnico: service.tecnico, tipo: service.tipo, dataAtendimento: service.data };
+        return { ...issue, cliente: service.cliente, tecnico: service.tecnico, tecnicos: serviceTeamOf(service), tipo: service.tipo, dataAtendimento: service.data };
       });
   }),
   createIssue: (serviceId, descricao) => respond(() => {

@@ -267,7 +267,7 @@ def build_person_report(db: Session, nome: str, inicio: date | None = None, fim:
 
     services = [
         s for s in db.scalars(select(GimakAtendimento).options(selectinload(GimakAtendimento.pendencias))).all()
-        if normalize_name(s.tecnico) == key and s.data <= fim and (s.dataVolta or s.data) >= inicio
+        if key in {normalize_name(nome) for nome in s.equipe()} and s.data <= fim and (s.dataVolta or s.data) >= inicio
     ]
     services.sort(key=lambda s: (s.data, s.id), reverse=True)
 
@@ -313,7 +313,7 @@ def build_person_report(db: Session, nome: str, inicio: date | None = None, fim:
         "motivos": [{"motivo": m, "quantidade": q} for m, q in reasons.most_common(10)],
         "atendimentos": [
             {"id": s.id, "tipo": s.tipo, "cliente": s.cliente, "local": s.local, "data": s.data, "dataVolta": s.dataVolta,
-             "status": s.status, "relatorio": s.relatorio,
+             "status": s.status, "relatorio": s.relatorio, "tecnicos": s.equipe(),
              "pendenciasAbertas": sum(item.status == "aberta" for item in s.pendencias)}
             for s in services
         ],

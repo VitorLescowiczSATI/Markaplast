@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Check,
   CheckCircle2,
   Clock3,
   ClipboardList,
@@ -41,6 +42,16 @@ function tripDates(service) {
     : ida;
 }
 
+/** A equipe do atendimento. Registro de antes da equipe só tem o técnico único. */
+export function serviceTeam(service) {
+  return service.tecnicos?.length ? service.tecnicos : [service.tecnico].filter(Boolean);
+}
+
+/** "Ulisses e Ralf", "Ulisses, Ralf e Jean". */
+export function teamLabel(nomes) {
+  return nomes.length > 1 ? `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}` : nomes[0] || "";
+}
+
 function initials(name = "") {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
 }
@@ -77,7 +88,7 @@ function IssueCard({ issue, contexto = true, canManage, canDelete, onResolve, on
         <div className="issue-head">
           <span>
             <b>{issue.cliente}</b>
-            <small>{issue.tipo} · {issue.tecnico} · visita de {dateLabel(issue.dataAtendimento)}</small>
+            <small>{issue.tipo} · {teamLabel(serviceTeam(issue))} · visita de {dateLabel(issue.dataAtendimento)}</small>
           </span>
           <span className={`status-pill ${issue.status === "aberta" ? "" : "active"}`}>
             {issue.status === "aberta" ? "Aberta" : "Resolvida"}
@@ -136,7 +147,10 @@ function ServiceCard({ service, now, onOpen }) {
       {service.local && <p className="service-place"><MapPin size={13} /> {service.local}</p>}
       <PlannedTrip service={service} compact />
       <span className="service-meta">
-        <span><i className="avatar">{initials(service.tecnico)}</i>{service.tecnico}</span>
+        <span className="service-team">
+          <span className="avatar-stack">{serviceTeam(service).map((nome) => <i key={nome} className="avatar">{initials(nome)}</i>)}</span>
+          {teamLabel(serviceTeam(service))}
+        </span>
         <span className="service-when">{tripDates(service)}</span>
       </span>
       {pendentes > 0 && <span className="service-pending"><ClipboardList size={13} /> {pendentes} {pendentes === 1 ? "pendência aberta" : "pendências abertas"}</span>}
@@ -263,24 +277,54 @@ export function ServiceForm({ service, users, onClose, onSave }) {
     tipo: service?.tipo || SERVICE_TYPES[0],
     cliente: service?.cliente || "",
     local: service?.local || "",
-    tecnico: service?.tecnico || "",
+    tecnicos: service ? serviceTeam(service) : [],
     data: service?.data || new Date().toISOString().slice(0, 10),
     dataVolta: service?.dataVolta || "",
     horarioSaida: service?.horarioSaida || "",
     horarioRetorno: service?.horarioRetorno || "",
     descricao: service?.descricao || "",
   }));
+  const [semTecnico, setSemTecnico] = useState(false);
   function field(key, value) { setForm((current) => ({ ...current, [key]: value })); }
-  return <Modal onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave({ ...form, dataVolta: form.dataVolta || null }, service); }}>
+  // Marcar de novo tira da equipe. A ordem é a da escolha: o primeiro vira o técnico principal.
+  function toggleTecnico(nome) {
+    setSemTecnico(false);
+    setForm((current) => ({
+      ...current,
+      tecnicos: current.tecnicos.includes(nome) ? current.tecnicos.filter((item) => item !== nome) : [...current.tecnicos, nome],
+    }));
+  }
+  const ativos = users.filter((item) => item.ativo && item.perfil !== "TV").map((item) => item.nome);
+  // Quem saiu da equipe ou foi desativado continua aparecendo, para dar para tirar.
+  const opcoes = [...ativos, ...form.tecnicos.filter((nome) => !ativos.includes(nome))];
+  function submit(event) {
+    event.preventDefault();
+    if (!form.tecnicos.length) { setSemTecnico(true); return; }
+    onSave({ ...form, dataVolta: form.dataVolta || null }, service);
+  }
+  return <Modal onClose={onClose}><form onSubmit={submit}>
     <div className="modal-head">
       <div><span className="op">{editando ? "EDITAR" : "NOVO ATENDIMENTO"}</span><h2>Assistência ou instalação</h2></div>
       <button type="button" className="close" onClick={onClose}><X /></button>
     </div>
     <div className="form-grid">
       <label>Tipo<select value={form.tipo} onChange={(e) => field("tipo", e.target.value)}>{SERVICE_TYPES.map((item) => <option key={item}>{item}</option>)}</select></label>
-      <label>Técnico<select value={form.tecnico} onChange={(e) => field("tecnico", e.target.value)} required><option value="">Selecione</option>{users.filter((item) => item.ativo && item.perfil !== "TV").map((item) => <option key={item.id} value={item.nome}>{item.nome}</option>)}</select></label>
+      <label>Cliente<input value={form.cliente} onChange={(e) => field("cliente", e.target.value)} required autoFocus placeholder="Ex.: Ambev Jaguariúna" /></label>
     </div>
-    <label>Cliente<input value={form.cliente} onChange={(e) => field("cliente", e.target.value)} required autoFocus placeholder="Ex.: Ambev Jaguariúna" /></label>
+    <fieldset className={`tech-picker${semTecnico ? " invalid" : ""}`}>
+      <legend>Técnicos <small>{form.tecnicos.length ? `${form.tecnicos.length} escolhido${form.tecnicos.length > 1 ? "s" : ""}` : "escolha um ou mais"}</small></legend>
+      <div className="tech-options">
+        {opcoes.map((nome) => {
+          const ativo = form.tecnicos.includes(nome);
+          return (
+            <button type="button" key={nome} className={ativo ? "active" : ""} aria-pressed={ativo} onClick={() => toggleTecnico(nome)}>
+              {ativo && <Check size={13} />}{nome}
+            </button>
+          );
+        })}
+      </div>
+      {semTecnico && <p className="tech-error">Escolha pelo menos um técnico.</p>}
+    </fieldset>
     <label>Endereço ou local<input value={form.local} onChange={(e) => field("local", e.target.value)} placeholder="Opcional" /></label>
     <div className="form-grid">
       <label>Data de ida<input type="date" value={form.data} onChange={(e) => field("data", e.target.value)} required /></label>
@@ -319,7 +363,7 @@ export function ServiceModal({ service, users, canManage, canDelete, onClose, on
     </div>
 
     <div className="task-summary">
-      <span><small>Técnico</small><b>{service.tecnico}</b></span>
+      <span><small>{serviceTeam(service).length > 1 ? "Técnicos" : "Técnico"}</small><b>{teamLabel(serviceTeam(service))}</b></span>
       <span><small>{service.dataVolta && service.dataVolta !== service.data ? "Ida e volta" : "Data"}</small><b>{tripDates(service)}</b></span>
       <span><small>Situação</small><b>{SERVICE_STATES[service.status]}</b></span>
     </div>

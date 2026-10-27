@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 GimakPerfil = Literal["Administrador", "PCP", "Fábrica", "TV"]
@@ -143,11 +143,32 @@ class TarefaRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+MAX_TECNICOS = 10
+
+
+def _limpar_equipe(nomes: list[str]) -> list[str]:
+    """Tira espaço, vazio e repetido (sem diferenciar maiúscula), mantendo a ordem escolhida."""
+    vistos, equipe = set(), []
+    for nome in nomes:
+        nome = (nome or "").strip()
+        if nome and nome.casefold() not in vistos:
+            vistos.add(nome.casefold())
+            equipe.append(nome)
+    for nome in equipe:
+        if not 2 <= len(nome) <= 120:
+            raise ValueError("Cada nome de técnico precisa ter de 2 a 120 caracteres")
+    if len(equipe) > MAX_TECNICOS:
+        raise ValueError(f"No máximo {MAX_TECNICOS} técnicos por atendimento")
+    return equipe
+
+
 class AtendimentoCreate(BaseModel):
     tipo: GimakTipoAtendimento = "Assistência técnica"
     cliente: str = Field(min_length=2, max_length=180)
     local: str = Field(default="", max_length=240)
-    tecnico: str = Field(min_length=2, max_length=120)
+    # tecnicos é a equipe. tecnico sozinho continua aceito para quem ainda manda um nome só.
+    tecnicos: list[str] = Field(default_factory=list)
+    tecnico: str | None = Field(default=None, max_length=120)
     data: date
     dataVolta: date | None = None
     horario: str = Field(default="08:00", pattern=HORARIO)
@@ -160,11 +181,20 @@ class AtendimentoCreate(BaseModel):
     def clean_text(cls, value):
         return value.strip() if isinstance(value, str) else value
 
+    @model_validator(mode="after")
+    def montar_equipe(self):
+        self.tecnicos = _limpar_equipe(self.tecnicos or [self.tecnico or ""])
+        if not self.tecnicos:
+            raise ValueError("Escolha pelo menos um técnico")
+        self.tecnico = self.tecnicos[0]
+        return self
+
 
 class AtendimentoUpdate(BaseModel):
     tipo: GimakTipoAtendimento | None = None
     cliente: str | None = Field(default=None, min_length=2, max_length=180)
     local: str | None = Field(default=None, max_length=240)
+    tecnicos: list[str] | None = None
     tecnico: str | None = Field(default=None, min_length=2, max_length=120)
     data: date | None = None
     dataVolta: date | None = None
@@ -172,6 +202,16 @@ class AtendimentoUpdate(BaseModel):
     horarioSaida: str | None = Field(default=None, pattern=HORARIO_OPCIONAL)
     horarioRetorno: str | None = Field(default=None, pattern=HORARIO_OPCIONAL)
     descricao: str | None = Field(default=None, max_length=4000)
+
+    @model_validator(mode="after")
+    def montar_equipe(self):
+        if self.tecnicos is None and self.tecnico is None:
+            return self
+        self.tecnicos = _limpar_equipe(self.tecnicos if self.tecnicos is not None else [self.tecnico])
+        if not self.tecnicos:
+            raise ValueError("Escolha pelo menos um técnico")
+        self.tecnico = self.tecnicos[0]
+        return self
 
 
 class AtendimentoConclusao(BaseModel):
@@ -189,6 +229,7 @@ class AtendimentoRead(BaseModel):
     cliente: str
     local: str
     tecnico: str
+    tecnicos: list[str] = Field(default_factory=list)
     data: date
     dataVolta: date | None = None
     horario: str
@@ -204,6 +245,18 @@ class AtendimentoRead(BaseModel):
     createdAt: datetime
     pendencias: list["PendenciaRead"] = Field(default_factory=list)
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("tecnicos", mode="before")
+    @classmethod
+    def sem_equipe(cls, value):
+        return value or []
+
+    @model_validator(mode="after")
+    def equipe_antiga(self):
+        # Registro ainda não copiado pelo ensure_gimak_columns: a equipe é o técnico único.
+        if not self.tecnicos:
+            self.tecnicos = [self.tecnico]
+        return self
 
 
 class PendenciaCreate(BaseModel):
@@ -241,5 +294,6 @@ class PendenciaComAtendimento(PendenciaRead):
 
     cliente: str
     tecnico: str
+    tecnicos: list[str] = Field(default_factory=list)
     tipo: str
     dataAtendimento: date

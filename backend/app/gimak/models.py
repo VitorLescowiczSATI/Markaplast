@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.gimak.db import GimakBase
@@ -106,7 +106,11 @@ class GimakAtendimento(GimakBase):
     tipo: Mapped[str] = mapped_column(String(30), nullable=False, default="Assistência técnica", index=True)
     cliente: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
     local: Mapped[str] = mapped_column(String(240), nullable=False, default="")
+    # tecnico guarda o primeiro da equipe, para o que ainda lê um nome só. A equipe
+    # inteira fica em tecnicos. Registro antigo, de antes da equipe, tem tecnicos vazio
+    # até o ensure_gimak_columns copiar; equipe() cobre esse intervalo.
     tecnico: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    tecnicos: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     # Data de ida. dataVolta só existe quando a visita passa de um dia.
     data: Mapped[date] = mapped_column(Date, nullable=False, default=date.today, index=True)
     dataVolta: Mapped[date | None] = mapped_column("data_volta", Date, nullable=True)
@@ -138,6 +142,14 @@ class GimakAtendimento(GimakBase):
     pendencias: Mapped[list["GimakPendencia"]] = relationship(
         back_populates="atendimento", cascade="all, delete-orphan", order_by="GimakPendencia.createdAt"
     )
+
+    def equipe(self) -> list[str]:
+        return list(self.tecnicos) if self.tecnicos else [self.tecnico]
+
+    def definir_equipe(self, nomes: list[str]) -> None:
+        # Lista nova a cada troca: o JSON não percebe alteração feita dentro da lista.
+        self.tecnicos = list(nomes)
+        self.tecnico = nomes[0]
 
 
 class GimakPendencia(GimakBase):

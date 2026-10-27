@@ -169,9 +169,13 @@ def _rename_responsible(db: Session, antigo: str, novo: str, user_id: int) -> No
     )
     if homonimo:
         return
-    for modelo, campo in ((GimakTarefa, GimakTarefa.responsavel), (GimakAtendimento, GimakAtendimento.tecnico)):
-        for registro in db.scalars(select(modelo).where(campo == antigo)).all():
-            setattr(registro, campo.key, novo)
+    for tarefa in db.scalars(select(GimakTarefa).where(GimakTarefa.responsavel == antigo)).all():
+        tarefa.responsavel = novo
+    # O nome pode estar em qualquer posição da equipe, então a busca é feita aqui e não no SQL.
+    for atendimento in db.scalars(select(GimakAtendimento)).all():
+        equipe = atendimento.equipe()
+        if antigo in equipe:
+            atendimento.definir_equipe([novo if nome == antigo else nome for nome in equipe])
 
 @router.patch("/usuarios/{user_id}", response_model=UsuarioRead)
 def update_user(
@@ -520,6 +524,7 @@ def list_issues(
             **PendenciaRead.model_validate(issue).model_dump(),
             cliente=service.cliente,
             tecnico=service.tecnico,
+            tecnicos=service.equipe(),
             tipo=service.tipo,
             dataAtendimento=service.data,
         )

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, UsersRound, Wrench } from "lucide-react";
 
-import { serviceTime } from "./Services";
+import { serviceTeam, serviceTime, teamLabel } from "./Services";
 import "./calendar.css";
 
 const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -51,7 +51,7 @@ export function Calendar({ tasks, services, users, onOpenTask, onOpenService }) 
     const fromTasks = tasks.map((task) => ({
       key: `t-${task.id}`, kind: "task", data: task,
       date: task.dataPlanejada, time: task.horario,
-      person: task.responsavel, status: task.status,
+      people: [task.responsavel], person: task.responsavel, status: task.status,
       title: task.titulo, detail: STATUS_LABELS[task.status] || task.status,
     }));
     // Uma visita de mais de um dia ocupa o técnico em todos eles. Aparecer só no dia
@@ -66,13 +66,13 @@ export function Calendar({ tasks, services, users, onOpenTask, onOpenService }) 
       return dias.map((date, indice) => ({
         key: `s-${service.id}-${date}`, kind: "service", data: service,
         date, time: serviceTime(service),
-        person: service.tecnico, status: service.status === "concluido" ? "done" : "doing",
+        people: serviceTeam(service), person: teamLabel(serviceTeam(service)), status: service.status === "concluido" ? "done" : "doing",
         title: dias.length > 1 ? `${service.cliente} (${indice + 1}/${dias.length})` : service.cliente,
         detail: service.tipo,
       }));
     }) : [];
     return [...fromTasks, ...fromServices]
-      .filter((item) => person === "all" || item.person === person)
+      .filter((item) => person === "all" || item.people.includes(person))
       .sort((a, b) => a.time.localeCompare(b.time) || a.title.localeCompare(b.title));
   }, [tasks, services, person, showServices]);
 
@@ -93,7 +93,7 @@ export function Calendar({ tasks, services, users, onOpenTask, onOpenService }) 
   // quando realmente têm algo atribuído, senão viram ruído toda semana.
   const rows = useMemo(() => {
     const names = new Set(users.filter((item) => item.ativo && item.perfil === "Fábrica").map((item) => item.nome));
-    for (const item of events) names.add(item.person);
+    for (const item of events) item.people.forEach((name) => names.add(name));
     return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [users, events]);
 
@@ -186,7 +186,7 @@ export function Calendar({ tasks, services, users, onOpenTask, onOpenService }) 
             </thead>
             <tbody>
               {rows.map((name) => {
-                const doSemana = weekDays.map((day) => (byDate.get(isoDate(day)) || []).filter((item) => item.person === name));
+                const doSemana = weekDays.map((day) => (byDate.get(isoDate(day)) || []).filter((item) => item.people.includes(name)));
                 const total = doSemana.reduce((sum, list) => sum + list.length, 0);
                 return (
                   <tr key={name}>

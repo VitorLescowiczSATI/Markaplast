@@ -55,7 +55,11 @@ Projeto encerrado sai da lista de andamento e só volta pelo filtro de concluíd
 
 O trabalho feito fora da empresa, que na Gimak é a maior parte do time.
 
-O PCP agenda informando tipo, cliente, endereço, técnico, data de ida, hora de sair da empresa, hora prevista de volta e, quando a visita passa de um dia, a data de volta.
+O PCP agenda informando tipo, cliente, endereço, os técnicos, data de ida, hora de sair da empresa, hora prevista de volta e, quando a visita passa de um dia, a data de volta.
+
+Um atendimento pode ter mais de um técnico, por exemplo Ulisses e Ralf juntos. No formulário cada pessoa é um botão que liga e desliga; o primeiro escolhido vira o técnico principal. O card e o atendimento mostram todos os nomes, a agenda coloca a visita na linha de cada um, e a ficha do colaborador conta o atendimento para cada técnico da equipe. Qualquer um da equipe pode marcar a saída e concluir; quem clicou fica registrado.
+
+Por dentro: a equipe fica na coluna `atendimentos.tecnicos` (JSON com a lista de nomes) e `atendimentos.tecnico` continua guardando o primeiro, para nada que lê um nome só quebrar. Atendimento gravado antes disso vira uma equipe de um: o `ensure_gimak_columns` cria a coluna e copia o técnico antigo para a lista só onde ela ainda está vazia, então rodar de novo a cada deploy não muda nada. A API aceita `tecnicos` (lista) e, por compatibilidade, ainda aceita `tecnico` sozinho.
 
 O técnico abre, clica em "Estou saindo para o atendimento", e a situação vira **Em atendimento**, com a hora real da saída registrada. Na volta, ele escreve o relatório do que foi feito e conclui.
 

@@ -1,6 +1,8 @@
 import re
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import JSON, create_engine, inspect, select, text, update
+from sqlalchemy import column as coluna_sql
+from sqlalchemy import table as tabela_sql
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -68,6 +70,7 @@ COLUNAS_ACRESCENTADAS = (
     ("atendimentos", "saida_em", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
     ("atendimentos", "saida_por_id", "INTEGER", "INTEGER"),
     ("atendimentos", "data_volta", "DATE", "DATE"),
+    ("atendimentos", "tecnicos", "JSON", "JSON"),
 )
 
 
@@ -82,6 +85,29 @@ def ensure_gimak_columns() -> None:
         tipo = pg_type if postgres else sqlite_type
         with gimak_engine.begin() as connection:
             connection.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {tipo}'))
+    copiar_tecnico_para_equipe()
+
+
+def copiar_tecnico_para_equipe() -> None:
+    """Atendimento de antes da equipe vira uma equipe de um. Só toca quem ainda está
+    vazio, então rodar de novo a cada deploy não muda nada."""
+    # Tabela leve, sem o modelo: o onupdate do modelo mexeria em updated_at de todos.
+    tabela = tabela_sql(
+        "atendimentos", coluna_sql("id"), coluna_sql("tecnico"), coluna_sql("tecnicos", JSON(none_as_null=True))
+    )
+    with gimak_engine.begin() as connection:
+        inspector = inspect(connection)
+        if not inspector.has_table("atendimentos"):
+            return
+        if not {"tecnico", "tecnicos"} <= {item["name"] for item in inspector.get_columns("atendimentos")}:
+            return
+        antigos = connection.execute(
+            select(tabela.c.id, tabela.c.tecnico).where(tabela.c.tecnicos.is_(None))
+        ).all()
+        for registro_id, tecnico in antigos:
+            connection.execute(
+                update(tabela).where(tabela.c.id == registro_id).values(tecnicos=[tecnico] if tecnico else [])
+            )
 
 
 def initialize_gimak_database() -> None:
