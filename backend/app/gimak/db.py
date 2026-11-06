@@ -64,6 +64,8 @@ COLUNAS_ACRESCENTADAS = (
     ("projetos", "concluido_em", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
     ("projetos", "cidade", "VARCHAR(120) NOT NULL DEFAULT ''", "VARCHAR(120) NOT NULL DEFAULT ''"),
     ("projetos", "whatsapp", "VARCHAR(30) NOT NULL DEFAULT ''", "VARCHAR(30) NOT NULL DEFAULT ''"),
+    ("projetos", "contato", "VARCHAR(120) NOT NULL DEFAULT ''", "VARCHAR(120) NOT NULL DEFAULT ''"),
+    ("projetos", "frete", "VARCHAR(3) NOT NULL DEFAULT ''", "VARCHAR(3) NOT NULL DEFAULT ''"),
     ("usuarios", "cargo", "VARCHAR(80) NOT NULL DEFAULT ''", "VARCHAR(80) NOT NULL DEFAULT ''"),
     ("atendimentos", "horario_saida", "VARCHAR(5) NOT NULL DEFAULT ''", "VARCHAR(5) NOT NULL DEFAULT ''"),
     ("atendimentos", "horario_retorno", "VARCHAR(5) NOT NULL DEFAULT ''", "VARCHAR(5) NOT NULL DEFAULT ''"),

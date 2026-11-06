@@ -32,6 +32,7 @@ export function ValidationSheet({ project, onClose }) {
         <dl>
           <div><dt>Cliente</dt><dd>{project.cliente}</dd></div>
           <div><dt>Equipamento</dt><dd>{project.equipamento}</dd></div>
+          {project.contato && <div><dt>Contato</dt><dd>{project.contato}</dd></div>}
           {project.cidade && <div><dt>Cidade</dt><dd>{project.cidade}</dd></div>}
           <div><dt>Data da validação</dt><dd>{concluido.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</dd></div>
         </dl>

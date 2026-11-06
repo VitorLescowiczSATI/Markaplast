@@ -34,6 +34,9 @@ class GimakProjeto(GimakBase):
     equipamento: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
     cidade: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     whatsapp: Mapped[str] = mapped_column(String(30), nullable=False, default="")
+    contato: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    # "CIF" ou "FOB"; vazio em projeto antigo ou quando ainda não se sabe.
+    frete: Mapped[str] = mapped_column(String(3), nullable=False, default="")
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     concluidoEm: Mapped[datetime | None] = mapped_column(
         "concluido_em", DateTime(timezone=True), nullable=True, index=True

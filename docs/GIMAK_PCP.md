@@ -47,7 +47,7 @@ Assistência de mais de um dia ocupa todos os dias da viagem, marcada como 1/3, 
 
 ### Projetos
 
-Cada equipamento vendido é um projeto, com cliente e nome do equipamento. Abrindo, mostra o que ainda está pendente e o que já foi realizado, com o tempo gasto em cada etapa.
+Cada equipamento vendido é um projeto, com cliente e nome do equipamento. Os demais campos são opcionais: nome do contato no cliente, WhatsApp, cidade e frete (CIF ou FOB, ou "Não definido"). Eles aparecem no card e no topo do projeto, e o PCP corrige tudo pelo botão "Editar projeto". A folha de equipamento validado mostra o contato, mas não o frete. Abrindo, mostra o que ainda está pendente e o que já foi realizado, com o tempo gasto em cada etapa.
 
 Projeto encerrado sai da lista de andamento e só volta pelo filtro de concluídos, com a data do encerramento. Dá para reabrir.
 

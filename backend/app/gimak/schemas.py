@@ -59,11 +59,16 @@ class SenhaUpdate(BaseModel):
     senha: str = Field(min_length=8, max_length=200)
 
 
+Frete = Literal["", "CIF", "FOB"]
+
+
 class ProjetoCreate(BaseModel):
     cliente: str = Field(min_length=2, max_length=180)
     equipamento: str = Field(min_length=2, max_length=180)
     cidade: str = Field(default="", max_length=120)
     whatsapp: str = Field(default="", max_length=30)
+    contato: str = Field(default="", max_length=120)
+    frete: Frete = ""
 
 
 class ProjetoUpdate(BaseModel):
@@ -71,6 +76,8 @@ class ProjetoUpdate(BaseModel):
     equipamento: str | None = Field(default=None, min_length=2, max_length=180)
     cidade: str | None = Field(default=None, max_length=120)
     whatsapp: str | None = Field(default=None, max_length=30)
+    contato: str | None = Field(default=None, max_length=120)
+    frete: Frete | None = None
     concluido: bool | None = None
 
 
@@ -80,6 +87,8 @@ class ProjetoRead(BaseModel):
     equipamento: str
     cidade: str = ""
     whatsapp: str = ""
+    contato: str = ""
+    frete: str = ""
     ativo: bool
     concluidoEm: datetime | None = None
     createdAt: datetime

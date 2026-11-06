@@ -241,6 +241,8 @@ def create_project(
         equipamento=payload.equipamento.strip(),
         cidade=payload.cidade.strip(),
         whatsapp=payload.whatsapp.strip(),
+        contato=payload.contato.strip(),
+        frete=payload.frete,
     )
     db.add(project)
     db.commit()
